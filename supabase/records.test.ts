@@ -107,3 +107,28 @@ describe('records migration', () => {
     await expect(applyMigrations()).resolves.toBeUndefined()
   })
 })
+
+describe('garmin token migration', () => {
+  const token = (user: string) =>
+    asUser<{ token: string }>(user, 'select token from public.garmin_token')
+
+  it('lets each user keep one token, replaced on the next save', async () => {
+    const save = (value: string) =>
+      asUser(
+        USER_A,
+        `insert into public.garmin_token (user_id, token, expires_at) values ($1, $2, now() + interval '1 day')
+         on conflict (user_id) do update set token = excluded.token, expires_at = excluded.expires_at`,
+        [USER_A, value],
+      )
+    await save('first')
+    await save('second')
+    expect(await token(USER_A)).toEqual([{ token: 'second' }])
+  })
+
+  it('keeps the token private', async () => {
+    expect(await token(USER_B)).toEqual([])
+    await expect(
+      asUser(USER_B, `insert into public.garmin_token (user_id, token, expires_at) values ($1, 'x', now())`, [USER_A]),
+    ).rejects.toThrow()
+  })
+})

@@ -25,18 +25,26 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
+/** The signed-in user calling, with the headers that act as them on the project's API. */
+interface Caller {
+  id: string
+  headers: { Authorization: string; apikey: string }
+}
+
 /** Same check as analyze-meal: the caller must be a signed-in user of this project. */
-async function isSignedIn(req: Request): Promise<boolean> {
+async function signedInCaller(req: Request): Promise<Caller | undefined> {
   const authorization = req.headers.get('Authorization')
   const apikey = req.headers.get('apikey')
-  if (!authorization || !apikey) return false
+  if (!authorization || !apikey) return undefined
   try {
     const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/user`, {
       headers: { Authorization: authorization, apikey },
     })
-    return response.ok
+    if (!response.ok) return undefined
+    const user = (await response.json()) as { id?: unknown }
+    return typeof user.id === 'string' ? { id: user.id, headers: { Authorization: authorization, apikey } } : undefined
   } catch {
-    return false
+    return undefined
   }
 }
 
@@ -60,11 +68,52 @@ function expiry(jwt: string): number | undefined {
   }
 }
 
-// The access token lasts 24 h; a warm function reuses it instead of asking Garmin again.
-let token: { value: string; expiresAt: number } | undefined
+interface Token {
+  value: string
+  expiresAt: number
+}
 
-async function accessToken(key: string, renew = false): Promise<string> {
-  if (!renew && token && token.expiresAt - 5 * 60_000 > Date.now()) return token.value
+const fresh = (t: Token | undefined): t is Token => !!t && t.expiresAt - 5 * 60_000 > Date.now()
+
+const tokenTable = () => `${Deno.env.get('SUPABASE_URL')}/rest/v1/garmin_token`
+
+// The access token lasts 24 h. The function starts cold on most calls, so besides this copy in
+// memory the token is kept in the caller's own row of garmin_token (see its migration). If that
+// table fails, the function still works, only asking Garmin for a new token more often.
+let token: Token | undefined
+
+async function storedToken(caller: Caller): Promise<Token | undefined> {
+  try {
+    const response = await fetch(`${tokenTable()}?select=token,expires_at`, { headers: caller.headers })
+    if (!response.ok) return undefined
+    const [row] = (await response.json()) as { token?: string; expires_at?: string }[]
+    return row?.token && row.expires_at ? { value: row.token, expiresAt: Date.parse(row.expires_at) } : undefined
+  } catch {
+    return undefined
+  }
+}
+
+async function storeToken(caller: Caller, value: Token): Promise<void> {
+  try {
+    await fetch(`${tokenTable()}?on_conflict=user_id`, {
+      method: 'POST',
+      headers: { ...caller.headers, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ user_id: caller.id, token: value.value, expires_at: new Date(value.expiresAt).toISOString() }),
+    })
+  } catch {
+    // The copy in memory still serves this call.
+  }
+}
+
+async function accessToken(key: string, caller: Caller, renew = false): Promise<string> {
+  if (!renew) {
+    if (fresh(token)) return token.value
+    const stored = await storedToken(caller)
+    if (fresh(stored)) {
+      token = stored
+      return stored.value
+    }
+  }
   const response = await fetch(`${BASE}${TOKEN_PATH}`, { method: 'POST', headers: { Authorization: `ApiKey ${key}` } })
   if (response.status === 401 || response.status === 403) {
     throw new GarminError('O Garmin recusou a chave. Confira GARMIN_API_KEY nos segredos do Supabase; ela pode ter vencido.', 502, response.status)
@@ -75,6 +124,7 @@ async function accessToken(key: string, renew = false): Promise<string> {
   const value = text.startsWith('{') ? (JSON.parse(text).access_token ?? JSON.parse(text).token) : text.replace(/^"|"$/g, '')
   if (typeof value !== 'string' || value.split('.').length !== 3) throw new GarminError('Resposta inesperada do Garmin ao pedir acesso.', 502)
   token = { value, expiresAt: expiry(value) ?? Date.now() + 23 * 3_600_000 }
+  await storeToken(caller, token)
   return value
 }
 
@@ -85,13 +135,15 @@ function upstream(status: number): GarminError {
   return new GarminError(`O Garmin respondeu com erro (${status}).`, 502, status)
 }
 
-async function garmin(path: string, query: Record<string, unknown>, key: string): Promise<Response> {
+async function garmin(path: string, query: Record<string, unknown>, key: string, caller: Caller): Promise<Response> {
   const url = new URL(path, BASE)
   for (const [name, value] of Object.entries(query)) {
     if (['string', 'number', 'boolean'].includes(typeof value)) url.searchParams.set(name, String(value))
   }
   const get = async (renew: boolean) =>
-    fetch(url, { headers: { Authorization: `Bearer ${await accessToken(key, renew)}`, Accept: 'application/json, */*' } })
+    fetch(url, {
+      headers: { Authorization: `Bearer ${await accessToken(key, caller, renew)}`, Accept: 'application/json, */*' },
+    })
   let response = await get(false)
   // A token revoked or expired early: ask for a new one once.
   if (response.status === 401) response = await get(true)
@@ -116,7 +168,8 @@ async function calendar(): Promise<Response> {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'Use POST.' }, 405)
-  if (!(await isSignedIn(req))) return json({ error: 'Entre na sua conta para usar o Garmin.' }, 401)
+  const caller = await signedInCaller(req)
+  if (!caller) return json({ error: 'Entre na sua conta para usar o Garmin.' }, 401)
 
   const body = (await req.json().catch(() => ({}))) as { path?: unknown; query?: unknown; calendar?: unknown }
   try {
@@ -126,7 +179,7 @@ Deno.serve(async (req) => {
     const path = typeof body.path === 'string' ? body.path : ''
     if (!ALLOWED.some((pattern) => pattern.test(path))) return json({ error: 'Consulta não permitida.' }, 400)
     const query = typeof body.query === 'object' && body.query !== null ? (body.query as Record<string, unknown>) : {}
-    return await garmin(path, query, key)
+    return await garmin(path, query, key, caller)
   } catch (error) {
     if (error instanceof GarminError) return json({ error: error.message, garminStatus: error.garminStatus }, error.status)
     return json({ error: 'Não foi possível falar com o Garmin.' }, 502)
