@@ -3,6 +3,7 @@ import type { FoodPref, Settings } from '../../db/types'
 import { buildIndex, searchFoods, TACO_FOODS } from './foods'
 import { goalsFor, kcalFromMacros, mealAt, scale, sumNutrients } from './nutrition'
 import { parseProduct } from './openFoodFacts'
+import { matchItems, parseAnalysis } from './photo'
 
 const index = buildIndex(TACO_FOODS)
 const noPrefs = new Map<string, FoodPref>()
@@ -64,6 +65,54 @@ describe('nutrition', () => {
 
   it('computes energy from macros', () => {
     expect(kcalFromMacros({ protein: 150, carbs: 200, fat: 70 })).toBe(2030)
+  })
+})
+
+describe('photo analysis', () => {
+  it('keeps well-formed items and drops the rest', () => {
+    const analysis = parseAnalysis({
+      items: [
+        { name: 'Arroz branco', search: 'arroz tipo 1 cozido', grams: 152.4, confidence: 'alta' },
+        { name: 'Sem peso', search: 'x', grams: 0, confidence: 'alta' },
+        { name: 'Molho', grams: 30, confidence: 'talvez' },
+        'lixo',
+      ],
+      notes: 'Óleo do preparo não aparece.',
+    })
+    expect(analysis).toEqual({
+      notes: 'Óleo do preparo não aparece.',
+      items: [
+        { name: 'Arroz branco', search: 'arroz tipo 1 cozido', grams: 152, confidence: 'alta' },
+        { name: 'Molho', search: 'Molho', grams: 30, confidence: 'media' },
+      ],
+    })
+    expect(parseAnalysis(null)).toEqual({ items: [], notes: '' })
+  })
+
+  it('pairs each item with foods from the table', () => {
+    const [rice, beans] = matchItems(
+      {
+        notes: '',
+        items: [
+          { name: 'Arroz branco', search: 'arroz tipo 1 cozido', grams: 150, confidence: 'alta' },
+          { name: 'Feijão', search: 'feijao carioca cozido', grams: 100, confidence: 'media' },
+        ],
+      },
+      index,
+      noPrefs,
+    )
+    expect(rice.candidates[0].name).toBe('Arroz, tipo 1, cozido')
+    expect(rice.foodId).toBe(rice.candidates[0].id)
+    expect(beans.candidates[0].name).toBe('Feijão, carioca, cozido')
+  })
+
+  it('falls back to looser searches when the exact words find nothing', () => {
+    const [banana] = matchItems(
+      { notes: '', items: [{ name: 'Banana', search: 'banana prata madura grande', grams: 90, confidence: 'alta' }] },
+      index,
+      noPrefs,
+    )
+    expect(banana.candidates[0].name).toMatch(/^Banana/)
   })
 })
 

@@ -1,0 +1,7 @@
+# Supabase CLI settings for this project (used by `supabase link`, `db push`, `functions deploy`).
+project_id = "fitness"
+
+# The function checks the signed-in user itself (see its isSignedIn), so the platform's
+# legacy JWT check, which rejects the new publishable keys, stays off.
+[functions.analyze-meal]
+verify_jwt = false

@@ -1,6 +1,7 @@
-import { Plus, ScanBarcode, Star, Trash2 } from 'lucide-react'
+import { Camera, Plus, ScanBarcode, Star, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
+import { Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { Button, Card, Empty, Field, IconButton, Page, Segmented, Select, TextInput } from '../../components/ui'
 import { useToday } from '../../db/hooks'
@@ -8,11 +9,13 @@ import { remove } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { FoodLog, FoodPref, MealKey, SavedMeal } from '../../db/types'
 import { formatNumber } from '../../lib/format'
+import { useSyncState } from '../../sync/controller'
 import { BarcodeScanner } from './BarcodeScanner'
 import { FoodForm, type FoodDraft } from './FoodForm'
 import { buildIndex, fromCustom, searchFoods, TACO_SOURCE, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
 import { logItems, MEAL_LABEL, mealAt, MEALS, sumNutrients, useSavedMeals } from './nutrition'
 import { fetchProduct } from './openFoodFacts'
+import { PhotoReview } from './PhotoReview'
 import { PortionModal } from './PortionModal'
 
 type Tab = 'recent' | 'favorites' | 'meals'
@@ -31,7 +34,13 @@ export default function AddFoodPage() {
   const [selected, setSelected] = useState<FoodItem | null>(null)
   const [draft, setDraft] = useState<FoodDraft | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [photo, setPhoto] = useState<Blob | null>(null)
+  const [photoHelp, setPhotoHelp] = useState(false)
   const search = useRef<HTMLInputElement>(null)
+  const photoInput = useRef<HTMLInputElement>(null)
+  const sync = useSyncState()
+  // The analysis runs in a Supabase function, so it needs the sync set up and a login.
+  const canAnalyze = sync.configured && !!sync.email
 
   const catalog = useFoodCatalog()
   const prefs = useFoodPrefs()
@@ -102,6 +111,24 @@ export default function AddFoodPage() {
           <IconButton label="Ler código de barras" className="size-11 border border-line" onClick={() => setScanning(true)}>
             <ScanBarcode size={20} />
           </IconButton>
+          <IconButton
+            label="Foto do prato"
+            className="size-11 border border-line"
+            onClick={() => (canAnalyze ? photoInput.current?.click() : setPhotoHelp(true))}
+          >
+            <Camera size={20} />
+          </IconButton>
+          <input
+            ref={photoInput}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) setPhoto(file)
+              event.target.value = ''
+            }}
+          />
         </div>
         <div className="mt-3">
           <Field label="Refeição">
@@ -186,6 +213,30 @@ export default function AddFoodPage() {
         <FoodForm initial={draft} onClose={() => setDraft(null)} onSaved={(food) => setSelected(fromCustom(food))} />
       )}
       {scanning && <BarcodeScanner onClose={() => setScanning(false)} onDetected={onBarcode} />}
+      {photo && (
+        <PhotoReview
+          file={photo}
+          initialMeal={meal}
+          date={date}
+          index={index}
+          prefs={prefs}
+          onClose={() => setPhoto(null)}
+          onDone={(count, logged) =>
+            toast({ message: `${count} ${count === 1 ? 'item adicionado' : 'itens adicionados'} · ${MEAL_LABEL[logged]}` })
+          }
+        />
+      )}
+      {photoHelp && (
+        <Modal open title="Foto do prato" onClose={() => setPhotoHelp(false)}>
+          <p className="text-sm text-ink-2">
+            A análise da foto roda num servidor seu (Supabase), que guarda a chave da IA com segurança. Ligue a
+            sincronização e entre na sua conta em Ajustes; o passo a passo está no README do projeto.
+          </p>
+          <Link to="/ajustes" className="mt-4 inline-block font-medium text-accent-ink">
+            Abrir Ajustes
+          </Link>
+        </Modal>
+      )}
     </Page>
   )
 }

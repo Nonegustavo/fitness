@@ -20,7 +20,7 @@ Outros comandos:
 
 ## Ligar a sincronização (Supabase)
 
-Sem isso o app funciona, mas os dados ficam só no aparelho em que foram registrados.
+Sem isso o app funciona, mas os dados ficam só no aparelho em que foram registrados, e a foto do prato fica desligada.
 
 1. Crie um projeto gratuito em [supabase.com](https://supabase.com).
 2. No projeto, abra **SQL Editor**, cole o conteúdo de [`supabase/migrations/20261102000000_records.sql`](supabase/migrations/20261102000000_records.sql) e rode.
@@ -37,6 +37,21 @@ Sem isso o app funciona, mas os dados ficam só no aparelho em que foram registr
 7. Rode `npm run dev` de novo, abra **Ajustes** e entre com o usuário criado.
 
 A publishable key pode ficar dentro do app: quem protege os dados é o login e as regras do banco, em que cada usuário só enxerga os próprios registros.
+
+### Foto do prato
+
+A foto é analisada pelo Claude numa função do Supabase ([`supabase/functions/analyze-meal`](supabase/functions/analyze-meal/index.ts)). A chave da Anthropic fica só no servidor, e a função só atende quem está logado no seu projeto.
+
+1. Crie uma chave em [console.anthropic.com](https://console.anthropic.com) (**API Keys**) e coloque créditos na conta. Cada foto custa alguns centavos de dólar.
+2. No Supabase, em **Edge Functions → Secrets**, crie o segredo `ANTHROPIC_API_KEY` com essa chave. Não coloque a chave no código nem no `.env.local`.
+3. Publique a função. O id do projeto é o `xxxx` de `https://xxxx.supabase.co`:
+
+   ```bash
+   npx supabase login
+   npx supabase functions deploy analyze-meal --project-ref xxxx --no-verify-jwt
+   ```
+
+   O `--no-verify-jwt` desliga a checagem antiga da plataforma, que não aceita as novas chaves publishable; a função confere o login sozinha.
 
 ## Publicar no GitHub Pages (para usar no celular)
 
@@ -60,7 +75,7 @@ A publishable key pode ficar dentro do app: quem protege os dados é o login e a
 src/
   db/          banco local (Dexie), tipos e backup
   sync/        motor de sincronização e cliente do Supabase
-  features/    telas: hoje, corpo, água, hábitos, ajustes
+  features/    telas: hoje, treinos, alimentação, corpo, água, hábitos, ajustes
   components/  componentes de interface e gráficos (ECharts)
-supabase/      SQL do banco e os testes dele
+supabase/      SQL do banco (e os testes dele) e a função da foto do prato
 ```

@@ -53,7 +53,7 @@ Limitação conhecida: com o celular bloqueado ou o app em segundo plano, o avis
 - [x] Refeições do dia, metas de kcal e macros, com metas próprias para dias de treino (detectados pelos treinos)
 - [x] Favoritos, recentes com a última quantidade, repetir refeição de ontem, refeições salvas
 - [x] Histórico de 14 dias contra a meta e médias de macros
-- [ ] Foto do prato: a IA (Claude) identifica os alimentos e estima os gramas; você ajusta e confirma. Depende do Supabase configurado e de uma chave da API da Anthropic, que fica guardada no servidor e não no app.
+- [x] Foto do prato: a IA (Claude) identifica os alimentos e estima os gramas; você ajusta e confirma. Pronto no código; liga quando o Supabase estiver configurado e a chave da Anthropic estiver nos segredos das funções (passo a passo no README).
 - [ ] Receitas (alimento montado a partir de ingredientes)
 
 Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
