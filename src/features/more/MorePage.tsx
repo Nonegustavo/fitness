@@ -1,9 +1,10 @@
-import { ChevronRight, GlassWater, ListChecks, Moon, Settings } from 'lucide-react'
+import { ChartScatter, ChevronRight, GlassWater, ListChecks, Moon, Settings } from 'lucide-react'
 import { Link } from 'react-router'
 import { Card, Page } from '../../components/ui'
 
 const LINKS = [
   { to: '/sono', label: 'Sono e recuperação', detail: 'Noite, HRV, FC de repouso e Body Battery do Garmin', icon: Moon },
+  { to: '/correlacoes', label: 'Correlações', detail: 'Hábitos, treino e alimentação × sono, recuperação e peso', icon: ChartScatter },
   { to: '/agua', label: 'Água', detail: 'Meta, recipientes e histórico', icon: GlassWater },
   { to: '/habitos', label: 'Hábitos', detail: 'Check do dia, sequências e histórico', icon: ListChecks },
   { to: '/ajustes', label: 'Ajustes', detail: 'Sincronização, Garmin, backup e locais de medida', icon: Settings },

@@ -75,9 +75,15 @@ Cada atividade guarda o resumo do relógio e as amostras reduzidas a até ~1800 
 O SisRUN não tem API pública. Os treinos dele chegam pelo Garmin Connect: os já feitos trazem o treino planejado, e os próximos vêm do calendário publicado.
 
 ### Fase 5 — Correlações
-- Painel cruzando hábitos × sono × peso × treino × alimentação
+- [x] Tela Correlações: cada dia junta sono, recuperação, passos e estresse, peso, treinos, alimentação, água e hábitos
+- [x] Destaques: as relações mais claras, numa frase com as duas médias ("Depois de dias com «Álcool»: HRV da noite de 52 ms, contra 61 ms nos outros dias"), no máximo duas por causa
+- [x] Explorar qualquer par: um ponto por dia, com a média de cada grupo (fez / não fez) ou a linha de tendência, e as duas medidas ao longo do tempo
+- [x] Filtro contra o acaso: teste de Welch para fez / não fez, Spearman para quantidades e correção de Benjamini–Hochberg para os muitos pares testados juntos
+- [x] Período: 90 dias, 6 meses, 1 ano ou tudo
+
+O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono pela manhã em que termina), e a hora de dormir com a própria noite. Hábitos sem registro contam como "não fiz" desde o dia em que foram criados; alimentação e água só contam nos dias com registro. Os primeiros destaques precisam de umas 3 semanas de hábitos marcados.
 
 ## Observações
 
 - A API pessoal da Garmin é nova e só serve para uso próprio. Ela não tem o calendário nem as fases do sono minuto a minuto, e não publica limites de uso: o app busca só o que é novo, no máximo a cada 3 horas. As bibliotecas não oficiais (garminconnect/garth) quebraram em 2026 e não devem ser usadas.
-- Desde 30/09/2026, no Brasil, apps Android instalados fora da Play Store precisam de desenvolvedor verificado. Para uso pessoal existe conta gratuita; resolver isso na Fase 4.
+- Desde 30/09/2026, no Brasil, apps Android instalados fora da Play Store precisam de desenvolvedor verificado. Para uso pessoal existe conta gratuita. Pelo cabo (adb), a instalação funcionou sem isso.

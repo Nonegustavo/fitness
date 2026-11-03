@@ -1,6 +1,6 @@
 # Fitness
 
-App pessoal que junta treinos, corpo, hábitos, alimentação e água num lugar só, no celular e no computador. O plano completo, com as fases e de onde vem cada dado, está em [PLANO.md](PLANO.md).
+App pessoal que junta treinos, corpo, sono, hábitos, alimentação e água num lugar só, no celular e no computador, e cruza esses dados para mostrar o que anda junto. O plano completo, com as fases e de onde vem cada dado, está em [PLANO.md](PLANO.md).
 
 ## Rodar no computador
 
@@ -102,12 +102,13 @@ Os dados do app Android ficam separados dos do app instalado pelo Chrome; a sinc
 - **Local-first.** Tudo é gravado primeiro no IndexedDB do aparelho (com Dexie), então o app abre e registra sem internet.
 - **Sincronização.** O app envia as alterações pendentes e baixa o que mudou nos outros aparelhos: ao abrir, ao voltar a internet, depois de cada registro e a cada minuto. Cada registro guarda a hora da última alteração; em conflito, vale a mais recente.
 - **Servidor.** Uma única tabela genérica (`records`) com RLS guarda todos os registros; o formato dos dados é definido pelo app, então novas telas não precisam de mudanças no banco.
+- **Correlações.** Cada dia vira uma linha com tudo o que o app sabe, e o que acontece num dia é comparado com a noite seguinte. Os destaques usam o teste de Welch (fez / não fez) ou a correlação de Spearman (quantidades) e passam pela correção de Benjamini–Hochberg, que limita os falsos destaques a 10%. A conta é feita no aparelho (`src/features/insights`).
 
 ```
 src/
   db/          banco local (Dexie), tipos e backup
   sync/        motor de sincronização e cliente do Supabase
-  features/    telas: hoje, treinos, atividades e sono do Garmin, alimentação, corpo, água, hábitos, ajustes
+  features/    telas: hoje, treinos, atividades e sono do Garmin, alimentação, corpo, água, hábitos, correlações, ajustes
   components/  componentes de interface e gráficos (ECharts)
 supabase/      SQL do banco (e os testes dele) e as funções da foto do prato e do Garmin
 android/       app Android (Capacitor), com a ponte para o Health Connect

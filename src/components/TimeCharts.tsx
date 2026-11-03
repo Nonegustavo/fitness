@@ -137,18 +137,26 @@ export function LineOverTime({
   unit,
   label,
   digits = 1,
+  format,
+  axis,
 }: {
   points: DayValue[]
   unit: string
   label: string
   digits?: number
+  /** Replaces number + unit, for values like durations or times of day. */
+  format?: (value: number) => string
+  /** Fixed ticks, such as every half hour for times of day. */
+  axis?: { min?: number; max?: number; interval?: number }
 }) {
   const t = useChartTokens()
   const option = useMemo<ChartOption>(
     () => ({
       ...baseOption(t),
       tooltip: crosshairTooltip(t, (items) =>
-        items.map((item) => tooltipRow(t.series1, withUnit(item.value[1], digits, unit), label)).join(''),
+        items
+          .map((item) => tooltipRow(t.series1, format ? format(item.value[1]) : withUnit(item.value[1], digits, unit), label))
+          .join(''),
       ),
       xAxis: timeAxis(t),
       yAxis: {
@@ -156,8 +164,9 @@ export function LineOverTime({
         scale: true,
         // Whole-number series (bpm, ms) get whole-number ticks, so no label repeats.
         minInterval: digits === 0 ? 1 : undefined,
+        ...axis,
         ...axisStyle(t),
-        axisLabel: { color: t.muted, fontSize: 11, formatter: (value: number) => formatNumber(value, digits) },
+        axisLabel: { color: t.muted, fontSize: 11, formatter: (value: number) => (format ? format(value) : formatNumber(value, digits)) },
       },
       series: [
         {
@@ -171,7 +180,7 @@ export function LineOverTime({
         },
       ],
     }),
-    [t, points, unit, label, digits],
+    [t, points, unit, label, digits, format, axis],
   )
   return <Chart option={option} height={200} label={`${label} ao longo do tempo`} />
 }

@@ -18,6 +18,7 @@ const ExerciseDetail = lazy(() => import('./features/training/ExerciseDetail'))
 const ActivitiesPage = lazy(() => import('./features/activities/ActivitiesPage'))
 const ActivityPage = lazy(() => import('./features/activities/ActivityPage'))
 const SleepPage = lazy(() => import('./features/garmin/SleepPage'))
+const InsightsPage = lazy(() => import('./features/insights/InsightsPage'))
 const FoodPage = lazy(() => import('./features/food/FoodPage'))
 const AddFoodPage = lazy(() => import('./features/food/AddFoodPage'))
 const MorePage = lazy(() => import('./features/more/MorePage'))
@@ -40,6 +41,7 @@ const router = createHashRouter([
       { path: 'alimentacao/adicionar', element: <AddFoodPage /> },
       { path: 'corpo', element: <BodyPage /> },
       { path: 'sono', element: <SleepPage /> },
+      { path: 'correlacoes', element: <InsightsPage /> },
       { path: 'mais', element: <MorePage /> },
       { path: 'agua', element: <WaterPage /> },
       { path: 'habitos', element: <HabitsPage /> },
