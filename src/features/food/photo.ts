@@ -57,7 +57,7 @@ export function matchItems(analysis: PhotoAnalysis, index: SearchEntry[], prefs:
   })
 }
 
-// Claude scales larger images down to about this size anyway; sending less is faster and cheaper.
+// Enough detail to tell the foods apart; Opus 5.5 would read up to 2576 px, at about twice the image tokens.
 const MAX_SIDE = 1568
 
 export interface PreparedPhoto {

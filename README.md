@@ -38,20 +38,22 @@ Sem isso o app funciona, mas os dados ficam só no aparelho em que foram registr
 
 A publishable key pode ficar dentro do app: quem protege os dados é o login e as regras do banco, em que cada usuário só enxerga os próprios registros.
 
+No plano gratuito, o projeto pausa depois de uma semana sem uso. É só restaurá-lo no painel; enquanto isso, o app segue funcionando no aparelho.
+
 ### Foto do prato
 
 A foto é analisada pelo Claude numa função do Supabase ([`supabase/functions/analyze-meal`](supabase/functions/analyze-meal/index.ts)). A chave da Anthropic fica só no servidor, e a função só atende quem está logado no seu projeto.
 
-1. Crie uma chave em [console.anthropic.com](https://console.anthropic.com) (**API Keys**) e coloque créditos na conta. Cada foto custa alguns centavos de dólar.
+1. Em [platform.claude.com](https://platform.claude.com/settings/keys), crie uma chave em **API keys → Create key** e escolha um workspace para ela (por exemplo, **Default**): a API recusa chaves sem workspace. Coloque créditos em **Billing**; cada foto custa uns 5 centavos de dólar.
 2. No Supabase, em **Edge Functions → Secrets**, crie o segredo `ANTHROPIC_API_KEY` com essa chave. Não coloque a chave no código nem no `.env.local`.
 3. Publique a função. O id do projeto é o `xxxx` de `https://xxxx.supabase.co`:
 
    ```bash
    npx supabase login
-   npx supabase functions deploy analyze-meal --project-ref xxxx --no-verify-jwt
+   npx supabase functions deploy analyze-meal --remote=xxxx --no-verify-jwt --use-api
    ```
 
-   O `--no-verify-jwt` desliga a checagem antiga da plataforma, que não aceita as novas chaves publishable; a função confere o login sozinha.
+   O `--use-api` empacota a função nos servidores do Supabase, sem precisar do Docker. O `--no-verify-jwt` deixa a checagem de login com a própria função, que confere o usuário no Supabase Auth. Com o MCP do Supabase conectado ao Claude, dá para publicar pela ferramenta `deploy_edge_function`, com `verify_jwt` desligado.
 
 ## Publicar no GitHub Pages (para usar no celular)
 
