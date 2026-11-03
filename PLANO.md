@@ -37,11 +37,15 @@ App pessoal que junta treinos de academia, atividades do Garmin, corpo, sono, h�
 - [ ] Criar o projeto no Supabase e publicar no GitHub Pages (passo a passo no README)
 
 ### Fase 2 — Treinos de academia
-- Biblioteca de exercícios (grupo muscular, equipamento)
-- Montar fichas no computador: séries, repetições, carga, descanso, observações
-- Executar no celular: marcar séries, timer de descanso, carga da última vez, tela sempre ligada
-- Guardar o horário de cada série, para cruzar com a FC do relógio na Fase 4
-- Histórico, volume por grupo muscular, 1RM estimado, progressão
+- [x] Biblioteca de exercícios (grupo muscular, equipamento), com ~60 exercícios prontos e os seus próprios
+- [x] Montar fichas: séries (com aquecimento), faixa de repetições, carga, descanso, observações
+- [x] Executar no celular: marcar séries, timer de descanso com som e vibração, carga da última vez, tela sempre ligada
+- [x] Sugestão de carga por progressão dupla (bateu o topo da faixa em todas as séries → sobe um degrau)
+- [x] Guardar o horário de cada série, para cruzar com a FC do relógio na Fase 4
+- [x] Histórico, séries por grupo muscular na semana, 1RM estimado com gráfico, recordes
+- [x] Rotação de fichas (A → B → C) e o próximo treino na tela Hoje
+
+Limitação conhecida: com o celular bloqueado ou o app em segundo plano, o aviso do fim do descanso pode não tocar (limite de PWA). O app mantém a tela ligada durante o treino; o app Android da Fase 4 resolve com notificação nativa.
 
 ### Fase 3 — Alimentação
 - Base TACO/TBCA, alimentos e receitas próprios, código de barras (Open Food Facts)

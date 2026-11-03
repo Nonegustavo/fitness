@@ -1,7 +1,10 @@
 import { X } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { IconButton } from './ui'
+import { Button, IconButton } from './ui'
+
+/** Open modals, innermost last: Escape only closes the top one. */
+const openModals: symbol[] = []
 
 /** Bottom sheet on phones, centered dialog on wider screens. */
 export function Modal({
@@ -17,17 +20,20 @@ export function Modal({
 }) {
   useEffect(() => {
     if (!open) return
+    const id = Symbol(title)
+    openModals.push(id)
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && openModals.at(-1) === id) onClose()
     }
     document.addEventListener('keydown', onKey)
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
+      openModals.splice(openModals.indexOf(id), 1)
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = overflow
     }
-  }, [open, onClose])
+  }, [open, onClose, title])
 
   if (!open) return null
   return createPortal(
@@ -49,5 +55,42 @@ export function Modal({
       </div>
     </div>,
     document.body,
+  )
+}
+
+export function Confirm({
+  title,
+  message,
+  confirmLabel,
+  danger = false,
+  onConfirm,
+  onClose,
+}: {
+  title: string
+  message: ReactNode
+  confirmLabel: string
+  danger?: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  return (
+    <Modal open title={title} onClose={onClose}>
+      <div className="text-sm text-ink-2">{message}</div>
+      <div className="mt-5 flex gap-2">
+        <Button className="flex-1" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button
+          variant={danger ? 'danger' : 'primary'}
+          className="flex-1"
+          onClick={() => {
+            onConfirm()
+            onClose()
+          }}
+        >
+          {confirmLabel}
+        </Button>
+      </div>
+    </Modal>
   )
 }

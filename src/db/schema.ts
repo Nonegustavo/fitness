@@ -1,5 +1,7 @@
 import Dexie, { type Table } from 'dexie'
+import { DEFAULT_EXERCISES } from './defaultExercises'
 import type {
+  Exercise,
   Habit,
   HabitLog,
   MeasurementEntry,
@@ -9,6 +11,8 @@ import type {
   WaterContainer,
   WaterLog,
   WeightEntry,
+  WorkoutSession,
+  WorkoutTemplate,
 } from './types'
 
 /** Tables mirrored to the server. Each name doubles as the remote `collection`. */
@@ -20,6 +24,9 @@ export const SYNCED_TABLES = [
   'habits',
   'habitLogs',
   'settings',
+  'exercises',
+  'workoutTemplates',
+  'workoutSessions',
 ] as const
 
 export type SyncedTableName = (typeof SYNCED_TABLES)[number]
@@ -34,6 +41,9 @@ export interface MetaRow {
 }
 
 export const SETTINGS_ID = 'settings'
+
+/** Meta key holding the last server rev this device has pulled. */
+export const PULL_CURSOR = 'pullCursor'
 
 export const DEFAULT_MEASUREMENT_SITES: MeasurementSite[] = [
   { key: 'neck', label: 'Pescoço' },
@@ -72,6 +82,9 @@ export class FitnessDB extends Dexie {
   habits!: Table<Habit, string>
   habitLogs!: Table<HabitLog, string>
   settings!: Table<Settings, string>
+  exercises!: Table<Exercise, string>
+  workoutTemplates!: Table<WorkoutTemplate, string>
+  workoutSessions!: Table<WorkoutSession, string>
   meta!: Table<MetaRow, string>
 
   constructor(name = 'fitness') {
@@ -88,9 +101,21 @@ export class FitnessDB extends Dexie {
       settings: 'id, dirty',
       meta: 'key',
     })
+    this.version(2)
+      .stores({
+        exercises: 'id, dirty',
+        workoutTemplates: 'id, dirty',
+        workoutSessions: 'id, date, dirty',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('exercises').bulkAdd(DEFAULT_EXERCISES)
+        await tx.table('meta').delete(PULL_CURSOR)
+      })
+    // Runs instead of the upgrades when the database is created from scratch.
     this.on('populate', (tx) => {
       tx.table('settings').add({ id: SETTINGS_ID, ...DEFAULT_SETTINGS, ...seedMeta })
       tx.table('waterContainers').bulkAdd(DEFAULT_CONTAINERS)
+      tx.table('exercises').bulkAdd(DEFAULT_EXERCISES)
     })
   }
 }

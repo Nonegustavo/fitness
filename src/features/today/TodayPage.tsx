@@ -1,4 +1,4 @@
-import { Scale } from 'lucide-react'
+import { Scale, Settings } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { Button, Card, Page, Stat } from '../../components/ui'
@@ -9,6 +9,7 @@ import { changeOver } from '../../lib/stats'
 import { metricSeries, useWeights } from '../body/body'
 import { WeightModal } from '../body/WeightModal'
 import { HabitCheckList } from '../habits/HabitCheckList'
+import { TodayWorkoutCard } from '../training/TodayWorkoutCard'
 import { sumMl, useWaterLogs } from '../water/water'
 import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
 
@@ -28,7 +29,22 @@ export default function TodayPage() {
   const weighedToday = weights?.some((entry) => entry.date === today) ?? false
 
   return (
-    <Page title="Hoje" subtitle={formatDay(today)}>
+    <Page
+      title="Hoje"
+      subtitle={formatDay(today)}
+      actions={
+        <Link
+          to="/ajustes"
+          aria-label="Ajustes"
+          title="Ajustes"
+          className="inline-flex size-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-2 lg:hidden"
+        >
+          <Settings size={20} />
+        </Link>
+      }
+    >
+      <TodayWorkoutCard today={today} />
+
       <Card
         title="Corpo"
         action={

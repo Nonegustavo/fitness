@@ -29,7 +29,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         <div
           key={toast.key}
           role="status"
-          className="fixed inset-x-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-sm items-center justify-between gap-3 rounded-2xl bg-ink px-4 py-3 text-sm text-plane shadow-lg lg:bottom-6"
+          // At the top, so it never covers the rest timer or the bottom navigation.
+          className="fixed inset-x-4 top-[max(env(safe-area-inset-top),0.75rem)] z-[60] mx-auto flex max-w-sm items-center justify-between gap-3 rounded-2xl bg-ink px-4 py-3 text-sm text-plane shadow-lg"
         >
           <span>{toast.message}</span>
           {toast.action && (

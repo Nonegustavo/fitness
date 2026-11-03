@@ -10,10 +10,10 @@ import {
   useChartTokens,
   type ChartOption,
   type ChartTokens,
-} from '../../components/Chart'
-import { parseDay } from '../../lib/dates'
-import { formatFixed, formatNumber } from '../../lib/format'
-import type { DayValue } from '../../lib/stats'
+} from './Chart'
+import { parseDay } from '../lib/dates'
+import { formatFixed, formatNumber } from '../lib/format'
+import type { DayValue } from '../lib/stats'
 
 interface AxisParam {
   seriesIndex: number
@@ -129,21 +129,31 @@ export function TrendChart({
   )
 }
 
-/** A single series over time (one measurement site). */
-export function LineOverTime({ points, unit, label }: { points: DayValue[]; unit: string; label: string }) {
+/** A single series over time (one measurement site, one exercise's best set). */
+export function LineOverTime({
+  points,
+  unit,
+  label,
+  digits = 1,
+}: {
+  points: DayValue[]
+  unit: string
+  label: string
+  digits?: number
+}) {
   const t = useChartTokens()
   const option = useMemo<ChartOption>(
     () => ({
       ...baseOption(t),
       tooltip: crosshairTooltip(t, (items) =>
-        items.map((item) => tooltipRow(t.series1, withUnit(item.value[1], 1, unit), label)).join(''),
+        items.map((item) => tooltipRow(t.series1, withUnit(item.value[1], digits, unit), label)).join(''),
       ),
       xAxis: timeAxis(t),
       yAxis: {
         type: 'value',
         scale: true,
         ...axisStyle(t),
-        axisLabel: { color: t.muted, fontSize: 11, formatter: (value: number) => formatNumber(value, 1) },
+        axisLabel: { color: t.muted, fontSize: 11, formatter: (value: number) => formatNumber(value, digits) },
       },
       series: [
         {
@@ -157,7 +167,7 @@ export function LineOverTime({ points, unit, label }: { points: DayValue[]; unit
         },
       ],
     }),
-    [t, points, unit, label],
+    [t, points, unit, label, digits],
   )
   return <Chart option={option} height={200} label={`${label} ao longo do tempo`} />
 }

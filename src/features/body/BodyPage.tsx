@@ -9,7 +9,7 @@ import { formatFixed, formatNumber, formatSigned } from '../../lib/format'
 import { changeOver } from '../../lib/stats'
 import { metricSeries, useMeasurements, useWeights, type MetricSeries } from './body'
 import { MeasurementModal } from './MeasurementModal'
-import { LineOverTime, TrendChart } from './TrendChart'
+import { LineOverTime, TrendChart } from '../../components/TimeCharts'
 import { describeExtras, WeightModal } from './WeightModal'
 
 type Tab = 'peso' | 'medidas'

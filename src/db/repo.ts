@@ -23,6 +23,23 @@ export async function patch<T extends Synced>(
   notifyLocalChange()
 }
 
+/** Read-modify-write of one row inside a transaction, marking it for sync. */
+export async function mutate<T extends Synced>(
+  table: Table<T, string>,
+  id: string,
+  change: (row: T) => T,
+): Promise<T | undefined> {
+  const updated = await table.db.transaction('rw', table, async () => {
+    const row = await table.get(id)
+    if (!row) return undefined
+    const next = { ...change(row), id, updatedAt: Date.now(), dirty: 1 } as T
+    await table.put(next)
+    return next
+  })
+  if (updated) notifyLocalChange()
+  return updated
+}
+
 /** Soft-deletes a row, so the deletion also reaches the other devices. */
 export async function remove<T extends Synced>(table: Table<T, string>, id: string): Promise<void> {
   await table.update(id, { deleted: 1, updatedAt: Date.now(), dirty: 1 } as unknown as UpdateSpec<T>)

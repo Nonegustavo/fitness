@@ -79,3 +79,100 @@ export interface Settings extends Synced {
   waterGoalMl: number
   measurementSites: MeasurementSite[]
 }
+
+export type MuscleGroup =
+  | 'chest'
+  | 'back'
+  | 'shoulders'
+  | 'biceps'
+  | 'triceps'
+  | 'forearms'
+  | 'abs'
+  | 'quads'
+  | 'hamstrings'
+  | 'glutes'
+  | 'adductors'
+  | 'calves'
+  | 'full_body'
+  | 'cardio'
+
+export type Equipment =
+  | 'barbell'
+  | 'dumbbell'
+  | 'machine'
+  | 'cable'
+  | 'smith'
+  | 'bodyweight'
+  | 'kettlebell'
+  | 'band'
+  | 'other'
+
+/** How a set is recorded: load × reps, reps only (body weight), or a duration. */
+export type ExerciseType = 'weight_reps' | 'reps' | 'time'
+
+export interface Exercise extends Synced {
+  name: string
+  muscle: MuscleGroup
+  equipment: Equipment
+  type: ExerciseType
+  notes?: string
+}
+
+/** Warm-up sets don't count toward volume, weekly sets or records. */
+export type SetKind = 'warmup' | 'normal'
+
+/** A set as planned in a template; `repsMax` turns `reps` into a range (8–12). */
+export interface PlannedSet {
+  kind: SetKind
+  reps?: number
+  repsMax?: number
+  weightKg?: number
+  durationSec?: number
+}
+
+export interface TemplateExercise {
+  key: string
+  exerciseId: string
+  restSec: number
+  notes?: string
+  sets: PlannedSet[]
+}
+
+export interface WorkoutTemplate extends Synced {
+  name: string
+  notes?: string
+  exercises: TemplateExercise[]
+  order: number
+}
+
+export interface PerformedSet {
+  key: string
+  kind: SetKind
+  /** What the template asked for, when the set came from one. */
+  target?: Omit<PlannedSet, 'kind'>
+  weightKg?: number
+  reps?: number
+  durationSec?: number
+  done: boolean
+  /** When the set was checked off; lines it up with the watch's heart rate later. */
+  completedAt?: number
+}
+
+export interface SessionExercise {
+  key: string
+  exerciseId: string
+  restSec: number
+  notes?: string
+  sets: PerformedSet[]
+}
+
+export interface WorkoutSession extends Synced {
+  templateId?: string
+  name: string
+  date: DayKey
+  startedAt: number
+  /** Unset while the workout is in progress. */
+  endedAt?: number
+  exercises: SessionExercise[]
+  notes?: string
+}

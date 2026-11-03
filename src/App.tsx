@@ -10,6 +10,11 @@ const BodyPage = lazy(() => import('./features/body/BodyPage'))
 const WaterPage = lazy(() => import('./features/water/WaterPage'))
 const HabitsPage = lazy(() => import('./features/habits/HabitsPage'))
 const SettingsPage = lazy(() => import('./features/settings/SettingsPage'))
+const TrainingPage = lazy(() => import('./features/training/TrainingPage'))
+const TemplateEditor = lazy(() => import('./features/training/TemplateEditor'))
+const SessionPage = lazy(() => import('./features/training/SessionPage'))
+const ExercisesPage = lazy(() => import('./features/training/ExercisesPage'))
+const ExerciseDetail = lazy(() => import('./features/training/ExerciseDetail'))
 
 const router = createHashRouter([
   {
@@ -18,6 +23,11 @@ const router = createHashRouter([
     errorElement: <RouteError />,
     children: [
       { index: true, element: <TodayPage /> },
+      { path: 'treinos', element: <TrainingPage /> },
+      { path: 'treinos/ficha/:id', element: <TemplateEditor /> },
+      { path: 'treinos/sessao/:id', element: <SessionPage /> },
+      { path: 'treinos/exercicios', element: <ExercisesPage /> },
+      { path: 'treinos/exercicios/:id', element: <ExerciseDetail /> },
       { path: 'corpo', element: <BodyPage /> },
       { path: 'agua', element: <WaterPage /> },
       { path: 'habitos', element: <HabitsPage /> },

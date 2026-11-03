@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { onLocalChange } from '../db/events'
-import { db } from '../db/schema'
-import { PULL_CURSOR, syncOnce } from './engine'
+import { db, PULL_CURSOR } from '../db/schema'
+import { syncOnce } from './engine'
 import { supabase, supabaseRemote } from './supabase'
 
 export interface SyncState {

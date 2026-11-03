@@ -1,4 +1,4 @@
-import { isSyncedTable, SYNCED_TABLES, type FitnessDB } from '../db/schema'
+import { isSyncedTable, PULL_CURSOR, SYNCED_TABLES, type FitnessDB } from '../db/schema'
 import type { Synced } from '../db/types'
 
 /** A row as stored on the server: one generic table keyed by collection + id. */
@@ -22,7 +22,6 @@ export interface Remote {
   pull(afterRev: number, limit: number): Promise<PulledRecord[]>
 }
 
-export const PULL_CURSOR = 'pullCursor'
 const PAGE_SIZE = 500
 
 function toRemote(collection: string, row: Synced): RemoteRecord {

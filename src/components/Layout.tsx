@@ -1,15 +1,18 @@
-import { GlassWater, House, ListChecks, Scale, Settings } from 'lucide-react'
+import { Dumbbell, GlassWater, House, ListChecks, Scale, Settings } from 'lucide-react'
 import { Suspense } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { SyncStatus } from '../features/settings/SyncStatus'
+import { RestTimerBar } from '../features/training/RestTimerBar'
 import { cx } from './ui'
 
+// The phone's bottom bar fits five; Ajustes is reached from the Hoje header there.
 const NAV = [
-  { to: '/', label: 'Hoje', icon: House },
-  { to: '/corpo', label: 'Corpo', icon: Scale },
-  { to: '/agua', label: 'Água', icon: GlassWater },
-  { to: '/habitos', label: 'Hábitos', icon: ListChecks },
-  { to: '/ajustes', label: 'Ajustes', icon: Settings },
+  { to: '/', label: 'Hoje', icon: House, mobile: true },
+  { to: '/treinos', label: 'Treinos', icon: Dumbbell, mobile: true },
+  { to: '/corpo', label: 'Corpo', icon: Scale, mobile: true },
+  { to: '/agua', label: 'Água', icon: GlassWater, mobile: true },
+  { to: '/habitos', label: 'Hábitos', icon: ListChecks, mobile: true },
+  { to: '/ajustes', label: 'Ajustes', icon: Settings, mobile: false },
 ]
 
 export function Layout() {
@@ -49,9 +52,11 @@ export function Layout() {
         </Suspense>
       </main>
 
+      <RestTimerBar />
+
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5">
-          {NAV.map(({ to, label, icon: Icon }) => (
+          {NAV.filter((item) => item.mobile).map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
