@@ -10,6 +10,8 @@ import { metricSeries, useWeights } from '../body/body'
 import { WeightModal } from '../body/WeightModal'
 import { HabitCheckList } from '../habits/HabitCheckList'
 import { TodayFoodCard } from '../food/TodayFoodCard'
+import { TodaySleepCard } from '../garmin/TodaySleepCard'
+import { TodayPlannedCard } from '../garmin/UpcomingWorkouts'
 import { TodayWorkoutCard } from '../training/TodayWorkoutCard'
 import { sumMl, useWaterLogs } from '../water/water'
 import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
@@ -44,6 +46,8 @@ export default function TodayPage() {
         </Link>
       }
     >
+      <TodaySleepCard today={today} />
+      <TodayPlannedCard today={today} />
       <TodayWorkoutCard today={today} />
       <TodayFoodCard today={today} />
 

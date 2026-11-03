@@ -22,7 +22,29 @@ export interface Remote {
   pull(afterRev: number, limit: number): Promise<PulledRecord[]>
 }
 
-const PAGE_SIZE = 500
+const PULL_PAGE = 200
+const PUSH_ROWS = 500
+// Keeps each request small: an activity's samples alone can take ~60 kB.
+const PUSH_BYTES = 1_000_000
+
+/** Consecutive batches of at most `maxRows` rows and about `maxBytes` of JSON (a bigger row goes alone). */
+export function batches<T>(rows: T[], maxRows: number, maxBytes: number): T[][] {
+  const result: T[][] = []
+  let current: T[] = []
+  let bytes = 0
+  for (const row of rows) {
+    const size = JSON.stringify(row).length
+    if (current.length > 0 && (current.length >= maxRows || bytes + size > maxBytes)) {
+      result.push(current)
+      current = []
+      bytes = 0
+    }
+    current.push(row)
+    bytes += size
+  }
+  if (current.length > 0) result.push(current)
+  return result
+}
 
 function toRemote(collection: string, row: Synced): RemoteRecord {
   const { id, updatedAt, deleted, dirty: _dirty, ...data } = row
@@ -44,14 +66,13 @@ export async function pushChanges(db: FitnessDB, remote: Remote): Promise<number
   for (const name of SYNCED_TABLES) {
     const table = db.table<Synced, string>(name)
     const dirty = await table.where('dirty').equals(1).toArray()
-    for (let i = 0; i < dirty.length; i += PAGE_SIZE) {
-      const batch = dirty.slice(i, i + PAGE_SIZE)
-      await remote.push(batch.map((row) => toRemote(name, row)))
+    for (const batch of batches(dirty.map((row) => toRemote(name, row)), PUSH_ROWS, PUSH_BYTES)) {
+      await remote.push(batch)
       await db.transaction('rw', table, async () => {
-        for (const row of batch) {
+        for (const record of batch) {
           // A row edited while the request was in flight stays dirty for the next round.
-          const current = await table.get(row.id)
-          if (current?.updatedAt === row.updatedAt) await table.update(row.id, { dirty: 0 })
+          const current = await table.get(record.id)
+          if (current?.updatedAt === record.updated_at) await table.update(record.id, { dirty: 0 })
         }
       })
       pushed += batch.length
@@ -65,7 +86,7 @@ export async function pullChanges(db: FitnessDB, remote: Remote): Promise<number
   let cursor = Number((await db.meta.get(PULL_CURSOR))?.value ?? 0)
   let pulled = 0
   for (;;) {
-    const page = await remote.pull(cursor, PAGE_SIZE)
+    const page = await remote.pull(cursor, PULL_PAGE)
     if (page.length === 0) break
     await db.transaction('rw', [...tables, db.meta], async () => {
       for (const record of page) {
@@ -83,7 +104,7 @@ export async function pullChanges(db: FitnessDB, remote: Remote): Promise<number
       await db.meta.put({ key: PULL_CURSOR, value: cursor })
     })
     pulled += page.length
-    if (page.length < PAGE_SIZE) break
+    if (page.length < PULL_PAGE) break
   }
   return pulled
 }

@@ -55,6 +55,21 @@ A foto é analisada pelo Claude numa função do Supabase ([`supabase/functions/
 
    O `--use-api` empacota a função nos servidores do Supabase, sem precisar do Docker. O `--no-verify-jwt` deixa a checagem de login com a própria função, que confere o usuário no Supabase Auth. Com o MCP do Supabase conectado ao Claude, dá para publicar pela ferramenta `deploy_edge_function`, com `verify_jwt` desligado.
 
+### Garmin
+
+O app busca no Garmin Connect as atividades (com o .FIT original), o sono, a HRV, a frequência cardíaca de repouso, o estresse e o Body Battery, pela API pessoal da Garmin. A busca passa por uma função do Supabase ([`supabase/functions/garmin`](supabase/functions/garmin/index.ts)): o Garmin não atende navegadores, e a chave precisa ficar privada.
+
+1. No site do Garmin Connect, em [Personal API Token](https://connect.garmin.com/app/settings/personalApiToken), crie uma chave com validade de até 1 ano. Pelos termos, ela é pessoal e só serve para ferramentas de uso próprio.
+2. No Supabase, em **Edge Functions → Secrets**, crie o segredo `GARMIN_API_KEY` com a chave.
+3. Opcional: para ver os treinos agendados (do SisRUN, por exemplo), publique o calendário no Garmin Connect e salve o link do mesmo jeito, como `GARMIN_CALENDAR_URL`.
+4. Publique a função:
+
+   ```bash
+   npx supabase functions deploy garmin --remote=xxxx --no-verify-jwt --use-api
+   ```
+
+Depois, em **Ajustes → Garmin**, toque em **Buscar agora**. A primeira busca traz os últimos 30 dias, e **Buscar 3 meses anteriores** completa o histórico aos poucos. Com o app aberto, a busca também roda sozinha a cada 3 horas.
+
 ## Publicar no GitHub Pages (para usar no celular)
 
 1. No GitHub, em **Settings → Pages**, escolha **Source: GitHub Actions**.
@@ -66,6 +81,8 @@ A foto é analisada pelo Claude numa função do Supabase ([`supabase/functions/
 
 - Composição dos alimentos: TACO — Tabela Brasileira de Composição de Alimentos, 4ª edição, NEPA/UNICAMP, 2011 (reprodução permitida com citação da fonte). A conversão para o formato do app está em [`scripts/convert-taco.mjs`](scripts/convert-taco.mjs), a partir de [marcelosanto/tabela_taco](https://github.com/marcelosanto/tabela_taco).
 - Produtos por código de barras: [Open Food Facts](https://world.openfoodfacts.org), base aberta sob a licença ODbL.
+- Atividades: arquivos .FIT lidos com o [FIT SDK](https://developer.garmin.com/fit) da Garmin. No site do Garmin Connect, abra a atividade, clique na engrenagem e escolha **Exportar original**; o app aceita o .zip baixado.
+- Mapas: © colaboradores do [OpenStreetMap](https://www.openstreetmap.org/copyright), desenhados com [Leaflet](https://leafletjs.com).
 
 ## Como funciona
 
@@ -77,7 +94,7 @@ A foto é analisada pelo Claude numa função do Supabase ([`supabase/functions/
 src/
   db/          banco local (Dexie), tipos e backup
   sync/        motor de sincronização e cliente do Supabase
-  features/    telas: hoje, treinos, alimentação, corpo, água, hábitos, ajustes
+  features/    telas: hoje, treinos, atividades e sono do Garmin, alimentação, corpo, água, hábitos, ajustes
   components/  componentes de interface e gráficos (ECharts)
-supabase/      SQL do banco (e os testes dele) e a função da foto do prato
+supabase/      SQL do banco (e os testes dele) e as funções da foto do prato e do Garmin
 ```

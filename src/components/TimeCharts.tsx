@@ -45,6 +45,8 @@ function crosshairTooltip(t: ChartTokens, rows: (items: AxisParam[]) => string):
   return {
     ...(baseOption(t).tooltip as object),
     trigger: 'axis',
+    // Near the edges of a phone screen, the tooltip would otherwise be cut off.
+    confine: true,
     axisPointer: { type: 'line', lineStyle: { color: t.baseline, width: 1 } },
     formatter: (params: unknown) => {
       const items = params as AxisParam[]
@@ -152,6 +154,8 @@ export function LineOverTime({
       yAxis: {
         type: 'value',
         scale: true,
+        // Whole-number series (bpm, ms) get whole-number ticks, so no label repeats.
+        minInterval: digits === 0 ? 1 : undefined,
         ...axisStyle(t),
         axisLabel: { color: t.muted, fontSize: 11, formatter: (value: number) => formatNumber(value, digits) },
       },

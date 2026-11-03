@@ -1,0 +1,11 @@
+.leaflet-container {
+  background: var(--surface-2);
+  font: inherit;
+}
+
+/* The map tiles have no dark style; inverted, they sit on the dark surface. */
+@media (prefers-color-scheme: dark) {
+  .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+  }
+}

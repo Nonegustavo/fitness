@@ -247,3 +247,147 @@ export interface WorkoutSession extends Synced {
   exercises: SessionExercise[]
   notes?: string
 }
+
+/** One lap as the watch recorded it. Speeds in m/s, distances in meters. */
+export interface ActivityLap {
+  startTime: number
+  elapsedSec: number
+  timerSec: number
+  distanceM?: number
+  avgHr?: number
+  maxHr?: number
+  avgSpeed?: number
+  avgCadence?: number
+  avgPower?: number
+  ascentM?: number
+  /** "active", "rest", "warmup", "cooldown"… */
+  intensity?: string
+}
+
+/** A strength set as the watch recorded it (its own detection, not the app's). */
+export interface WatchSet {
+  startTime: number
+  durationSec: number
+  reps?: number
+  weightKg?: number
+}
+
+/**
+ * One step of a structured workout, as Garmin describes it. Durations and targets only make
+ * sense with their types: seconds for TIME, meters for DISTANCE; speeds in m/s; heart rate
+ * as % of max or bpm + 100; power as % of FTP or watts + 1000. A REPEAT step sends back to
+ * the step at `durationValue`, `targetValue` times.
+ */
+export interface PlannedStep {
+  index: number
+  name?: string
+  notes?: string
+  /** WARMUP, ACTIVE, INTERVAL, RECOVERY, REST, COOLDOWN… */
+  intensity?: string
+  /** TIME, DISTANCE, REPS, OPEN, HR_LESS_THAN, REPEAT_UNTIL_STEPS_CMPLT… */
+  durationType?: string
+  durationValue?: number
+  /** HEART_RATE, SPEED, PACE, CADENCE, POWER, OPEN… */
+  targetType?: string
+  /** A zone number, or 0 for the custom range in targetLow–targetHigh. */
+  targetValue?: number
+  targetLow?: number
+  targetHigh?: number
+}
+
+/** The workout the watch was following (a coach's plan sent to Garmin Connect, for example). */
+export interface PlannedWorkout {
+  name?: string
+  steps: PlannedStep[]
+}
+
+/** A Garmin activity, imported from its .FIT file. */
+export interface Activity extends Synced {
+  /** FIT sport and sub-sport names ("running", "trail"). */
+  sport: string
+  subSport?: string
+  /** The activity's name in Garmin Connect, when it came through the API. */
+  title?: string
+  garminId?: number
+  workout?: PlannedWorkout
+  date: DayKey
+  startTime: number
+  /** Includes pauses. */
+  elapsedSec: number
+  /** Excludes pauses. */
+  timerSec: number
+  distanceM?: number
+  calories?: number
+  avgHr?: number
+  maxHr?: number
+  avgSpeed?: number
+  maxSpeed?: number
+  ascentM?: number
+  descentM?: number
+  /** Steps per minute when on foot, rpm on a bike. */
+  avgCadence?: number
+  avgPower?: number
+  maxPower?: number
+  normalizedPower?: number
+  aerobicEffect?: number
+  anaerobicEffect?: number
+  device?: string
+  laps: ActivityLap[]
+  /** Seconds in heart rate zones 1–5, and each zone's upper limit in bpm. */
+  hrZones?: { seconds: number[]; limits: number[] }
+  sets?: WatchSet[]
+  hasTrack: boolean
+  fileName?: string
+}
+
+/**
+ * An activity's samples, one every `step` seconds from its start, with null during pauses.
+ * Kept apart from the activity so lists don't load them.
+ */
+export interface ActivityStream extends Synced {
+  /** Same id as the activity. */
+  id: string
+  step: number
+  hr?: (number | null)[]
+  speed?: (number | null)[]
+  altitude?: (number | null)[]
+  distance?: (number | null)[]
+  cadence?: (number | null)[]
+  power?: (number | null)[]
+  /** Simplified GPS route as [lat, lon]. */
+  track?: [number, number][]
+}
+
+/** One day of the watch's health data; the night counts for the morning it ends. */
+export interface DailyHealth extends Synced {
+  /** The day key, so each day has a single row on every device. */
+  id: DayKey
+  sleep?: {
+    /** Garmin's sleep score, 0–100. */
+    score?: number
+    start?: number
+    end?: number
+    totalSec: number
+    deepSec?: number
+    lightSec?: number
+    remSec?: number
+    awakeSec?: number
+    napSec?: number
+    avgHr?: number
+    avgRespiration?: number
+  }
+  hrv?: {
+    /** Average over the night, in ms. */
+    lastNight?: number
+    weeklyAvg?: number
+    /** BALANCED, UNBALANCED, LOW, POOR… */
+    status?: string
+    balancedLow?: number
+    balancedHigh?: number
+  }
+  restingHr?: number
+  stress?: { avg?: number; max?: number }
+  bodyBattery?: { low?: number; high?: number; charged?: number; drained?: number }
+  steps?: number
+  calories?: { total?: number; active?: number }
+}

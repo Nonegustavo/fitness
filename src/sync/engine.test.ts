@@ -3,7 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { alive, patch, remove, save, type Draft } from '../db/repo'
 import { FitnessDB, SETTINGS_ID } from '../db/schema'
 import type { WeightEntry } from '../db/types'
-import { countPending, pullChanges, pushChanges, syncOnce, type PulledRecord, type Remote, type RemoteRecord } from './engine'
+import {
+  batches,
+  countPending,
+  pullChanges,
+  pushChanges,
+  syncOnce,
+  type PulledRecord,
+  type Remote,
+  type RemoteRecord,
+} from './engine'
 
 /** In-memory stand-in for the `records` table and the `push_records` function. */
 class MemoryRemote implements Remote {
@@ -139,6 +148,28 @@ describe('sync', () => {
     expect(remote.rows.get(`weights/${row.id}`)?.data.weightKg).toBe(85)
   })
 
+  it('splits a push so large rows travel in several requests', async () => {
+    const remote = new MemoryRemote()
+    const sizes: number[] = []
+    const counting: Remote = {
+      async push(records) {
+        sizes.push(records.length)
+        await remote.push(records)
+      },
+      pull: (afterRev, limit) => remote.pull(afterRev, limit),
+    }
+    const a = newDevice()
+    // About 120 kB of JSON each, like the samples of a long activity.
+    const hr = Array.from({ length: 60_000 }, () => 1)
+    for (let i = 0; i < 12; i++) await save(a.activityStreams, { id: `stream-${i}`, step: 1, hr })
+
+    await pushChanges(a, counting)
+
+    expect(sizes.length).toBeGreaterThan(1)
+    expect(sizes.reduce((sum, n) => sum + n, 0)).toBe(12)
+    expect(await countPending(a)).toBe(0)
+  })
+
   it('merges habit logs for the same day from two devices into one row', async () => {
     const remote = new MemoryRemote()
     const a = newDevice()
@@ -168,5 +199,18 @@ describe('sync', () => {
 
     expect((await b.settings.get(SETTINGS_ID))?.waterGoalMl).toBe(2500)
     expect(await b.waterContainers.count()).toBe(3)
+  })
+})
+
+describe('batches', () => {
+  const row = '12345678' // 10 characters as JSON
+
+  it('closes a batch at the row count or the byte budget', () => {
+    expect(batches([row, row, row], 2, 1_000)).toEqual([[row, row], [row]])
+    expect(batches([row, row, row], 500, 25)).toEqual([[row, row], [row]])
+  })
+
+  it('sends a row larger than the budget on its own', () => {
+    expect(batches([row, 'x'.repeat(100), row], 500, 25)).toEqual([[row], ['x'.repeat(100)], [row]])
   })
 })

@@ -1,4 +1,4 @@
-import { Dumbbell, Ellipsis, GlassWater, House, ListChecks, Scale, Settings, Utensils } from 'lucide-react'
+import { Dumbbell, Ellipsis, GlassWater, House, ListChecks, Moon, Scale, Settings, Utensils } from 'lucide-react'
 import { Suspense } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { SyncStatus } from '../features/settings/SyncStatus'
@@ -11,6 +11,7 @@ const SECTIONS = [
   { to: '/treinos', label: 'Treinos', icon: Dumbbell },
   { to: '/alimentacao', label: 'Alimentação', icon: Utensils },
   { to: '/corpo', label: 'Corpo', icon: Scale },
+  { to: '/sono', label: 'Sono', icon: Moon },
   { to: '/agua', label: 'Água', icon: GlassWater },
   { to: '/habitos', label: 'Hábitos', icon: ListChecks },
   { to: '/ajustes', label: 'Ajustes', icon: Settings },

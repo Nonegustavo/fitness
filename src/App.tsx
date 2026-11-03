@@ -15,6 +15,9 @@ const TemplateEditor = lazy(() => import('./features/training/TemplateEditor'))
 const SessionPage = lazy(() => import('./features/training/SessionPage'))
 const ExercisesPage = lazy(() => import('./features/training/ExercisesPage'))
 const ExerciseDetail = lazy(() => import('./features/training/ExerciseDetail'))
+const ActivitiesPage = lazy(() => import('./features/activities/ActivitiesPage'))
+const ActivityPage = lazy(() => import('./features/activities/ActivityPage'))
+const SleepPage = lazy(() => import('./features/garmin/SleepPage'))
 const FoodPage = lazy(() => import('./features/food/FoodPage'))
 const AddFoodPage = lazy(() => import('./features/food/AddFoodPage'))
 const MorePage = lazy(() => import('./features/more/MorePage'))
@@ -31,9 +34,12 @@ const router = createHashRouter([
       { path: 'treinos/sessao/:id', element: <SessionPage /> },
       { path: 'treinos/exercicios', element: <ExercisesPage /> },
       { path: 'treinos/exercicios/:id', element: <ExerciseDetail /> },
+      { path: 'treinos/atividades', element: <ActivitiesPage /> },
+      { path: 'treinos/atividades/:id', element: <ActivityPage /> },
       { path: 'alimentacao', element: <FoodPage /> },
       { path: 'alimentacao/adicionar', element: <AddFoodPage /> },
       { path: 'corpo', element: <BodyPage /> },
+      { path: 'sono', element: <SleepPage /> },
       { path: 'mais', element: <MorePage /> },
       { path: 'agua', element: <WaterPage /> },
       { path: 'habitos', element: <HabitsPage /> },

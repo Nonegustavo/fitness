@@ -20,7 +20,8 @@ App pessoal que junta treinos de academia, atividades do Garmin, corpo, sono, h�
 | Treinos de academia | Fichas do app | Fase 2 |
 | Atividades (corrida, bike etc.) | Relógio Garmin | Fase 4: import de .FIT; depois automático pela API pessoal da Garmin |
 | FC, calorias e duração da musculação | Relógio Garmin | Fase 4: junta a atividade do relógio com a sessão da ficha pelo horário |
-| Sono, HRV, FC de repouso | Garmin | Fase 4: API pessoal oficial da Garmin (lançada em 21/10/2026). Plano B: Health Connect |
+| Sono, HRV, FC de repouso | Garmin | Fase 4: API pessoal oficial da Garmin (lançada em 21/10/2026). As fases do sono com horário vêm do Health Connect |
+| Treinos agendados | SisRUN → Garmin Connect | Fase 4: calendário publicado do Garmin Connect (iCal) |
 | Alimentação | Tabelas TACO/TBCA, Open Food Facts (código de barras), foto com IA | Fase 3 |
 | Strava | — | Fora: exige assinatura, e as atividades já estão no Garmin |
 
@@ -59,15 +60,23 @@ Limitação conhecida: com o celular bloqueado ou o app em segundo plano, o avis
 Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
 
 ### Fase 4 — Atividades e integrações
-- Importar .FIT (SDK oficial da Garmin) e analisar: FC, pace, potência, cadência, altimetria, voltas, zonas, mapa
-- Sincronização automática pela API pessoal da Garmin: atividades com .FIT, sono, HRV, FC de repouso
-- Juntar a musculação gravada no relógio com a sessão da ficha: duração, FC média e máxima, calorias, FC por série
-- App Android (Capacitor) lendo peso e % de gordura do Health Connect
+- [x] Importar .FIT (SDK oficial da Garmin): vários de uma vez, também de dentro do .zip do "Exportar original" do Garmin Connect
+- [x] Analisar: tempo, distância, ritmo ou velocidade, FC, calorias, subida, cadência, potência e efeito de treino; gráficos por tempo ou distância; zonas de FC; voltas; mapa do percurso
+- [x] Juntar a musculação gravada no relógio com o treino da ficha pelo horário: tempo, FC média e máxima, calorias, gráfico de FC com o fim de cada série e FC máxima de cada série
+- [x] Sincronização pela API pessoal da Garmin, por uma função do Supabase que guarda a chave: atividades com o .FIT, o treino planejado que o relógio seguiu, sono, HRV, FC de repouso, estresse e Body Battery
+- [x] Tela Sono e recuperação, e a última noite na tela Hoje
+- [x] Próximos treinos pelo calendário publicado do Garmin Connect, para onde o SisRUN envia os treinos
+- [ ] Conferir com dados reais: a nota do sono, os limites de período da API e o link do calendário
+- [ ] App Android (Capacitor) lendo do Health Connect a balança completa (peso, água, gordura, massa magra, massa óssea, metabolismo basal) e as fases do sono com horário
+
+Cada atividade guarda o resumo do relógio e as amostras reduzidas a até ~1800 pontos por gráfico. É o que sincroniza entre os aparelhos; o arquivo .FIT original não fica guardado no app.
+
+O SisRUN não tem API pública. Os treinos dele chegam pelo Garmin Connect: os já feitos trazem o treino planejado, e os próximos vêm do calendário publicado.
 
 ### Fase 5 — Correlações
 - Painel cruzando hábitos × sono × peso × treino × alimentação
 
 ## Observações
 
-- A API pessoal da Garmin é nova. Na Fase 4, confirmar quais métricas ela entrega (por exemplo, as fases do sono). As bibliotecas não oficiais (garminconnect/garth) quebraram em 2026 e não devem ser usadas.
+- A API pessoal da Garmin é nova e só serve para uso próprio. Ela não tem o calendário nem as fases do sono minuto a minuto, e não publica limites de uso: o app busca só o que é novo, no máximo a cada 3 horas. As bibliotecas não oficiais (garminconnect/garth) quebraram em 2026 e não devem ser usadas.
 - Desde 30/09/2026, no Brasil, apps Android instalados fora da Play Store precisam de desenvolvedor verificado. Para uso pessoal existe conta gratuita; resolver isso na Fase 4.

@@ -5,3 +5,6 @@ project_id = "fitness"
 # legacy JWT check, which rejects the new publishable keys, stays off.
 [functions.analyze-meal]
 verify_jwt = false
+
+[functions.garmin]
+verify_jwt = false

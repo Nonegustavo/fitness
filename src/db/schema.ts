@@ -1,6 +1,9 @@
 import Dexie, { type Table } from 'dexie'
 import { DEFAULT_EXERCISES } from './defaultExercises'
 import type {
+  Activity,
+  ActivityStream,
+  DailyHealth,
   Exercise,
   Food,
   FoodLog,
@@ -35,6 +38,9 @@ export const SYNCED_TABLES = [
   'foodLogs',
   'foodPrefs',
   'savedMeals',
+  'activities',
+  'activityStreams',
+  'dailyHealth',
 ] as const
 
 export type SyncedTableName = (typeof SYNCED_TABLES)[number]
@@ -97,6 +103,9 @@ export class FitnessDB extends Dexie {
   foodLogs!: Table<FoodLog, string>
   foodPrefs!: Table<FoodPref, string>
   savedMeals!: Table<SavedMeal, string>
+  activities!: Table<Activity, string>
+  activityStreams!: Table<ActivityStream, string>
+  dailyHealth!: Table<DailyHealth, string>
   meta!: Table<MetaRow, string>
 
   constructor(name = 'fitness') {
@@ -130,6 +139,19 @@ export class FitnessDB extends Dexie {
         foodPrefs: 'id, dirty',
         savedMeals: 'id, dirty',
       })
+      .upgrade(async (tx) => {
+        await tx.table('meta').delete(PULL_CURSOR)
+      })
+    this.version(4)
+      .stores({
+        activities: 'id, startTime, dirty',
+        activityStreams: 'id, dirty',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('meta').delete(PULL_CURSOR)
+      })
+    this.version(5)
+      .stores({ dailyHealth: 'id, dirty' })
       .upgrade(async (tx) => {
         await tx.table('meta').delete(PULL_CURSOR)
       })

@@ -7,6 +7,9 @@ import { useToday } from '../../db/hooks'
 import type { MuscleGroup, WorkoutSession } from '../../db/types'
 import { dayKey, parseDay, relativeDay } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
+import { useActivities } from '../activities/activities'
+import { ActivityRow, FitHowTo, ImportFitButton } from '../activities/components'
+import { UpcomingWorkoutsCard } from '../garmin/UpcomingWorkouts'
 import { MUSCLES } from './catalog'
 import { Elapsed, useStartWorkout } from './components'
 import { nextTemplate, setsByMuscle, summarize } from './stats'
@@ -112,6 +115,8 @@ export default function TrainingPage() {
         )}
       </Card>
 
+      <UpcomingWorkoutsCard today={today} />
+
       <Card title="Esta semana">
         <div className="grid grid-cols-3 gap-3">
           <Stat label="Treinos" value={week.length} />
@@ -120,6 +125,8 @@ export default function TrainingPage() {
         </div>
         <MuscleBars counts={setsByMuscle(finished, exercises, weekStart, today)} />
       </Card>
+
+      <ActivitiesCard today={today} />
 
       <Card
         title="Histórico"
@@ -145,6 +152,39 @@ export default function TrainingPage() {
         )}
       </Card>
     </Page>
+  )
+}
+
+const RECENT_ACTIVITIES = 5
+
+/** The latest Garmin activities, with the import button. */
+function ActivitiesCard({ today }: { today: string }) {
+  const activities = useActivities()
+  if (!activities) return null
+  return (
+    <Card
+      title="Atividades do relógio"
+      action={
+        activities.length > 0 ? (
+          <Link to="/treinos/atividades" className="text-sm font-medium text-accent-ink">
+            Ver todas
+          </Link>
+        ) : undefined
+      }
+    >
+      {activities.length === 0 ? (
+        <FitHowTo />
+      ) : (
+        <ul className="divide-y divide-line">
+          {activities.slice(0, RECENT_ACTIVITIES).map((activity) => (
+            <ActivityRow key={activity.id} activity={activity} today={today} />
+          ))}
+        </ul>
+      )}
+      <div className="mt-3">
+        <ImportFitButton />
+      </div>
+    </Card>
   )
 }
 

@@ -86,13 +86,28 @@ export function tooltipRow(color: string, value: string, label: string, kind: 'l
   return `<div style="white-space:nowrap">${key}<strong>${escapeHtml(value)}</strong> <span style="opacity:.7">${escapeHtml(label)}</span></div>`
 }
 
-export function Chart({ option, height = 220, label }: { option: ChartOption; height?: number; label: string }) {
+export function Chart({
+  option,
+  height = 220,
+  label,
+  group,
+}: {
+  option: ChartOption
+  height?: number
+  label: string
+  /** Charts in the same group move their crosshairs together. */
+  group?: string
+}) {
   const element = useRef<HTMLDivElement>(null)
   const chart = useRef<echarts.ECharts | null>(null)
 
   useEffect(() => {
     const instance = echarts.init(element.current!)
     chart.current = instance
+    if (group) {
+      instance.group = group
+      echarts.connect(group)
+    }
     const observer = new ResizeObserver(() => instance.resize())
     observer.observe(element.current!)
     return () => {
@@ -100,6 +115,7 @@ export function Chart({ option, height = 220, label }: { option: ChartOption; he
       instance.dispose()
       chart.current = null
     }
+    // The group is read once: a chart keeps the one it was created with.
   }, [])
 
   useEffect(() => {

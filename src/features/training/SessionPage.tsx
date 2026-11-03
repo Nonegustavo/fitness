@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Minus, Plus, Trash2, TrendingUp, Trophy } from 'lucide-react'
+import { Check, Heart, Minus, Plus, Trash2, TrendingUp, Trophy } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { Confirm } from '../../components/Modal'
@@ -9,6 +9,8 @@ import type { Exercise, ExerciseType, PerformedSet, SessionExercise, WorkoutSess
 import { formatDay } from '../../lib/dates'
 import { formatClock, formatDuration, formatNumber, parseClock, parseDecimal } from '../../lib/format'
 import { newId } from '../../lib/ids'
+import { setPeakHeartRates, useActivityStream, useWorkoutActivity } from '../activities/activities'
+import { WorkoutWatchCard } from '../activities/WorkoutWatchCard'
 import { EQUIPMENT, formatReps, formatSet, MUSCLES } from './catalog'
 import { Elapsed } from './components'
 import { ExercisePicker } from './ExercisePicker'
@@ -45,6 +47,13 @@ export default function SessionPage() {
   const records = useMemo(
     () => (session && !active ? personalRecords(session, history) : new Set<string>()),
     [session, active, history],
+  )
+  // The Garmin activity recorded alongside, once its .FIT is imported.
+  const watchActivity = useWorkoutActivity(session)
+  const watchStream = useActivityStream(watchActivity?.id)
+  const peaks = useMemo(
+    () => (session && watchActivity && watchStream ? setPeakHeartRates(session, watchActivity, watchStream) : undefined),
+    [session, watchActivity, watchStream],
   )
 
   const back = { to: '/treinos', label: 'Treinos' }
@@ -99,6 +108,10 @@ export default function SessionPage() {
         </Card>
       )}
 
+      {!active && watchActivity && (
+        <WorkoutWatchCard session={session} activity={watchActivity} stream={watchStream} exercises={exercises} />
+      )}
+
       {session.exercises.map((exercise) => (
         <ExerciseCard
           key={exercise.key}
@@ -108,6 +121,7 @@ export default function SessionPage() {
           last={lastPerformance(history, exercise.exerciseId, session.startedAt)}
           active={active}
           record={records.has(exercise.exerciseId)}
+          peaks={peaks}
         />
       ))}
       {session.exercises.length === 0 && (
@@ -185,6 +199,7 @@ function ExerciseCard({
   last,
   active,
   record,
+  peaks,
 }: {
   session: WorkoutSession
   exercise: SessionExercise
@@ -192,8 +207,14 @@ function ExerciseCard({
   last: Performance | undefined
   active: boolean
   record: boolean
+  /** Peak heart rate of each set (by key), from the watch. */
+  peaks?: Map<string, number>
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const setPeaks = exercise.sets.flatMap((set) => {
+    const peak = peaks?.get(set.key)
+    return peak === undefined ? [] : [peak]
+  })
   const type = info?.type ?? 'weight_reps'
   const update = (change: (exercise: SessionExercise) => SessionExercise | null) =>
     void updateSession(session.id, (current) => changeExercise(current, exercise.key, change))
@@ -237,6 +258,11 @@ function ExerciseCard({
         </IconButton>
       </div>
       {exercise.notes && <p className="mt-1 text-sm text-ink-2">{exercise.notes}</p>}
+      {setPeaks.length > 0 && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-2">
+          <Heart size={14} aria-hidden /> FC máxima nas séries: {setPeaks.join(' · ')} bpm
+        </p>
+      )}
       {last && lastWorking.length > 0 && (
         <p className="mt-2 text-xs text-ink-2">
           Última vez ({formatDay(last.session.date, 'd/M')}): {lastWorking.map((set) => formatSet(set, type)).join(' · ')}

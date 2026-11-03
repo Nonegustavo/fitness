@@ -28,6 +28,10 @@ const subscribe = (listener: () => void) => {
 
 export const useSyncState = (): SyncState => useSyncExternalStore(subscribe, () => state)
 
+/** For code outside React (the Garmin sync waits for a login). */
+export const getSyncState = (): SyncState => state
+export const onSyncStateChange = subscribe
+
 let running = false
 let runAgain = false
 let timer: ReturnType<typeof setTimeout> | undefined
