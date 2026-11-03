@@ -5,12 +5,14 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // `--mode pages` builds for GitHub Pages, which serves the app under /fitness/.
+// `--mode android` builds for the Capacitor app, which ships its files and needs no service worker.
 export default defineConfig(({ mode }) => ({
   base: mode === 'pages' ? '/fitness/' : '/',
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
+      disable: mode === 'android',
       registerType: 'autoUpdate',
       pwaAssets: { image: 'public/icon.svg', preset: 'minimal-2023' },
       manifest: {

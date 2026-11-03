@@ -7,7 +7,8 @@ import { useToday } from '../../db/hooks'
 import type { DailyHealth } from '../../db/types'
 import { dayRange, formatTime, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
-import { hrvStatus, latestNight, sleepStages, useDailyHealth, type StagePart } from './recovery'
+import { Hypnogram } from './Hypnogram'
+import { hrvStatus, latestNight, sleepStages, STAGE_CLASS, useDailyHealth } from './recovery'
 
 const TREND_DAYS = 30
 
@@ -42,14 +43,6 @@ export default function SleepPage() {
       )}
     </Page>
   )
-}
-
-// Light sleep is a fainter step of deep sleep's blue, in both themes.
-const STAGE_CLASS: Record<StagePart['key'], string> = {
-  deep: 'bg-series-1',
-  light: 'bg-series-1/45',
-  rem: 'bg-series-2',
-  awake: 'bg-muted',
 }
 
 function NightCard({ day }: { day: DailyHealth }) {
@@ -88,6 +81,12 @@ function NightCard({ day }: { day: DailyHealth }) {
             ))}
           </ul>
         </>
+      )}
+      {day.sleepStages && day.sleepStages.length > 1 && (
+        <div className="mt-5">
+          <p className="mb-2 text-sm font-medium">Ao longo da noite</p>
+          <Hypnogram spans={day.sleepStages} />
+        </div>
       )}
     </Card>
   )

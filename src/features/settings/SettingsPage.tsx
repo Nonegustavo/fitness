@@ -9,6 +9,7 @@ import { db, SETTINGS_ID } from '../../db/schema'
 import { dayKey } from '../../lib/dates'
 import { signIn, signOut, syncNow, useSyncState } from '../../sync/controller'
 import { GarminCard } from '../garmin/GarminCard'
+import { HealthConnectCard } from '../healthconnect/HealthConnectCard'
 import { SyncStatus } from './SyncStatus'
 
 export default function SettingsPage() {
@@ -16,6 +17,7 @@ export default function SettingsPage() {
     <Page title="Ajustes">
       <SyncCard />
       <GarminCard />
+      <HealthConnectCard />
       <SitesCard />
       <BackupCard />
       <StorageCard />

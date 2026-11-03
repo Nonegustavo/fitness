@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { alive } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { DailyHealth } from '../../db/types'
+import type { DailyHealth, SleepStage } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 
 /** The days in [from, to] that have health data, oldest first. */
@@ -26,9 +26,17 @@ const HRV_STATUS: Record<string, string> = {
 export const hrvStatus = (status: string | undefined): string | undefined => (status ? HRV_STATUS[status] : undefined)
 
 export interface StagePart {
-  key: 'deep' | 'light' | 'rem' | 'awake'
+  key: SleepStage
   label: string
   seconds: number
+}
+
+// Light sleep is a fainter step of deep sleep's blue, in both themes.
+export const STAGE_CLASS: Record<SleepStage, string> = {
+  deep: 'bg-series-1',
+  light: 'bg-series-1/45',
+  rem: 'bg-series-2',
+  awake: 'bg-muted',
 }
 
 /** The night's stages in the order the bar draws them. */

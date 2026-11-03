@@ -17,6 +17,7 @@ Outros comandos:
 
 - `npm test`: testes da sincronização, dos cálculos e do SQL do Supabase
 - `npm run build`: confere os tipos e gera a versão de produção em `dist/`
+- `npm run build:android`: gera a versão do app Android e copia para `android/` (veja [App Android](#app-android-health-connect))
 
 ## Ligar a sincronização (Supabase)
 
@@ -70,6 +71,18 @@ O app busca no Garmin Connect as atividades (com o .FIT original), o sono, a HRV
 
 Depois, em **Ajustes → Garmin**, toque em **Buscar agora**. A primeira busca traz os últimos 30 dias, e **Buscar 3 meses anteriores** completa o histórico aos poucos. Com o app aberto, a busca também roda sozinha a cada 3 horas.
 
+## App Android (Health Connect)
+
+O app Android é o mesmo app web dentro de uma casca nativa ([Capacitor](https://capacitorjs.com)), com um acesso a mais: o Health Connect do celular. De lá vêm, sozinhos, a balança completa (peso, gordura, massa magra, massa óssea, água e metabolismo basal, gravados pelo app Zepp) e as fases do sono com horário (gravadas pelo Garmin Connect). A ponte com o Health Connect está em [`HealthConnectPlugin.kt`](android/app/src/main/java/io/github/nonegustavo/fitness/HealthConnectPlugin.kt).
+
+Para gerar e instalar, com o [Android Studio](https://developer.android.com/studio) instalado:
+
+1. No celular, ligue as **Opções do desenvolvedor** e a **Depuração USB**, e conecte o cabo.
+2. No computador, rode `npm run build:android` (gera a versão web e copia para o projeto Android) e depois `npx cap open android`. No Android Studio, escolha o celular e toque em **Run**. Instalar pelo cabo dispensa a verificação de desenvolvedor exigida no Brasil.
+3. No app, entre na sua conta em **Ajustes** e toque em **Permitir acesso** no cartão Health Connect. Para trazer mais de 30 dias, permita também o acesso ao histórico.
+
+Os dados do app Android ficam separados dos do app instalado pelo Chrome; a sincronização com o Supabase junta os dois.
+
 ## Publicar no GitHub Pages (para usar no celular)
 
 1. No GitHub, em **Settings → Pages**, escolha **Source: GitHub Actions**.
@@ -97,4 +110,5 @@ src/
   features/    telas: hoje, treinos, atividades e sono do Garmin, alimentação, corpo, água, hábitos, ajustes
   components/  componentes de interface e gráficos (ECharts)
 supabase/      SQL do banco (e os testes dele) e as funções da foto do prato e do Garmin
+android/       app Android (Capacitor), com a ponte para o Health Connect
 ```

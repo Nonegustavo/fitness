@@ -66,8 +66,9 @@ Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; d�
 - [x] Sincronização pela API pessoal da Garmin, por uma função do Supabase que guarda a chave: atividades com o .FIT, o treino planejado que o relógio seguiu, sono, HRV, FC de repouso, estresse e Body Battery
 - [x] Tela Sono e recuperação, e a última noite na tela Hoje
 - [x] Próximos treinos pelo calendário publicado do Garmin Connect, para onde o SisRUN envia os treinos
-- [ ] Conferir com dados reais: a nota do sono, os limites de período da API e o link do calendário
-- [ ] App Android (Capacitor) lendo do Health Connect a balança completa (peso, água, gordura, massa magra, massa óssea, metabolismo basal) e as fases do sono com horário
+- [x] Conferido com dados reais: sono com nota e fases, HRV, recuperação, corridas com o treino do SisRUN e os próximos treinos do calendário
+- [x] App Android (Capacitor) lendo do Health Connect a balança completa (peso, água, gordura, massa magra, massa óssea, metabolismo basal) e as fases do sono com horário, que aparecem na tela Sono
+- [x] Instalado no celular (Xiaomi, Android 16, pelo cabo com "Instalar via USB" ligado) e conferido com os dados reais: pesagens do app Zepp e noites do Garmin com as fases
 
 Cada atividade guarda o resumo do relógio e as amostras reduzidas a até ~1800 pontos por gráfico. É o que sincroniza entre os aparelhos; o arquivo .FIT original não fica guardado no app.
 

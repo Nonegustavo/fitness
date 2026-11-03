@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fitness</string>
+    <string name="title_activity_main">Fitness</string>
+    <string name="package_name">io.github.nonegustavo.fitness</string>
+    <string name="custom_url_scheme">io.github.nonegustavo.fitness</string>
+    <string name="health_privacy_title">Privacidade dos dados de saúde</string>
+    <string name="health_privacy">O Fitness lê do Health Connect, sem alterar nada, o peso e a composição corporal registrados pela sua balança e as fases do sono registradas pelo seu relógio.\n\nEsses dados aparecem só para você, no próprio app. Eles ficam guardados neste aparelho e na sua conta do Supabase, que sincroniza seus aparelhos, e não são compartilhados com mais ninguém.\n\nPara parar, tire as permissões do Fitness no Health Connect.</string>
+</resources>

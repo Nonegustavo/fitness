@@ -11,6 +11,7 @@ import { formatNumber, parseDecimal } from '../../lib/format'
 /** The other numbers the Mi Body Composition Scale 2 shows in Zepp Life. */
 const EXTRA_FIELDS = [
   { key: 'muscleMassKg', label: 'Massa muscular (kg)' },
+  { key: 'leanMassKg', label: 'Massa magra (kg)' },
   { key: 'bodyWaterPct', label: 'Água corporal (%)' },
   { key: 'visceralFat', label: 'Gordura visceral' },
   { key: 'boneMassKg', label: 'Massa óssea (kg)' },
@@ -132,6 +133,7 @@ export function WeightModal({ entry, onClose }: { entry: WeightEntry | null; onC
 export function describeExtras(entry: WeightEntry): string {
   const parts: string[] = []
   if (entry.muscleMassKg !== undefined) parts.push(`Músculo ${formatNumber(entry.muscleMassKg)} kg`)
+  if (entry.leanMassKg !== undefined) parts.push(`Massa magra ${formatNumber(entry.leanMassKg)} kg`)
   if (entry.bodyWaterPct !== undefined) parts.push(`Água ${formatNumber(entry.bodyWaterPct)}%`)
   if (entry.visceralFat !== undefined) parts.push(`Visceral ${formatNumber(entry.visceralFat)}`)
   if (entry.boneMassKg !== undefined) parts.push(`Ossos ${formatNumber(entry.boneMassKg)} kg`)

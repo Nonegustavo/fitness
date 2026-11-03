@@ -16,6 +16,8 @@ export interface WeightEntry extends Synced {
   weightKg: number
   bodyFatPct?: number
   muscleMassKg?: number
+  /** Health Connect's lean body mass (everything but fat), which the Zepp app writes there. */
+  leanMassKg?: number
   bodyWaterPct?: number
   visceralFat?: number
   boneMassKg?: number
@@ -358,6 +360,15 @@ export interface ActivityStream extends Synced {
   track?: [number, number][]
 }
 
+export type SleepStage = 'awake' | 'light' | 'deep' | 'rem'
+
+/** A stretch of one sleep stage, from Health Connect. */
+export interface SleepStageSpan {
+  start: number
+  end: number
+  stage: SleepStage
+}
+
 /** One day of the watch's health data; the night counts for the morning it ends. */
 export interface DailyHealth extends Synced {
   /** The day key, so each day has a single row on every device. */
@@ -390,4 +401,6 @@ export interface DailyHealth extends Synced {
   bodyBattery?: { low?: number; high?: number; charged?: number; drained?: number }
   steps?: number
   calories?: { total?: number; active?: number }
+  /** The night's stages in order, read from Health Connect on the phone (the API only has totals). */
+  sleepStages?: SleepStageSpan[]
 }
