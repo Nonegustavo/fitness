@@ -16,6 +16,8 @@ export interface FoodDraft {
   per100?: Nutrients
   portion?: Portion
   source?: Food['source']
+  /** A TACO food being replaced by the user's own version of it. */
+  basedOn?: string
 }
 
 const FIELDS = [
@@ -43,7 +45,15 @@ export function FoodForm({
   onSaved?: (food: Food) => void
 }) {
   const start: FoodDraft = food
-    ? { name: food.name, brand: food.brand, barcode: food.barcode, per100: food.per100, portion: food.portions?.[0], source: food.source }
+    ? {
+        name: food.name,
+        brand: food.brand,
+        barcode: food.barcode,
+        per100: food.per100,
+        portion: food.portions?.[0],
+        source: food.source,
+        basedOn: food.basedOn,
+      }
     : (initial ?? {})
   const [name, setName] = useState(start.name ?? '')
   const [brand, setBrand] = useState(start.brand ?? '')
@@ -84,7 +94,15 @@ export function FoodForm({
       },
       portions: portionLabel.trim() && grams ? [{ label: portionLabel.trim(), grams }] : undefined,
       source: start.source ?? 'custom',
+      basedOn: start.basedOn,
     })
+    // A new version of a TACO food keeps its favorite star and last amount.
+    if (!food && start.basedOn) {
+      const pref = await db.foodPrefs.get(start.basedOn)
+      if (pref && !pref.deleted) {
+        await save(db.foodPrefs, { id: saved.id, favorite: pref.favorite, lastGrams: pref.lastGrams, lastUsedAt: pref.lastUsedAt })
+      }
+    }
     onSaved?.(saved)
     onClose()
   }
@@ -96,8 +114,17 @@ export function FoodForm({
   }
 
   return (
-    <Modal open title={food ? 'Editar alimento' : 'Novo alimento'} onClose={onClose}>
+    <Modal
+      open
+      title={start.basedOn && !food ? 'Minha versão' : food ? 'Editar alimento' : 'Novo alimento'}
+      onClose={onClose}
+    >
       <form onSubmit={submit} className="space-y-4">
+        {start.basedOn && (
+          <p className="-mt-1 text-xs text-muted">
+            Fica no lugar do alimento da TACO nas buscas. Os registros antigos não mudam.
+          </p>
+        )}
         <Field label="Nome">
           <TextInput autoFocus={!start.name} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Pão de forma integral" />
         </Field>

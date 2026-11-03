@@ -20,6 +20,20 @@
   --series-2: #eb6834;
   --good: #006300;
   --critical: #d03b3b;
+
+  /* One color per section of the app, for its icons, tiles and meters (never for text on its own). */
+  --tone-today: #0f766e;
+  --tone-training: #ea580c;
+  --tone-food: #16a34a;
+  --tone-body: #c026d3;
+  --tone-sleep: #4f46e5;
+  --tone-analysis: #7c3aed;
+  --tone-insights: #475569;
+  --tone-water: #0284c7;
+  --tone-habits: #d97706;
+  --tone-journal: #db2777;
+  --tone-recovery: #e11d48;
+  --tone-settings: #57534e;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,6 +55,19 @@
     --series-2: #d95926;
     --good: #0ca30c;
     --critical: #d03b3b;
+
+    --tone-today: #2dd4bf;
+    --tone-training: #fb923c;
+    --tone-food: #4ade80;
+    --tone-body: #e879f9;
+    --tone-sleep: #818cf8;
+    --tone-analysis: #a78bfa;
+    --tone-insights: #94a3b8;
+    --tone-water: #38bdf8;
+    --tone-habits: #fbbf24;
+    --tone-journal: #f472b6;
+    --tone-recovery: #fb7185;
+    --tone-settings: #a8a29e;
   }
 }
 
@@ -61,6 +88,52 @@
   --color-series-2: var(--series-2);
   --color-good: var(--good);
   --color-critical: var(--critical);
+
+  --animate-enter: enter 220ms ease-out backwards;
+  --animate-fade: fade 180ms ease-out backwards;
+  --animate-sheet: sheet 240ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-drop: drop 220ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-pop: pop 320ms ease-out;
+}
+
+/* Pages ease in, sheets slide up, the toast drops down, a checked habit pops. */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sheet {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+@keyframes pop {
+  40% {
+    transform: scale(1.3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }
 
 html,

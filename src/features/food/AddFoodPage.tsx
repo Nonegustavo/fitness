@@ -1,7 +1,8 @@
-import { Camera, Plus, ScanBarcode, Star, Trash2 } from 'lucide-react'
+import { Camera, CookingPot, MessageSquareText, Plus, ScanBarcode, Star, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Modal } from '../../components/Modal'
+import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { useToast } from '../../components/Toast'
 import { Button, Card, Empty, Field, IconButton, Page, Segmented, Select, TextInput } from '../../components/ui'
 import { useToday } from '../../db/hooks'
@@ -15,8 +16,10 @@ import { FoodForm, type FoodDraft } from './FoodForm'
 import { buildIndex, fromCustom, searchFoods, TACO_SOURCE, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
 import { logItems, MEAL_LABEL, mealAt, MEALS, sumNutrients, useSavedMeals } from './nutrition'
 import { fetchProduct } from './openFoodFacts'
+import type { MealSource } from './photo'
 import { PhotoReview } from './PhotoReview'
 import { PortionModal } from './PortionModal'
+import { RecipeForm } from './RecipeForm'
 
 type Tab = 'recent' | 'favorites' | 'meals'
 
@@ -24,6 +27,7 @@ const isMeal = (value: string | null): value is MealKey => MEALS.some((meal) => 
 
 export default function AddFoodPage() {
   const toast = useToast()
+  const removeWithUndo = useRemoveWithUndo()
   const today = useToday()
   const [params] = useSearchParams()
   const date = params.get('data') ?? today
@@ -34,8 +38,10 @@ export default function AddFoodPage() {
   const [selected, setSelected] = useState<FoodItem | null>(null)
   const [draft, setDraft] = useState<FoodDraft | null>(null)
   const [scanning, setScanning] = useState(false)
-  const [photo, setPhoto] = useState<Blob | null>(null)
-  const [photoHelp, setPhotoHelp] = useState(false)
+  const [review, setReview] = useState<MealSource | null>(null)
+  const [describing, setDescribing] = useState(false)
+  const [creatingRecipe, setCreatingRecipe] = useState(false)
+  const [analysisHelp, setAnalysisHelp] = useState(false)
   const search = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
   const sync = useSyncState()
@@ -56,6 +62,7 @@ export default function AddFoodPage() {
       .flatMap((pref) => byId.get(pref.id) ?? [])
   const recent = fromPrefs((p) => !!p.lastUsedAt, (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0)).slice(0, 30)
   const favorites = fromPrefs((p) => p.favorite === 1, (a, b) => (byId.get(a.id)?.name ?? '').localeCompare(byId.get(b.id)?.name ?? ''))
+  const recipes = catalog.filter((item) => item.source === 'recipe').sort((a, b) => a.name.localeCompare(b.name))
 
   const onLogged = (log: FoodLog) => {
     toast({ message: `${log.name} · ${MEAL_LABEL[log.meal]}`, action: { label: 'Desfazer', onClick: () => void remove(db.foodLogs, log.id) } })
@@ -114,9 +121,16 @@ export default function AddFoodPage() {
           <IconButton
             label="Foto do prato"
             className="size-11 border border-line"
-            onClick={() => (canAnalyze ? photoInput.current?.click() : setPhotoHelp(true))}
+            onClick={() => (canAnalyze ? photoInput.current?.click() : setAnalysisHelp(true))}
           >
             <Camera size={20} />
+          </IconButton>
+          <IconButton
+            label="Descrever o que comi"
+            className="size-11 border border-line"
+            onClick={() => (canAnalyze ? setDescribing(true) : setAnalysisHelp(true))}
+          >
+            <MessageSquareText size={20} />
           </IconButton>
           <input
             ref={photoInput}
@@ -125,7 +139,7 @@ export default function AddFoodPage() {
             hidden
             onChange={(event) => {
               const file = event.target.files?.[0]
-              if (file) setPhoto(file)
+              if (file) setReview({ kind: 'photo', file })
               event.target.value = ''
             }}
           />
@@ -165,31 +179,46 @@ export default function AddFoodPage() {
           <div className="mt-3">
             {tab === 'recent' && list(recent, 'Os alimentos que você registrar aparecem aqui.')}
             {tab === 'favorites' && list(favorites, 'Toque na estrela de um alimento para favoritá-lo.')}
-            {tab === 'meals' &&
-              (savedMeals?.length ? (
-                <ul className="divide-y divide-line">
-                  {savedMeals.map((saved) => (
-                    <li key={saved.id} className="flex items-center gap-2 py-2">
-                      <button type="button" onClick={() => void addSavedMeal(saved)} className="min-w-0 flex-1 text-left">
-                        <p className="truncate text-sm font-medium">{saved.name}</p>
-                        <p className="truncate text-xs text-muted">
-                          {formatNumber(sumNutrients(saved.items.map((i) => i.nutrients)).kcal, 0)} kcal ·{' '}
-                          {saved.items.map((i) => i.name.split(',')[0]).join(', ')}
-                        </p>
-                      </button>
-                      <IconButton label={`Apagar ${saved.name}`} onClick={() => void remove(db.savedMeals, saved.id)}>
-                        <Trash2 size={16} />
-                      </IconButton>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Empty>Use “Salvar como refeição” numa refeição do dia para reaproveitá-la aqui.</Empty>
-              ))}
+            {tab === 'meals' && (
+              <>
+                {savedMeals?.length ? (
+                  <ul className="divide-y divide-line">
+                    {savedMeals.map((saved) => {
+                      const onDelete = () => removeWithUndo(db.savedMeals, saved.id, `${saved.name} apagada`)
+                      return (
+                        <SwipeToDelete key={saved.id} onDelete={onDelete}>
+                          <div className="flex items-center gap-2 py-2">
+                            <button type="button" onClick={() => void addSavedMeal(saved)} className="min-w-0 flex-1 text-left">
+                              <span className="block truncate text-sm font-medium">{saved.name}</span>
+                              <span className="block truncate text-xs text-muted">
+                                {formatNumber(sumNutrients(saved.items.map((i) => i.nutrients)).kcal, 0)} kcal ·{' '}
+                                {saved.items.map((i) => i.name.split(',')[0]).join(', ')}
+                              </span>
+                            </button>
+                            <IconButton label={`Apagar ${saved.name}`} onClick={onDelete}>
+                              <Trash2 size={16} />
+                            </IconButton>
+                          </div>
+                        </SwipeToDelete>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <Empty>Use “Salvar como refeição” numa refeição do dia para reaproveitá-la aqui.</Empty>
+                )}
+                <h3 className="mt-4 mb-1 text-sm font-semibold text-ink-2">Receitas</h3>
+                {list(recipes, 'Monte uma receita com os ingredientes e registre por porção ou em gramas.')}
+              </>
+            )}
           </div>
-          <Button size="sm" variant="ghost" className="mt-2" onClick={() => setDraft({})}>
-            <Plus size={16} /> Criar alimento
-          </Button>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <Button size="sm" variant="ghost" onClick={() => setDraft({})}>
+              <Plus size={16} /> Criar alimento
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setCreatingRecipe(true)}>
+              <CookingPot size={16} /> Criar receita
+            </Button>
+          </div>
         </Card>
       )}
 
@@ -207,30 +236,43 @@ export default function AddFoodPage() {
           favorite={prefs.get(selected.id)?.favorite === 1}
           onClose={() => setSelected(null)}
           onLogged={onLogged}
+          onEdited={setSelected}
+        />
+      )}
+      {creatingRecipe && (
+        <RecipeForm onClose={() => setCreatingRecipe(false)} onSaved={(food) => setSelected(fromCustom(food))} />
+      )}
+      {describing && (
+        <DescribeModal
+          onClose={() => setDescribing(false)}
+          onSubmit={(text) => {
+            setDescribing(false)
+            setReview({ kind: 'text', text })
+          }}
         />
       )}
       {draft && (
         <FoodForm initial={draft} onClose={() => setDraft(null)} onSaved={(food) => setSelected(fromCustom(food))} />
       )}
       {scanning && <BarcodeScanner onClose={() => setScanning(false)} onDetected={onBarcode} />}
-      {photo && (
+      {review && (
         <PhotoReview
-          file={photo}
+          source={review}
           initialMeal={meal}
           date={date}
           index={index}
           prefs={prefs}
-          onClose={() => setPhoto(null)}
+          onClose={() => setReview(null)}
           onDone={(count, logged) =>
             toast({ message: `${count} ${count === 1 ? 'item adicionado' : 'itens adicionados'} · ${MEAL_LABEL[logged]}` })
           }
         />
       )}
-      {photoHelp && (
-        <Modal open title="Foto do prato" onClose={() => setPhotoHelp(false)}>
+      {analysisHelp && (
+        <Modal open title="Análise da refeição" onClose={() => setAnalysisHelp(false)}>
           <p className="text-sm text-ink-2">
-            A análise da foto roda num servidor seu (Supabase), que guarda a chave da IA com segurança. Ligue a
-            sincronização e entre na sua conta em Ajustes; o passo a passo está no README do projeto.
+            A análise da foto ou do texto roda num servidor seu (Supabase), que guarda a chave da IA com segurança.
+            Ligue a sincronização e entre na sua conta em Ajustes; o passo a passo está no README do projeto.
           </p>
           <Link to="/ajustes" className="mt-4 inline-block font-medium text-accent-ink">
             Abrir Ajustes
@@ -238,6 +280,39 @@ export default function AddFoodPage() {
         </Modal>
       )}
     </Page>
+  )
+}
+
+/** "2 ovos mexidos e 1 pão francês": the same analysis as the photo, from words. */
+function DescribeModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (text: string) => void }) {
+  const [text, setText] = useState('')
+  return (
+    <Modal open title="Descrever o que comi" onClose={onClose}>
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (text.trim()) onSubmit(text.trim())
+        }}
+      >
+        <textarea
+          autoFocus
+          rows={4}
+          maxLength={1000}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Ex.: 2 ovos mexidos, 1 pão francês com manteiga e um café com leite"
+          className="w-full resize-y rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none transition placeholder:text-muted focus:border-accent-ink focus:ring-2 focus:ring-accent/30"
+        />
+        <p className="text-xs text-muted">
+          Diga as quantidades quando souber (“200 g de frango”, “1 concha de feijão”). O resto é estimado e você confere
+          antes de adicionar.
+        </p>
+        <Button type="submit" variant="primary" className="w-full" disabled={!text.trim()}>
+          Separar os alimentos
+        </Button>
+      </form>
+    </Modal>
   )
 }
 

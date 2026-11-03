@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, Heart, Minus, Plus, Trash2, TrendingUp, Trophy } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { celebrate } from '../../components/celebrate'
 import { Confirm } from '../../components/Modal'
 import { Button, Card, cx, DecimalInput, Empty, IconButton, Page, Stat, TextInput } from '../../components/ui'
 import { db } from '../../db/schema'
@@ -171,7 +172,7 @@ export default function SessionPage() {
           onClose={() => setDialog(null)}
           onConfirm={() => {
             stopRest()
-            void finishWorkout(session.id)
+            void finishWorkout(session.id).then(celebrate)
           }}
         />
       )}

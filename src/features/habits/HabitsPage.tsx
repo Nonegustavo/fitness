@@ -1,16 +1,20 @@
 import { startOfWeek } from 'date-fns'
-import { Archive, ArchiveRestore, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, ListChecks, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Legend } from '../../components/Chart'
 import { DayNav } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
-import { Button, Card, DecimalInput, Field, IconButton, Page, Segmented, TextInput } from '../../components/ui'
+import { SortableList } from '../../components/Sortable'
+import { Button, Card, cx, DecimalInput, Field, IconButton, Page, Segmented, Switch, TextInput } from '../../components/ui'
 import { useToday } from '../../db/hooks'
-import { patch, remove, save } from '../../db/repo'
+import { patch, remove, save, saveOrder } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Habit } from '../../db/types'
 import { dayKey, dayRange, formatDay, parseDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
+import { isAndroidApp } from '../healthconnect/plugin'
+import { requestNotificationPermission } from '../notifications/native'
+import { describeReminder, WEEKDAY_NAMES, WEEKDAYS } from '../notifications/reminders'
 import { HabitCheckList } from './HabitCheckList'
 import {
   describeHabit,
@@ -42,6 +46,8 @@ export default function HabitsPage() {
   return (
     <Page
       title="Hábitos"
+      icon={ListChecks}
+      tone="habits"
       subtitle="O que pode influenciar seu sono, peso e treino"
       actions={
         <Button size="sm" variant="primary" onClick={() => setEditing('new')}>
@@ -75,28 +81,29 @@ export default function HabitsPage() {
 
       {habits && habits.length > 0 && (
         <Card title="Gerenciar">
-          <ul className="divide-y divide-line">
-            {[...active, ...archived].map((habit) => (
-              <li key={habit.id} className="flex items-center gap-3 py-1.5">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {habit.name}
-                    {habit.archived === 1 && <span className="ml-2 text-xs font-normal text-muted">arquivado</span>}
-                  </p>
-                  <p className="text-xs text-muted">{describeHabit(habit)}</p>
-                </div>
-                <IconButton
-                  label={habit.archived ? 'Desarquivar' : 'Arquivar'}
-                  onClick={() => void patch(db.habits, habit.id, { archived: habit.archived ? 0 : 1 })}
-                >
-                  {habit.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
-                </IconButton>
-                <IconButton label="Editar hábito" onClick={() => setEditing(habit)}>
-                  <Pencil size={16} />
-                </IconButton>
-              </li>
-            ))}
-          </ul>
+          <SortableList
+            className="divide-y divide-line"
+            itemClassName="flex items-center gap-2 bg-surface py-1.5"
+            items={active}
+            getId={(habit) => habit.id}
+            onReorder={(list) => void saveOrder(db.habits, [...list, ...archived])}
+          >
+            {(habit, handle) => (
+              <>
+                <span className="-ml-2 flex">{handle}</span>
+                <HabitRow habit={habit} onEdit={() => setEditing(habit)} />
+              </>
+            )}
+          </SortableList>
+          {archived.length > 0 && (
+            <ul className="divide-y divide-line border-t border-line">
+              {archived.map((habit) => (
+                <li key={habit.id} className="flex items-center gap-2 py-1.5">
+                  <HabitRow habit={habit} onEdit={() => setEditing(habit)} />
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       )}
 
@@ -109,6 +116,30 @@ export default function HabitsPage() {
         />
       )}
     </Page>
+  )
+}
+
+/** Tap the habit to edit it; archiving stays one tap away. */
+function HabitRow({ habit, onEdit }: { habit: Habit; onEdit: () => void }) {
+  return (
+    <>
+      <button type="button" onClick={onEdit} className="min-w-0 flex-1 text-left hover:text-accent-ink">
+        <span className="block truncate text-sm font-medium">
+          {habit.name}
+          {habit.archived === 1 && <span className="ml-2 text-xs font-normal text-muted">arquivado</span>}
+        </span>
+        <span className="block text-xs text-muted">
+          {describeHabit(habit)}
+          {habit.reminder && ` · ⏰ ${describeReminder(habit.reminder)}`}
+        </span>
+      </button>
+      <IconButton
+        label={habit.archived ? 'Desarquivar' : 'Arquivar'}
+        onClick={() => void patch(db.habits, habit.id, { archived: habit.archived ? 0 : 1 })}
+      >
+        {habit.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+      </IconButton>
+    </>
   )
 }
 
@@ -219,8 +250,14 @@ function HabitModal({
   const [polarity, setPolarity] = useState<Habit['polarity']>(habit?.polarity ?? 'good')
   const [unit, setUnit] = useState(habit?.unit ?? '')
   const [targetText, setTargetText] = useState(habit?.target !== undefined ? String(habit.target) : '')
+  const [remind, setRemind] = useState(!!habit?.reminder)
+  const [time, setTime] = useState(habit?.reminder?.time ?? '20:00')
+  const [days, setDays] = useState<number[]>(habit?.reminder?.days ?? [0, 1, 2, 3, 4, 5, 6])
   const target = parseDecimal(targetText)
-  const valid = name.trim() !== '' && (targetText.trim() === '' || (target !== undefined && target >= 0))
+  const valid =
+    name.trim() !== '' &&
+    (targetText.trim() === '' || (target !== undefined && target >= 0)) &&
+    (!remind || (days.length > 0 && /^\d{2}:\d{2}$/.test(time)))
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -235,6 +272,7 @@ function HabitModal({
       startDate: habit?.startDate ?? today,
       archived: habit?.archived ?? 0,
       order: habit?.order ?? nextOrder,
+      reminder: remind ? { time, days: [...days].sort() } : undefined,
     })
     onClose()
   }
@@ -285,6 +323,57 @@ function HabitModal({
             </Field>
           </div>
         )}
+        <div className="rounded-xl bg-surface-2 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Lembrete</span>
+              <span className="block text-xs text-muted">
+                {isAndroidApp()
+                  ? 'Uma notificação enquanto o dia não estiver marcado'
+                  : 'A notificação toca no app Android; dá para marcar daqui'}
+              </span>
+            </span>
+            <Switch
+              checked={remind}
+              label="Lembrete"
+              onChange={(on) => {
+                setRemind(on)
+                if (on) void requestNotificationPermission()
+              }}
+            />
+          </div>
+          {remind && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <TextInput
+                type="time"
+                aria-label="Horário do lembrete"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-28"
+              />
+              <div role="group" aria-label="Dias da semana" className="flex gap-1">
+                {WEEKDAYS.map((letter, day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    aria-pressed={days.includes(day)}
+                    aria-label={WEEKDAY_NAMES[day]}
+                    onClick={() =>
+                      setDays((current) => (current.includes(day) ? current.filter((d) => d !== day) : [...current, day]))
+                    }
+                    className={cx(
+                      'size-8 rounded-full text-xs font-semibold transition',
+                      days.includes(day) ? 'bg-accent text-white' : 'bg-surface text-ink-2',
+                    )}
+                  >
+                    {letter}
+                  </button>
+                ))}
+              </div>
+              {days.length === 0 && <p className="w-full text-xs text-critical">Escolha pelo menos um dia.</p>}
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           {habit && (
             <Button variant="danger" onClick={() => void onDelete()}>

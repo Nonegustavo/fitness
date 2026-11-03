@@ -35,7 +35,7 @@ App pessoal que junta treinos de academia, atividades do Garmin, corpo, sono, h�
 - [x] Corpo: peso, % de gordura e dados extras da balança, com tendência; medidas corporais
 - [x] Hábitos: sim/não ou quantidade, check diário, sequência e histórico
 - [x] Backup em arquivo (exportar e importar)
-- [ ] Criar o projeto no Supabase e publicar no GitHub Pages (passo a passo no README)
+- [x] Criar o projeto no Supabase e publicar no GitHub Pages (passo a passo no README)
 
 ### Fase 2 — Treinos de academia
 - [x] Biblioteca de exercícios (grupo muscular, equipamento), com ~60 exercícios prontos e os seus próprios
@@ -46,7 +46,7 @@ App pessoal que junta treinos de academia, atividades do Garmin, corpo, sono, h�
 - [x] Histórico, séries por grupo muscular na semana, 1RM estimado com gráfico, recordes
 - [x] Rotação de fichas (A → B → C) e o próximo treino na tela Hoje
 
-Limitação conhecida: com o celular bloqueado ou o app em segundo plano, o aviso do fim do descanso pode não tocar (limite de PWA). O app mantém a tela ligada durante o treino; o app Android da Fase 4 resolve com notificação nativa.
+No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso pode não tocar (limite de PWA); por isso ele mantém a tela ligada durante o treino. No app Android, o fim do descanso chega como notificação também com a tela desligada.
 
 ### Fase 3 — Alimentação
 - [x] Tabela TACO embutida (593 alimentos, funciona sem internet), busca sem acentos, alimentos próprios
@@ -55,7 +55,7 @@ Limitação conhecida: com o celular bloqueado ou o app em segundo plano, o avis
 - [x] Favoritos, recentes com a última quantidade, repetir refeição de ontem, refeições salvas
 - [x] Histórico de 14 dias contra a meta e médias de macros
 - [x] Foto do prato: a IA (Claude) identifica os alimentos e estima os gramas; você ajusta e confirma. Pronto no código; liga quando o Supabase estiver configurado e a chave da Anthropic estiver nos segredos das funções (passo a passo no README).
-- [ ] Receitas (alimento montado a partir de ingredientes)
+- [x] Receitas: ingredientes com gramas, peso pronto (quando muda no preparo) e porções; entram na busca como qualquer alimento
 
 Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
 
@@ -82,6 +82,18 @@ O SisRUN não tem API pública. Os treinos dele chegam pelo Garmin Connect: os j
 - [x] Período: 90 dias, 6 meses, 1 ano ou tudo
 
 O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono pela manhã em que termina), e a hora de dormir com a própria noite. Hábitos sem registro contam como "não fiz" desde o dia em que foram criados; alimentação e água só contam nos dias com registro. Os primeiros destaques precisam de umas 3 semanas de hábitos marcados.
+
+### Depois das fases — uso do dia a dia
+- [x] Diário: como foi o dia em texto livre, com humor e energia de 1 a 5, na tela Hoje e numa tela própria com busca; humor e energia entram nas correlações
+- [x] Análise do dia: o Claude lê duas semanas de dados e o diário, compara com o mês anterior, usa as correlações e os treinos planejados, e diz o que melhorar em cada área (1 vez por dia, ao abrir; dá para desligar)
+- [x] Tela Hoje personalizável: escolher os cartões e arrastar para mudar a ordem; vale para todos os aparelhos
+- [x] Arrastar e soltar (mouse, dedo ou teclado) para ordenar exercícios da ficha, fichas (a ordem é a rotação), hábitos e recipientes de água
+- [x] Deslizar para a esquerda apaga registros de água, alimentos, pesagens, medidas e refeições salvas, com "Desfazer"
+- [x] Lembretes dos hábitos (horário e dias da semana) e o fim do descanso como notificações no app Android
+- [x] Alimentação: foto do prato guardada com a refeição, nome e valores de cada registro editáveis, sua versão de um alimento da TACO, e "descrever o que comi" em texto para a IA separar os alimentos
+- [x] Cores por seção, ícones em pastilhas coloridas, animações leves e comemoração ao bater a meta de água, completar os hábitos e terminar o treino
+- [x] Ícone próprio no app Android (também na tela de abertura e nas notificações)
+- [x] Correção: na montagem de fichas no computador, a página ficava sem rolar depois de criar um exercício no seletor
 
 ## Observações
 

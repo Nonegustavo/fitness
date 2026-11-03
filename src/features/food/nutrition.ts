@@ -27,17 +27,18 @@ export function mealAt(date: Date): MealKey {
 
 export const ZERO: Nutrients = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
 
-/** Nutrients of `grams` of a food given per 100 g. */
-export function scale(per100: Nutrients, grams: number): Nutrients {
-  const factor = grams / 100
+export function multiply(nutrients: Nutrients, factor: number): Nutrients {
   return {
-    kcal: per100.kcal * factor,
-    protein: per100.protein * factor,
-    carbs: per100.carbs * factor,
-    fat: per100.fat * factor,
-    fiber: per100.fiber === undefined ? undefined : per100.fiber * factor,
+    kcal: nutrients.kcal * factor,
+    protein: nutrients.protein * factor,
+    carbs: nutrients.carbs * factor,
+    fat: nutrients.fat * factor,
+    fiber: nutrients.fiber === undefined ? undefined : nutrients.fiber * factor,
   }
 }
+
+/** Nutrients of `grams` of a food given per 100 g. */
+export const scale = (per100: Nutrients, grams: number): Nutrients => multiply(per100, grams / 100)
 
 export function sumNutrients(list: Nutrients[]): Nutrients {
   return list.reduce<Nutrients>(

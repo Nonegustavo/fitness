@@ -46,4 +46,19 @@ export async function remove<T extends Synced>(table: Table<T, string>, id: stri
   notifyLocalChange()
 }
 
+/** Brings back a soft-deleted row: the undo of `remove`. */
+export async function restore<T extends Synced>(table: Table<T, string>, id: string): Promise<void> {
+  await table.update(id, { deleted: 0, updatedAt: Date.now(), dirty: 1 } as unknown as UpdateSpec<T>)
+  notifyLocalChange()
+}
+
+/** Stores the positions of a reordered list, writing only the rows that moved. */
+export async function saveOrder<T extends Synced & { order: number }>(table: Table<T, string>, rows: T[]): Promise<void> {
+  const now = Date.now()
+  const moved = rows.flatMap((row, order) => (row.order === order ? [] : [{ ...row, order, updatedAt: now, dirty: 1 }]))
+  if (moved.length === 0) return
+  await table.bulkPut(moved)
+  notifyLocalChange()
+}
+
 export const alive = <T extends Synced>(rows: T[]): T[] => rows.filter((row) => row.deleted === 0)

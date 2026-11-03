@@ -1,13 +1,14 @@
-import { Bookmark, Dumbbell, Plus, Repeat, Target, Trash2 } from 'lucide-react'
+import { Bookmark, Dumbbell, Plus, Repeat, Target, Trash2, Utensils } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { DailyBars } from '../../components/DailyBars'
 import { DayNav } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
+import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { useToast } from '../../components/Toast'
 import { Button, Card, DecimalInput, Field, Page, Select, TextInput } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
-import { remove, save } from '../../db/repo'
+import { save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { FoodLog, MealKey, Nutrients } from '../../db/types'
 import { dayRange, formatDay, shiftDay, type DayKey } from '../../lib/dates'
@@ -15,6 +16,7 @@ import { formatNumber, parseDecimal } from '../../lib/format'
 import { GoalsModal } from './GoalsModal'
 import { goalsFor, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
 import { NutritionSummary } from './NutritionSummary'
+import { PhotoThumb } from './PhotoThumb'
 
 const kcal = (value: number) => `${formatNumber(value, 0)} kcal`
 
@@ -37,6 +39,8 @@ export default function FoodPage() {
   return (
     <Page
       title="Alimentação"
+      icon={Utensils}
+      tone="food"
       actions={
         <Button size="sm" variant="ghost" onClick={() => setGoalsOpen(true)}>
           <Target size={16} /> Metas
@@ -87,9 +91,11 @@ function MealCard({
   onAdd: () => void
 }) {
   const toast = useToast()
+  const removeWithUndo = useRemoveWithUndo()
   const [editing, setEditing] = useState<FoodLog | null>(null)
   const [saving, setSaving] = useState(false)
   const total = sumNutrients(entries.map((entry) => entry.nutrients))
+  const photoIds = [...new Set(entries.flatMap((entry) => (entry.photoId ? [entry.photoId] : [])))]
 
   async function repeatYesterday() {
     await logItems(yesterday, meal, date)
@@ -120,9 +126,16 @@ function MealCard({
         )
       ) : (
         <>
+          {photoIds.length > 0 && (
+            <div className="mb-2 flex gap-2 overflow-x-auto">
+              {photoIds.map((id) => (
+                <PhotoThumb key={id} id={id} />
+              ))}
+            </div>
+          )}
           <ul className="divide-y divide-line">
             {entries.map((entry) => (
-              <li key={entry.id}>
+              <SwipeToDelete key={entry.id} onDelete={() => removeWithUndo(db.foodLogs, entry.id, `${entry.name} removido`)}>
                 <button type="button" onClick={() => setEditing(entry)} className="flex w-full items-center gap-3 py-2 text-left">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">{entry.name}</p>
@@ -133,7 +146,7 @@ function MealCard({
                   </div>
                   <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
                 </button>
-              </li>
+              </SwipeToDelete>
             ))}
           </ul>
           <Button size="sm" variant="ghost" className="mt-1" onClick={() => setSaving(true)}>
@@ -147,35 +160,78 @@ function MealCard({
   )
 }
 
-/** Changes the amount or meal of a logged food; nutrients scale from what was logged. */
-function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void }) {
-  const [gramsText, setGramsText] = useState(String(entry.grams).replace('.', ','))
-  const [meal, setMeal] = useState(entry.meal)
-  const grams = parseDecimal(gramsText)
-  const valid = grams !== undefined && grams > 0 && grams <= 5000
+const VALUE_FIELDS = [
+  { key: 'kcal', label: 'Calorias (kcal)' },
+  { key: 'protein', label: 'Proteína (g)' },
+  { key: 'carbs', label: 'Carboidratos (g)' },
+  { key: 'fat', label: 'Gorduras (g)' },
+] as const
 
-  const scaled = (ratio: number): Nutrients => ({
-    kcal: entry.nutrients.kcal * ratio,
-    protein: entry.nutrients.protein * ratio,
-    carbs: entry.nutrients.carbs * ratio,
-    fat: entry.nutrients.fat * ratio,
-    fiber: entry.nutrients.fiber === undefined ? undefined : entry.nutrients.fiber * ratio,
-  })
+type ValueKey = (typeof VALUE_FIELDS)[number]['key']
+
+const asText = (value: number) => String(Math.round(value * 10) / 10).replace('.', ',')
+
+/**
+ * Changes a logged food: amount, meal, name, and its values when the table or the estimate was off.
+ * A new amount scales the values, keeping any that were typed.
+ */
+function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void }) {
+  const removeWithUndo = useRemoveWithUndo()
+  const [name, setName] = useState(entry.name)
+  const [gramsText, setGramsText] = useState(asText(entry.grams))
+  const [meal, setMeal] = useState(entry.meal)
+  const [perGram, setPerGram] = useState(
+    () => Object.fromEntries(VALUE_FIELDS.map(({ key }) => [key, entry.nutrients[key] / entry.grams])) as Record<ValueKey, number>,
+  )
+  const [texts, setTexts] = useState(
+    () => Object.fromEntries(VALUE_FIELDS.map(({ key }) => [key, asText(entry.nutrients[key])])) as Record<ValueKey, string>,
+  )
+  const [editingValues, setEditingValues] = useState(false)
+  const grams = parseDecimal(gramsText)
+  const valid =
+    name.trim() !== '' &&
+    grams !== undefined &&
+    grams > 0 &&
+    grams <= 5000 &&
+    VALUE_FIELDS.every(({ key }) => (parseDecimal(texts[key]) ?? -1) >= 0)
+
+  function changeGrams(text: string) {
+    setGramsText(text)
+    const next = parseDecimal(text)
+    if (next && next > 0) setTexts(Object.fromEntries(VALUE_FIELDS.map(({ key }) => [key, asText(perGram[key] * next)])) as Record<ValueKey, string>)
+  }
+
+  function changeValue(key: ValueKey, text: string) {
+    setTexts({ ...texts, [key]: text })
+    const value = parseDecimal(text)
+    if (value !== undefined && value >= 0 && grams && grams > 0) setPerGram({ ...perGram, [key]: value / grams })
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!valid) return
-    const { id, date, time, foodId, name } = entry
-    await save(db.foodLogs, { id, date, time, foodId, name, meal, grams, nutrients: scaled(grams / entry.grams) })
+    const { id, date, time, foodId, photoId } = entry
+    const nutrients: Nutrients = {
+      kcal: perGram.kcal * grams,
+      protein: perGram.protein * grams,
+      carbs: perGram.carbs * grams,
+      fat: perGram.fat * grams,
+      fiber: entry.nutrients.fiber === undefined ? undefined : (entry.nutrients.fiber / entry.grams) * grams,
+    }
+    await save(db.foodLogs, { id, date, time, foodId, photoId, name: name.trim(), meal, grams, nutrients })
     onClose()
   }
 
   return (
     <Modal open title={entry.name} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
+        {entry.photoId && <PhotoThumb id={entry.photoId} className="h-40 w-full" />}
+        <Field label="Nome">
+          <TextInput value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Quantidade (g)">
-            <DecimalInput autoFocus value={gramsText} onChange={(e) => setGramsText(e.target.value)} />
+            <DecimalInput value={gramsText} onChange={(e) => changeGrams(e.target.value)} />
           </Field>
           <Field label="Refeição">
             <Select value={meal} onChange={(e) => setMeal(e.target.value as MealKey)}>
@@ -187,9 +243,35 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
             </Select>
           </Field>
         </div>
-        {valid && <p className="text-sm text-ink-2">{kcal(entry.nutrients.kcal * (grams / entry.grams))}</p>}
+        {editingValues ? (
+          <fieldset>
+            <legend className="mb-1 text-sm font-medium text-ink-2">Valores desta porção</legend>
+            <div className="grid grid-cols-2 gap-3">
+              {VALUE_FIELDS.map(({ key, label }) => (
+                <Field key={key} label={label}>
+                  <DecimalInput value={texts[key]} onChange={(e) => changeValue(key, e.target.value)} />
+                </Field>
+              ))}
+            </div>
+          </fieldset>
+        ) : (
+          <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-ink-2">
+            <span>
+              {texts.kcal} kcal · P {texts.protein} g · C {texts.carbs} g · G {texts.fat} g
+            </span>
+            <button type="button" className="font-medium text-accent-ink" onClick={() => setEditingValues(true)}>
+              Corrigir valores
+            </button>
+          </p>
+        )}
         <div className="flex gap-2">
-          <Button variant="danger" onClick={() => void remove(db.foodLogs, entry.id).then(onClose)}>
+          <Button
+            variant="danger"
+            onClick={() => {
+              removeWithUndo(db.foodLogs, entry.id, `${entry.name} removido`)
+              onClose()
+            }}
+          >
             <Trash2 size={16} /> Remover
           </Button>
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>

@@ -33,21 +33,32 @@ export const TACO_FOODS: FoodItem[] = taco.foods.map(([id, name, category, kcal,
   source: 'taco',
 }))
 
+const DETAIL: Record<Food['source'], string> = {
+  custom: 'Meu alimento',
+  openfoodfacts: 'Open Food Facts',
+  recipe: 'Receita',
+}
+
 export function fromCustom(food: Food): FoodItem {
   return {
     id: food.id,
     name: food.name,
-    detail: food.brand ?? (food.source === 'openfoodfacts' ? 'Open Food Facts' : 'Meu alimento'),
+    detail: food.brand ?? (food.basedOn ? 'Minha versão da TACO' : DETAIL[food.source]),
     per100: food.per100,
     portions: food.portions ?? [],
     source: food.source,
   }
 }
 
-/** TACO plus the user's foods. */
+/** The user's foods plus TACO, without the TACO foods the user replaced with their own version. */
+export function catalogOf(custom: Food[]): FoodItem[] {
+  const replaced = new Set(custom.flatMap((food) => (food.basedOn ? [food.basedOn] : [])))
+  return [...custom.map(fromCustom), ...TACO_FOODS.filter((item) => !replaced.has(item.id))]
+}
+
 export function useFoodCatalog(): FoodItem[] {
   const custom = useLiveQuery(async () => alive(await db.foods.toArray()))
-  return useMemo(() => [...(custom ?? []).map(fromCustom), ...TACO_FOODS], [custom])
+  return useMemo(() => catalogOf(custom ?? []), [custom])
 }
 
 export function useFoodPrefs(): Map<string, FoodPref> {
@@ -97,7 +108,13 @@ export function searchFoods(index: SearchEntry[], query: string, prefs: Map<stri
 }
 
 /** Logs a food and remembers the amount for next time. */
-export async function logFood(item: FoodItem, grams: number, meal: MealKey, date: DayKey): Promise<FoodLog> {
+export async function logFood(
+  item: FoodItem,
+  grams: number,
+  meal: MealKey,
+  date: DayKey,
+  photoId?: string,
+): Promise<FoodLog> {
   const now = Date.now()
   const log = await save(db.foodLogs, {
     date,
@@ -107,6 +124,7 @@ export async function logFood(item: FoodItem, grams: number, meal: MealKey, date
     name: item.name,
     grams,
     nutrients: scale(item.per100, grams),
+    photoId,
   })
   const pref = await db.foodPrefs.get(item.id)
   await save(db.foodPrefs, { id: item.id, favorite: pref?.favorite ?? 0, lastGrams: grams, lastUsedAt: now })

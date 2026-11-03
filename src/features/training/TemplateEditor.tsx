@@ -1,8 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronDown, ChevronUp, Plus, Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Plus, Trash2, X } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Confirm } from '../../components/Modal'
+import { SortableList } from '../../components/Sortable'
 import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, TextInput } from '../../components/ui'
 import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -125,15 +126,6 @@ export default function TemplateEditor() {
       exercises: current.exercises.map((exercise) => (exercise.key === key ? change(exercise) : exercise)),
     }))
 
-  function move(index: number, delta: number) {
-    update((current) => {
-      const list = [...current.exercises]
-      const [item] = list.splice(index, 1)
-      list.splice(index + delta, 0, item)
-      return { ...current, exercises: list }
-    })
-  }
-
   async function onSave() {
     if (!draft?.name.trim()) return
     const nextOrder = templates?.length ? Math.max(...templates.map((t) => t.order)) + 1 : 0
@@ -191,20 +183,29 @@ export default function TemplateEditor() {
           <Empty>Adicione os exercícios da ficha.</Empty>
         </Card>
       )}
-      {draft.exercises.map((exercise, index) => (
-        <ExerciseEditor
-          key={exercise.key}
-          exercise={exercise}
-          info={exercises.get(exercise.exerciseId)}
-          index={index}
-          total={draft.exercises.length}
-          onChange={(change) => updateExercise(exercise.key, change)}
-          onMove={(delta) => move(index, delta)}
-          onRemove={() =>
-            update((current) => ({ ...current, exercises: current.exercises.filter((e) => e.key !== exercise.key) }))
-          }
-        />
-      ))}
+      {draft.exercises.length > 0 && (
+        <SortableList
+          as="div"
+          className="space-y-4"
+          itemClassName="rounded-2xl"
+          items={draft.exercises}
+          getId={(exercise) => exercise.key}
+          onReorder={(list) => update((current) => ({ ...current, exercises: list }))}
+        >
+          {(exercise, handle) => (
+            <ExerciseEditor
+              exercise={exercise}
+              info={exercises.get(exercise.exerciseId)}
+              index={draft.exercises.indexOf(exercise)}
+              handle={handle}
+              onChange={(change) => updateExercise(exercise.key, change)}
+              onRemove={() =>
+                update((current) => ({ ...current, exercises: current.exercises.filter((e) => e.key !== exercise.key) }))
+              }
+            />
+          )}
+        </SortableList>
+      )}
 
       <Button className="w-full" onClick={() => setPicking(true)}>
         <Plus size={18} /> Adicionar exercícios
@@ -246,17 +247,16 @@ function ExerciseEditor({
   exercise,
   info,
   index,
-  total,
+  handle,
   onChange,
-  onMove,
   onRemove,
 }: {
   exercise: DraftExercise
   info: Exercise | undefined
   index: number
-  total: number
+  /** The grip that drags the exercise to another position. */
+  handle: ReactNode
   onChange: (change: (exercise: DraftExercise) => DraftExercise) => void
-  onMove: (delta: number) => void
   onRemove: () => void
 }) {
   const type = info?.type ?? 'weight_reps'
@@ -272,8 +272,9 @@ function ExerciseEditor({
 
   return (
     <Card>
-      <div className="flex items-start gap-1">
-        <div className="min-w-0 flex-1">
+      <div className="-ml-2 flex items-start gap-1">
+        {handle}
+        <div className="min-w-0 flex-1 pt-1.5">
           <p className="font-medium">
             {index + 1}. {info?.name ?? 'Exercício removido'}
           </p>
@@ -283,12 +284,6 @@ function ExerciseEditor({
             </p>
           )}
         </div>
-        <IconButton label="Mover para cima" disabled={index === 0} onClick={() => onMove(-1)}>
-          <ChevronUp size={18} />
-        </IconButton>
-        <IconButton label="Mover para baixo" disabled={index === total - 1} onClick={() => onMove(1)}>
-          <ChevronDown size={18} />
-        </IconButton>
         <IconButton label="Remover exercício" onClick={onRemove}>
           <Trash2 size={16} />
         </IconButton>

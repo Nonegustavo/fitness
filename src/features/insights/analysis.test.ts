@@ -9,7 +9,17 @@ const FROM = '2026-09-01'
 const TO = '2026-10-30'
 const days = dayRange(FROM, TO)
 
-const empty: Sources = { health: [], weights: [], foodLogs: [], waterLogs: [], habits: [], habitLogs: [], activities: [], sessions: [] }
+const empty: Sources = {
+  health: [],
+  weights: [],
+  foodLogs: [],
+  waterLogs: [],
+  habits: [],
+  habitLogs: [],
+  activities: [],
+  sessions: [],
+  journal: [],
+}
 
 /** Every third day has the habit, and the night after it HRV runs 10 ms lower. */
 function habitWorld(): Sources {

@@ -21,7 +21,7 @@ Outros comandos:
 
 ## Ligar a sincronização (Supabase)
 
-Sem isso o app funciona, mas os dados ficam só no aparelho em que foram registrados, e a foto do prato fica desligada.
+Sem isso o app funciona, mas os dados ficam só no aparelho em que foram registrados, e a foto do prato e a análise do dia ficam desligadas.
 
 1. Crie um projeto gratuito em [supabase.com](https://supabase.com).
 2. No projeto, abra **SQL Editor**, cole o conteúdo de [`supabase/migrations/20261102000000_records.sql`](supabase/migrations/20261102000000_records.sql) e rode.
@@ -41,11 +41,11 @@ A publishable key pode ficar dentro do app: quem protege os dados é o login e a
 
 No plano gratuito, o projeto pausa depois de uma semana sem uso. É só restaurá-lo no painel; enquanto isso, o app segue funcionando no aparelho.
 
-### Foto do prato
+### Foto do prato e "descrever o que comi"
 
-A foto é analisada pelo Claude numa função do Supabase ([`supabase/functions/analyze-meal`](supabase/functions/analyze-meal/index.ts)). A chave da Anthropic fica só no servidor, e a função só atende quem está logado no seu projeto.
+A foto (ou a descrição em texto, como "2 ovos mexidos e 1 pão francês") é analisada pelo Claude numa função do Supabase ([`supabase/functions/analyze-meal`](supabase/functions/analyze-meal/index.ts)). A chave da Anthropic fica só no servidor, e a função só atende quem está logado no seu projeto.
 
-1. Em [platform.claude.com](https://platform.claude.com/settings/keys), crie uma chave em **API keys → Create key** e escolha um workspace para ela (por exemplo, **Default**): a API recusa chaves sem workspace. Coloque créditos em **Billing**; cada foto custa uns 5 centavos de dólar.
+1. Em [platform.claude.com](https://platform.claude.com/settings/keys), crie uma chave em **API keys → Create key** e escolha um workspace para ela (por exemplo, **Default**): a API recusa chaves sem workspace. Coloque créditos em **Billing**; cada foto custa uns 5 centavos de dólar, e cada descrição, uns 2.
 2. No Supabase, em **Edge Functions → Secrets**, crie o segredo `ANTHROPIC_API_KEY` com essa chave. Não coloque a chave no código nem no `.env.local`.
 3. Publique a função. O id do projeto é o `xxxx` de `https://xxxx.supabase.co`:
 
@@ -55,6 +55,15 @@ A foto é analisada pelo Claude numa função do Supabase ([`supabase/functions/
    ```
 
    O `--use-api` empacota a função nos servidores do Supabase, sem precisar do Docker. O `--no-verify-jwt` deixa a checagem de login com a própria função, que confere o usuário no Supabase Auth. Com o MCP do Supabase conectado ao Claude, dá para publicar pela ferramenta `deploy_edge_function`, com `verify_jwt` desligado.
+4. Para guardar as fotos junto das refeições, rode no **SQL Editor** o conteúdo de [`supabase/migrations/20261103230000_food_photos.sql`](supabase/migrations/20261103230000_food_photos.sql). Ele cria um espaço privado no Storage, com uma pasta por usuário que só o dono lê.
+
+### Análise do dia
+
+Uma vez por dia, ao abrir o app, o Claude lê um resumo dos seus dados e do diário e escreve o que vê e o que fazer. O resumo é montado no aparelho ([`src/features/analysis/context.ts`](src/features/analysis/context.ts)) e enviado à função [`supabase/functions/daily-insights`](supabase/functions/daily-insights/index.ts), que usa a mesma `ANTHROPIC_API_KEY`. Cada análise custa uns 15 centavos de dólar; dá para desligar a automática na tela **Análise do dia**.
+
+```bash
+npx supabase functions deploy daily-insights --remote=xxxx --no-verify-jwt --use-api
+```
 
 ### Garmin
 
@@ -83,6 +92,8 @@ Para gerar e instalar, com o [Android Studio](https://developer.android.com/stud
 
 Os dados do app Android ficam separados dos do app instalado pelo Chrome; a sincronização com o Supabase junta os dois.
 
+O app Android também avisa por notificação: os lembretes dos hábitos (marcados em cada hábito, valem para todos os aparelhos) e o fim do descanso entre séries quando a tela está desligada. Os lembretes são agendados para as próximas duas semanas e somem do dia que já foi marcado; a notificação do hábito tem o botão **Feito**.
+
 ## Publicar no GitHub Pages (para usar no celular)
 
 1. No GitHub, em **Settings → Pages**, escolha **Source: GitHub Actions**.
@@ -103,13 +114,16 @@ Os dados do app Android ficam separados dos do app instalado pelo Chrome; a sinc
 - **Sincronização.** O app envia as alterações pendentes e baixa o que mudou nos outros aparelhos: ao abrir, ao voltar a internet, depois de cada registro e a cada minuto. Cada registro guarda a hora da última alteração; em conflito, vale a mais recente.
 - **Servidor.** Uma única tabela genérica (`records`) com RLS guarda todos os registros; o formato dos dados é definido pelo app, então novas telas não precisam de mudanças no banco.
 - **Correlações.** Cada dia vira uma linha com tudo o que o app sabe, e o que acontece num dia é comparado com a noite seguinte. Os destaques usam o teste de Welch (fez / não fez) ou a correlação de Spearman (quantidades) e passam pela correção de Benjamini–Hochberg, que limita os falsos destaques a 10%. A conta é feita no aparelho (`src/features/insights`).
+- **Análise do dia.** Depois da primeira sincronização do dia (assim a análise feita no outro aparelho já chegou), o app monta um resumo em texto: duas semanas dia a dia com o diário, o último mês contra o anterior, as metas, as correlações e os treinos planejados. A resposta vira um registro sincronizado, e cada aparelho tenta no máximo uma vez por dia sozinho.
+- **Fotos.** A foto do prato é reduzida no aparelho, guardada no IndexedDB e enviada ao Storage do Supabase na sincronização seguinte. Os outros aparelhos baixam cada foto quando ela aparece na tela.
 
 ```
 src/
   db/          banco local (Dexie), tipos e backup
   sync/        motor de sincronização e cliente do Supabase
-  features/    telas: hoje, treinos, atividades e sono do Garmin, alimentação, corpo, água, hábitos, correlações, ajustes
-  components/  componentes de interface e gráficos (ECharts)
-supabase/      SQL do banco (e os testes dele) e as funções da foto do prato e do Garmin
+  features/    telas: hoje, treinos, atividades e sono do Garmin, alimentação (com receitas e fotos), corpo, água,
+               hábitos (com lembretes), diário, análise do dia, correlações, ajustes
+  components/  componentes de interface, gráficos (ECharts), arrastar e soltar, deslizar para apagar
+supabase/      SQL do banco e do Storage (e os testes deles) e as funções da refeição, da análise do dia e do Garmin
 android/       app Android (Capacitor), com a ponte para o Health Connect
 ```

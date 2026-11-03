@@ -1,10 +1,12 @@
-import { Pencil, Plus, Star, Target, Trash2 } from 'lucide-react'
+import { GlassWater, Plus, Star, Target, Trash2 } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { DailyBars } from '../../components/DailyBars'
 import { Modal } from '../../components/Modal'
+import { SortableList } from '../../components/Sortable'
+import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, TextInput } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
-import { patch, remove, save } from '../../db/repo'
+import { patch, remove, save, saveOrder } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
 import type { ContainerIcon, WaterContainer } from '../../db/types'
 import { dayRange, formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
@@ -22,6 +24,7 @@ export default function WaterPage() {
   const containers = useContainers() ?? []
   const [goalOpen, setGoalOpen] = useState(false)
   const [editing, setEditing] = useState<WaterContainer | 'new' | null>(null)
+  const removeWithUndo = useRemoveWithUndo()
 
   const days = useMemo(() => dayRange(from, today), [from, today])
   const totals = useMemo(() => totalsByDay(logs ?? []), [logs])
@@ -29,7 +32,7 @@ export default function WaterPage() {
   const containerName = (id?: string) => containers.find((container) => container.id === id)?.name
 
   return (
-    <Page title="Água" subtitle={formatDay(today)}>
+    <Page title="Água" icon={GlassWater} tone="water" subtitle={formatDay(today)}>
       <Card
         title="Hoje"
         action={
@@ -49,16 +52,21 @@ export default function WaterPage() {
           <Empty>Nada registrado hoje.</Empty>
         ) : (
           <ul className="divide-y divide-line">
-            {[...todayLogs].reverse().map((log) => (
-              <li key={log.id} className="flex items-center gap-3 py-1.5">
-                <span className="w-12 text-sm text-ink-2 tabular-nums">{formatTime(log.time)}</span>
-                <span className="flex-1 truncate text-sm">{containerName(log.containerId) ?? 'Outro valor'}</span>
-                <span className="text-sm font-medium tabular-nums">{formatMl(log.ml)}</span>
-                <IconButton label="Apagar registro" onClick={() => void remove(db.waterLogs, log.id)}>
-                  <Trash2 size={16} />
-                </IconButton>
-              </li>
-            ))}
+            {[...todayLogs].reverse().map((log) => {
+              const onDelete = () => removeWithUndo(db.waterLogs, log.id, `Registro de ${formatMl(log.ml)} apagado`)
+              return (
+                <SwipeToDelete key={log.id} onDelete={onDelete}>
+                  <div className="flex items-center gap-3 py-1.5">
+                    <span className="w-12 text-sm text-ink-2 tabular-nums">{formatTime(log.time)}</span>
+                    <span className="flex-1 truncate text-sm">{containerName(log.containerId) ?? 'Outro valor'}</span>
+                    <span className="text-sm font-medium tabular-nums">{formatMl(log.ml)}</span>
+                    <IconButton label="Apagar registro" onClick={onDelete}>
+                      <Trash2 size={16} />
+                    </IconButton>
+                  </div>
+                </SwipeToDelete>
+              )
+            })}
           </ul>
         )}
       </Card>
@@ -76,15 +84,28 @@ export default function WaterPage() {
         }
       >
         <p className="mb-2 text-xs text-muted">Os favoritos (estrela) viram botões de 1 toque.</p>
-        <ul className="divide-y divide-line">
-          {containers.map((container) => {
+        <SortableList
+          className="divide-y divide-line"
+          itemClassName="flex items-center gap-2 bg-surface py-1.5"
+          items={containers}
+          getId={(container) => container.id}
+          onReorder={(list) => void saveOrder(db.waterContainers, list)}
+        >
+          {(container, handle) => {
             const Icon = CONTAINER_ICONS[container.icon].icon
             const favorite = container.favorite === 1
             return (
-              <li key={container.id} className="flex items-center gap-3 py-1.5">
-                <Icon size={20} className="shrink-0 text-ink-2" />
-                <span className="flex-1 truncate text-sm">{container.name}</span>
-                <span className="text-sm text-ink-2 tabular-nums">{formatMl(container.ml)}</span>
+              <>
+                <span className="-ml-2 flex">{handle}</span>
+                <button
+                  type="button"
+                  onClick={() => setEditing(container)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left hover:text-accent-ink"
+                >
+                  <Icon size={20} className="shrink-0 text-ink-2" />
+                  <span className="flex-1 truncate text-sm">{container.name}</span>
+                  <span className="text-sm text-ink-2 tabular-nums">{formatMl(container.ml)}</span>
+                </button>
                 <IconButton
                   label={favorite ? 'Tirar dos favoritos' : 'Favoritar'}
                   aria-pressed={favorite}
@@ -92,13 +113,10 @@ export default function WaterPage() {
                 >
                   <Star size={18} className={cx(favorite && 'fill-current text-accent-ink')} />
                 </IconButton>
-                <IconButton label="Editar recipiente" onClick={() => setEditing(container)}>
-                  <Pencil size={16} />
-                </IconButton>
-              </li>
+              </>
             )
-          })}
-        </ul>
+          }}
+        </SortableList>
       </Card>
 
       {goalOpen && <GoalModal goalMl={settings.waterGoalMl} onClose={() => setGoalOpen(false)} />}

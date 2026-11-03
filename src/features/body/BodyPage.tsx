@@ -1,8 +1,10 @@
-import { Pencil, Plus } from 'lucide-react'
+import { ChevronRight, Plus, Scale } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Button, Card, Empty, IconButton, Page, Segmented, Select, Stat } from '../../components/ui'
+import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
+import { Button, Card, Empty, Page, Segmented, Select, Stat } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
+import { db } from '../../db/schema'
 import type { MeasurementEntry, WeightEntry } from '../../db/types'
 import { formatDay, formatTime, relativeDay, shiftDay } from '../../lib/dates'
 import { formatFixed, formatNumber, formatSigned } from '../../lib/format'
@@ -41,6 +43,8 @@ export default function BodyPage() {
   return (
     <Page
       title="Corpo"
+      icon={Scale}
+      tone="body"
       actions={
         tab === 'peso' ? (
           <Button size="sm" variant="primary" onClick={() => setWeightEditing('new')}>
@@ -86,6 +90,7 @@ export default function BodyPage() {
 function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => void }) {
   const today = useToday()
   const weights = useWeights()
+  const removeWithUndo = useRemoveWithUndo()
   const [range, setRange] = useState<Range>('90')
   const [showAll, setShowAll] = useState(false)
 
@@ -155,23 +160,30 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
           {listed.map((entry) => {
             const extras = describeExtras(entry)
             return (
-              <li key={entry.id} className="flex items-center gap-3 py-1.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm">
-                    <span className="font-medium">{formatFixed(entry.weightKg)} kg</span>
-                    {entry.bodyFatPct !== undefined && (
-                      <span className="text-ink-2"> · {formatFixed(entry.bodyFatPct)}% gordura</span>
-                    )}
-                  </p>
-                  <p className="truncate text-xs text-muted">
-                    {formatDay(entry.date, "EEE, d 'de' MMM 'de' yyyy")}, {formatTime(entry.time)}
-                    {extras && ` · ${extras}`}
-                  </p>
-                </div>
-                <IconButton label="Editar pesagem" onClick={() => onEdit(entry)}>
-                  <Pencil size={16} />
-                </IconButton>
-              </li>
+              <SwipeToDelete
+                key={entry.id}
+                onDelete={() => removeWithUndo(db.weights, entry.id, `Pesagem de ${formatFixed(entry.weightKg)} kg apagada`)}
+              >
+                <button
+                  type="button"
+                  onClick={() => onEdit(entry)}
+                  className="flex w-full items-center gap-3 py-1.5 text-left hover:text-accent-ink"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm">
+                      <span className="font-medium">{formatFixed(entry.weightKg)} kg</span>
+                      {entry.bodyFatPct !== undefined && (
+                        <span className="text-ink-2"> · {formatFixed(entry.bodyFatPct)}% gordura</span>
+                      )}
+                    </span>
+                    <span className="block truncate text-xs text-muted">
+                      {formatDay(entry.date, "EEE, d 'de' MMM 'de' yyyy")}, {formatTime(entry.time)}
+                      {extras && ` · ${extras}`}
+                    </span>
+                  </span>
+                  <ChevronRight size={16} className="shrink-0 text-muted" />
+                </button>
+              </SwipeToDelete>
             )
           })}
         </ul>
@@ -195,6 +207,7 @@ function sliceSeries(series: MetricSeries, from: string): MetricSeries {
 function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'new') => void }) {
   const { measurementSites: sites } = useSettings()
   const measurements = useMeasurements()
+  const removeWithUndo = useRemoveWithUndo()
   const [siteKey, setSiteKey] = useState<string>()
 
   // Latest value of each site and its change since the previous time that site was measured.
@@ -286,20 +299,29 @@ function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'n
       <Card title="Histórico">
         <ul className="divide-y divide-line">
           {[...measurements].reverse().map((entry) => (
-            <li key={entry.id} className="flex items-center gap-3 py-1.5">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">{formatDay(entry.date, "d 'de' MMMM 'de' yyyy")}</p>
-                <p className="truncate text-xs text-muted">
-                  {sites
-                    .filter((site) => entry.values[site.key] !== undefined)
-                    .map((site) => `${site.label} ${formatNumber(entry.values[site.key])}`)
-                    .join(' · ')}
-                </p>
-              </div>
-              <IconButton label="Editar medição" onClick={() => onEdit(entry)}>
-                <Pencil size={16} />
-              </IconButton>
-            </li>
+            <SwipeToDelete
+              key={entry.id}
+              onDelete={() =>
+                removeWithUndo(db.measurements, entry.id, `Medição de ${formatDay(entry.date, "d 'de' MMM")} apagada`)
+              }
+            >
+              <button
+                type="button"
+                onClick={() => onEdit(entry)}
+                className="flex w-full items-center gap-3 py-1.5 text-left hover:text-accent-ink"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">{formatDay(entry.date, "d 'de' MMMM 'de' yyyy")}</span>
+                  <span className="block truncate text-xs text-muted">
+                    {sites
+                      .filter((site) => entry.values[site.key] !== undefined)
+                      .map((site) => `${site.label} ${formatNumber(entry.values[site.key])}`)
+                      .join(' · ')}
+                  </span>
+                </span>
+                <ChevronRight size={16} className="shrink-0 text-muted" />
+              </button>
+            </SwipeToDelete>
           ))}
         </ul>
       </Card>

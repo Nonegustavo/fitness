@@ -1,3 +1,4 @@
+import { Moon } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { DailyBars } from '../../components/DailyBars'
@@ -22,6 +23,8 @@ export default function SleepPage() {
   return (
     <Page
       title="Sono e recuperação"
+      icon={Moon}
+      tone="sleep"
       subtitle={latest ? `Última noite: ${relativeDay(latest.id, today)}` : 'Do relógio Garmin'}
     >
       {!latest ? (

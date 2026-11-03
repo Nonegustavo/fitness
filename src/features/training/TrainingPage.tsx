@@ -1,9 +1,12 @@
 import { startOfWeek } from 'date-fns'
-import { Pencil, Play, Plus } from 'lucide-react'
+import { Dumbbell, Play, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { Button, Card, Empty, IconButton, Page, Stat } from '../../components/ui'
+import { SortableList } from '../../components/Sortable'
+import { Button, Card, Empty, Page, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
+import { saveOrder } from '../../db/repo'
+import { db } from '../../db/schema'
 import type { MuscleGroup, WorkoutSession } from '../../db/types'
 import { dayKey, parseDay, relativeDay } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
@@ -41,6 +44,8 @@ export default function TrainingPage() {
   return (
     <Page
       title="Treinos"
+      icon={Dumbbell}
+      tone="training"
       actions={
         <Button size="sm" variant="primary" onClick={() => navigate('/treinos/ficha/nova')}>
           <Plus size={16} /> Ficha
@@ -79,16 +84,28 @@ export default function TrainingPage() {
             </Link>
           </Empty>
         ) : (
-          <ul className="divide-y divide-line">
-            {templates.map((template) => {
+          // The order is also the rotation: A, then B, then C.
+          <SortableList
+            className="divide-y divide-line"
+            itemClassName="flex items-center gap-2 bg-surface py-2"
+            items={templates}
+            getId={(template) => template.id}
+            onReorder={(list) => void saveOrder(db.workoutTemplates, list)}
+          >
+            {(template, handle) => {
               const isNext = !active && next?.id === template.id
               const sets = template.exercises.reduce((n, e) => n + e.sets.filter((s) => s.kind === 'normal').length, 0)
               const muscles = [
                 ...new Set(template.exercises.map((e) => exercises.get(e.exerciseId)?.muscle).filter(Boolean)),
               ] as MuscleGroup[]
               return (
-                <li key={template.id} className="flex items-center gap-2 py-2">
-                  <div className="min-w-0 flex-1">
+                <>
+                  <span className="-ml-2 flex">{handle}</span>
+                  <Link
+                    to={`/treinos/ficha/${template.id}`}
+                    aria-label={`Editar ${template.name}`}
+                    className="min-w-0 flex-1 hover:text-accent-ink"
+                  >
                     <p className="truncate font-medium">
                       {template.name}
                       {isNext && (
@@ -101,17 +118,14 @@ export default function TrainingPage() {
                       {template.exercises.length} exercícios · {sets} séries
                       {muscles.length > 0 && ` · ${muscles.map((m) => MUSCLES[m]).join(', ')}`}
                     </p>
-                  </div>
-                  <IconButton label="Editar ficha" onClick={() => navigate(`/treinos/ficha/${template.id}`)}>
-                    <Pencil size={16} />
-                  </IconButton>
+                  </Link>
                   <Button size="sm" variant={isNext ? 'primary' : 'secondary'} onClick={() => void start(template)}>
                     <Play size={14} /> Iniciar
                   </Button>
-                </li>
+                </>
               )
-            })}
-          </ul>
+            }}
+          </SortableList>
         )}
       </Card>
 

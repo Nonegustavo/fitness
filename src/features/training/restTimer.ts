@@ -38,6 +38,10 @@ const subscribe = (listener: () => void) => {
 
 export const useRestTimer = (): RestTimer | null => useSyncExternalStore(subscribe, () => timer)
 
+/** The same, outside React: the Android app's notification follows it. */
+export const getRestTimer = (): RestTimer | null => timer
+export const subscribeRestTimer = subscribe
+
 /** Call from the tap that checks a set: browsers only allow sound after a user gesture. */
 export function startRest(totalSec: number, label: string): void {
   unlockAudio()

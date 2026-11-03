@@ -59,13 +59,13 @@ const subscribe = (listener: () => void) => {
 
 export const useGarminState = (): GarminState => useSyncExternalStore(subscribe, () => state)
 
-/** The upcoming workouts from the last calendar fetch, or null when no calendar is set up. */
-export function usePlannedEvents(): PlannedEvent[] | null | undefined {
-  return useLiveQuery(async () => {
-    const row = await db.meta.get(CALENDAR_KEY)
-    return row ? (row.value as { events: PlannedEvent[] }).events : null
-  })
+/** The workouts from the last calendar fetch, or null when no calendar is set up. */
+export async function plannedEvents(): Promise<PlannedEvent[] | null> {
+  const row = await db.meta.get(CALENDAR_KEY)
+  return row ? (row.value as { events: PlannedEvent[] }).events : null
 }
+
+export const usePlannedEvents = (): PlannedEvent[] | null | undefined => useLiveQuery(plannedEvents)
 
 const readMeta = async (): Promise<GarminMeta> => ((await db.meta.get(META_KEY))?.value as GarminMeta | undefined) ?? {}
 const writeMeta = (meta: GarminMeta) => db.meta.put({ key: META_KEY, value: meta })

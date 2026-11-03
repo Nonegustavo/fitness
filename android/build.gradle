@@ -26,6 +26,19 @@ allprojects {
     }
 }
 
+// Capacitor plugins written in Kotlin (local notifications) ask Gradle for a Java 21 toolchain,
+// and this machine only has Android Studio's JDK (Java 25). Compile them with the JDK running
+// Gradle, still producing Java 21 bytecode. After evaluation, so it wins over the plugin's own setting.
+subprojects { project ->
+    project.afterEvaluate {
+        if (project.extensions.findByName('kotlin') == null) return
+        project.java.toolchain.languageVersion = JavaLanguageVersion.of(JavaVersion.current().majorVersion)
+        project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            compilerOptions.jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }

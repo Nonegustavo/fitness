@@ -1,4 +1,4 @@
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, ChartScatter } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { LineOverTime } from '../../components/TimeCharts'
@@ -31,7 +31,7 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: 'all', label: 'Tudo' },
 ]
 
-const GROUP_ORDER: MetricGroup[] = ['Sono', 'Recuperação', 'Dia', 'Treino', 'Alimentação', 'Hábitos', 'Corpo']
+const GROUP_ORDER: MetricGroup[] = ['Sono', 'Recuperação', 'Dia', 'Treino', 'Alimentação', 'Hábitos', 'Diário', 'Corpo']
 
 /** Pairs to open the explorer with when there are no highlights yet, first available wins. */
 const STARTERS: [string, string][] = [
@@ -66,7 +66,7 @@ export default function InsightsPage() {
   }
 
   return (
-    <Page title="Correlações" subtitle="Como hábitos, treino e alimentação andam junto com seu sono, recuperação e peso">
+    <Page title="Correlações" icon={ChartScatter} tone="insights" subtitle="Como hábitos, treino e alimentação andam junto com seu sono, recuperação e peso">
       <Segmented label="Período" value={period} options={PERIODS} onChange={setPeriod} />
 
       <Card title="Destaques">

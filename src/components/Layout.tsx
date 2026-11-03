@@ -1,21 +1,37 @@
-import { ChartScatter, Dumbbell, Ellipsis, GlassWater, House, ListChecks, Moon, Scale, Settings, Utensils } from 'lucide-react'
+import {
+  ChartScatter,
+  Dumbbell,
+  Ellipsis,
+  GlassWater,
+  House,
+  ListChecks,
+  Moon,
+  NotebookPen,
+  Scale,
+  Settings,
+  Sparkles,
+  Utensils,
+} from 'lucide-react'
 import { Suspense } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { SyncStatus } from '../features/settings/SyncStatus'
 import { RestTimerBar } from '../features/training/RestTimerBar'
+import { toneColor, toneStyle, type Tone } from './tone'
 import { cx } from './ui'
 
-/** Every section, as the desktop sidebar lists them. */
-const SECTIONS = [
-  { to: '/', label: 'Hoje', icon: House },
-  { to: '/treinos', label: 'Treinos', icon: Dumbbell },
-  { to: '/alimentacao', label: 'Alimentação', icon: Utensils },
-  { to: '/corpo', label: 'Corpo', icon: Scale },
-  { to: '/sono', label: 'Sono', icon: Moon },
-  { to: '/correlacoes', label: 'Correlações', icon: ChartScatter },
-  { to: '/agua', label: 'Água', icon: GlassWater },
-  { to: '/habitos', label: 'Hábitos', icon: ListChecks },
-  { to: '/ajustes', label: 'Ajustes', icon: Settings },
+/** Every section, as the desktop sidebar lists them, each with its color. */
+const SECTIONS: { to: string; label: string; icon: typeof House; tone: Tone }[] = [
+  { to: '/', label: 'Hoje', icon: House, tone: 'today' },
+  { to: '/treinos', label: 'Treinos', icon: Dumbbell, tone: 'training' },
+  { to: '/alimentacao', label: 'Alimentação', icon: Utensils, tone: 'food' },
+  { to: '/corpo', label: 'Corpo', icon: Scale, tone: 'body' },
+  { to: '/sono', label: 'Sono', icon: Moon, tone: 'sleep' },
+  { to: '/analise', label: 'Análise', icon: Sparkles, tone: 'analysis' },
+  { to: '/correlacoes', label: 'Correlações', icon: ChartScatter, tone: 'insights' },
+  { to: '/agua', label: 'Água', icon: GlassWater, tone: 'water' },
+  { to: '/habitos', label: 'Hábitos', icon: ListChecks, tone: 'habits' },
+  { to: '/diario', label: 'Diário', icon: NotebookPen, tone: 'journal' },
+  { to: '/ajustes', label: 'Ajustes', icon: Settings, tone: 'settings' },
 ]
 
 // The phone's bottom bar fits five: the first four sections, then "Mais" for the rest.
@@ -37,7 +53,7 @@ export function Layout() {
           Fitness
         </div>
         <nav className="space-y-1">
-          {SECTIONS.map(({ to, label, icon: Icon }) => (
+          {SECTIONS.map(({ to, label, icon: Icon, tone }) => (
             <NavLink
               key={to}
               to={to}
@@ -45,11 +61,12 @@ export function Layout() {
               className={({ isActive }) =>
                 cx(
                   'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition',
-                  isActive ? 'bg-surface-2 text-ink' : 'text-ink-2 hover:bg-surface-2',
+                  isActive ? 'text-ink' : 'text-ink-2 hover:bg-surface-2',
                 )
               }
+              style={({ isActive }) => (isActive ? { background: toneStyle(tone, 12).background } : undefined)}
             >
-              <Icon size={18} />
+              <Icon size={18} style={{ color: toneColor(tone) }} />
               {label}
             </NavLink>
           ))}
@@ -69,8 +86,14 @@ export function Layout() {
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5">
-          {BOTTOM.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => bottomClass(isActive)}>
+          {BOTTOM.map(({ to, label, icon: Icon, tone }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) => bottomClass(isActive)}
+              style={({ isActive }) => (isActive ? { color: toneColor(tone) } : undefined)}
+            >
               <Icon size={22} />
               {label}
             </NavLink>

@@ -80,16 +80,23 @@ export async function preparePhoto(file: Blob): Promise<PreparedPhoto> {
   return { data: preview.slice(preview.indexOf(',') + 1), mediaType: 'image/jpeg', preview }
 }
 
-/** Sends the photo to the analyze-meal function (supabase/functions), which calls Claude. */
-export async function analyzePhoto(photo: PreparedPhoto): Promise<PhotoAnalysis> {
-  if (!supabase) throw new Error('Configure a sincronização para usar a foto do prato.')
-  const { data, error } = await supabase.functions.invoke('analyze-meal', {
-    body: { image: photo.data, mediaType: photo.mediaType },
-  })
+/** A meal to analyze: a plate photo, or the user's own description of what they ate. */
+export type MealSource = { kind: 'photo'; file: Blob } | { kind: 'text'; text: string }
+
+/** Calls the analyze-meal function (supabase/functions), which asks Claude. */
+async function requestAnalysis(body: Record<string, string>): Promise<PhotoAnalysis> {
+  if (!supabase) throw new Error('Configure a sincronização para usar a análise da refeição.')
+  const { data, error } = await supabase.functions.invoke('analyze-meal', { body })
   if (error instanceof FunctionsHttpError) {
-    const body = (await error.context.json().catch(() => null)) as { error?: string } | null
-    throw new Error(body?.error ?? 'A análise da foto falhou.')
+    const answer = (await error.context.json().catch(() => null)) as { error?: string } | null
+    throw new Error(answer?.error ?? 'A análise falhou.')
   }
   if (error) throw new Error('Não foi possível falar com o servidor. Confira a internet.')
   return parseAnalysis(data)
 }
+
+export const analyzePhoto = (photo: PreparedPhoto): Promise<PhotoAnalysis> =>
+  requestAnalysis({ image: photo.data, mediaType: photo.mediaType })
+
+/** The same analysis from words: "2 ovos mexidos e 1 pão francês com manteiga". */
+export const analyzeText = (text: string): Promise<PhotoAnalysis> => requestAnalysis({ text })

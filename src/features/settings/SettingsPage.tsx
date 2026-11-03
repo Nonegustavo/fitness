@@ -1,4 +1,4 @@
-import { Download, LogOut, RefreshCw, Upload, X } from 'lucide-react'
+import { Download, LogOut, RefreshCw, Settings, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useToast } from '../../components/Toast'
 import { Button, Card, Field, IconButton, Page, TextInput } from '../../components/ui'
@@ -14,7 +14,7 @@ import { SyncStatus } from './SyncStatus'
 
 export default function SettingsPage() {
   return (
-    <Page title="Ajustes">
+    <Page title="Ajustes" icon={Settings} tone="settings">
       <SyncCard />
       <GarminCard />
       <HealthConnectCard />

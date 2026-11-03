@@ -1,4 +1,4 @@
-import { CircleCheck, Play } from 'lucide-react'
+import { CircleCheck, Dumbbell, Play } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Button, Card } from '../../components/ui'
@@ -66,6 +66,8 @@ export function TodayWorkoutCard({ today }: { today: DayKey }) {
 
   return (
     <Card
+      icon={Dumbbell}
+      tone="training"
       title="Treino"
       action={
         <Link to="/treinos" className="text-sm font-medium text-accent-ink">

@@ -5,6 +5,10 @@ const config: CapacitorConfig = {
   appId: 'io.github.nonegustavo.fitness',
   appName: 'Fitness',
   webDir: 'dist',
+  plugins: {
+    // Habit reminders and the end of the rest timer: the app's line in the status bar, in its teal.
+    LocalNotifications: { smallIcon: 'ic_stat_fitness', iconColor: '#0F766E' },
+  },
 }
 
 export default config

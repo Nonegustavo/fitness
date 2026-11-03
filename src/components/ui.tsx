@@ -1,6 +1,7 @@
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, type LucideIcon } from 'lucide-react'
 import type { ButtonHTMLAttributes, ComponentProps, ReactNode, SelectHTMLAttributes } from 'react'
 import { Link } from 'react-router'
+import { IconTile, toneColor, type Tone } from './tone'
 
 export function cx(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(' ')
@@ -11,6 +12,8 @@ export function Page({
   subtitle,
   back,
   actions,
+  icon,
+  tone,
   children,
 }: {
   title: string
@@ -18,10 +21,13 @@ export function Page({
   /** Link to the parent screen, shown above the title. */
   back?: { to: string; label: string }
   actions?: ReactNode
+  /** The section's icon, on a tile of its color, next to the title. */
+  icon?: LucideIcon
+  tone?: Tone
   children: ReactNode
 }) {
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-28 lg:px-8 lg:pt-8 lg:pb-12">
+    <div className="mx-auto w-full max-w-3xl animate-enter px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-28 lg:px-8 lg:pt-8 lg:pb-12">
       {back && (
         <Link to={back.to} className="mb-1 inline-flex items-center gap-0.5 text-sm text-ink-2 hover:text-ink">
           <ChevronLeft size={16} />
@@ -29,9 +35,12 @@ export function Page({
         </Link>
       )}
       <header className="mb-4 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {subtitle && <p className="text-sm text-ink-2 first-letter:uppercase">{subtitle}</p>}
+        <div className="flex min-w-0 items-center gap-3">
+          {icon && tone && <IconTile icon={icon} tone={tone} size="md" />}
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            {subtitle && <p className="text-sm text-ink-2 first-letter:uppercase">{subtitle}</p>}
+          </div>
         </div>
         {actions && <div className="flex shrink-0 gap-2">{actions}</div>}
       </header>
@@ -43,11 +52,16 @@ export function Page({
 export function Card({
   title,
   action,
+  icon,
+  tone,
   children,
   className,
 }: {
   title?: ReactNode
   action?: ReactNode
+  /** The section's icon, on a tile of its color, before the title. */
+  icon?: LucideIcon
+  tone?: Tone
   children: ReactNode
   className?: string
 }) {
@@ -55,7 +69,12 @@ export function Card({
     <section className={cx('rounded-2xl border border-line bg-surface p-4', className)}>
       {(title || action) && (
         <div className="mb-3 flex min-h-8 items-center justify-between gap-2">
-          {title && <h2 className="text-sm font-semibold text-ink-2">{title}</h2>}
+          {title && (
+            <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink-2">
+              {icon && tone && <IconTile icon={icon} tone={tone} />}
+              <span className="min-w-0">{title}</span>
+            </h2>
+          )}
           {action}
         </div>
       )}
@@ -83,7 +102,7 @@ export function Button({
     <button
       type="button"
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-xl font-medium transition disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center gap-2 rounded-xl font-medium transition active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50',
         size === 'sm' ? 'h-9 px-3 text-sm' : 'h-11 px-4',
         variants[variant],
         className,
@@ -104,7 +123,7 @@ export function IconButton({
       aria-label={label}
       title={label}
       className={cx(
-        'inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-ink-2 transition hover:bg-surface-2 disabled:opacity-40',
+        'inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-ink-2 transition hover:bg-surface-2 active:scale-90 disabled:opacity-40',
         className,
       )}
       {...props}
@@ -185,9 +204,45 @@ export function Segmented<T extends string>({
   )
 }
 
-/** Progress toward a goal: blue fill on a lighter step of the same blue. */
-export function Meter({ value, max, label }: { value: number; max: number; label: string }) {
+/** On/off toggle. The label is what screen readers hear; show it next to the switch too. */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  label: string
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cx(
+        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50',
+        checked ? 'bg-accent' : 'bg-baseline',
+      )}
+    >
+      <span
+        className={cx(
+          'inline-block size-5 rounded-full bg-white shadow transition-transform',
+          checked ? 'translate-x-5.5' : 'translate-x-0.5',
+        )}
+      />
+    </button>
+  )
+}
+
+/** Progress toward a goal: a fill on a lighter step of the same color (blue, or the section's). */
+export function Meter({ value, max, label, tone }: { value: number; max: number; label: string; tone?: Tone }) {
   const percent = max > 0 ? Math.min(value / max, 1) * 100 : 0
+  const color = tone && toneColor(tone)
   return (
     <div
       role="meter"
@@ -196,8 +251,12 @@ export function Meter({ value, max, label }: { value: number; max: number; label
       aria-valuemax={max}
       aria-valuenow={value}
       className="h-3 overflow-hidden rounded-full bg-series-1-track"
+      style={color ? { background: `color-mix(in oklab, ${color} 20%, var(--surface-2))` } : undefined}
     >
-      <div className="h-full rounded-full bg-series-1 transition-[width] duration-500" style={{ width: `${percent}%` }} />
+      <div
+        className="h-full rounded-full bg-series-1 transition-[width] duration-700 ease-out"
+        style={{ width: `${percent}%`, ...(color && { background: color }) }}
+      />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import type {
   FoodLog,
   Habit,
   HabitLog,
+  JournalEntry,
   WaterLog,
   WeightEntry,
   WorkoutSession,
@@ -11,7 +12,7 @@ import type {
 import { dayKey, dayRange, shiftDay, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 
-export type MetricGroup = 'Sono' | 'Recuperação' | 'Corpo' | 'Treino' | 'Dia' | 'Alimentação' | 'Hábitos'
+export type MetricGroup = 'Sono' | 'Recuperação' | 'Corpo' | 'Treino' | 'Dia' | 'Alimentação' | 'Hábitos' | 'Diário'
 
 export interface Metric {
   key: string
@@ -52,6 +53,7 @@ export interface Sources {
   habitLogs: HabitLog[]
   activities: Activity[]
   sessions: WorkoutSession[]
+  journal: JournalEntry[]
 }
 
 const BASE_METRICS: Metric[] = [
@@ -86,6 +88,8 @@ const BASE_METRICS: Metric[] = [
   { key: 'carbs', label: 'Carboidratos', group: 'Alimentação', unit: 'g', digits: 0, timing: 'day', cause: true },
   { key: 'fat', label: 'Gorduras', group: 'Alimentação', unit: 'g', digits: 0, timing: 'day', cause: true },
   { key: 'water', label: 'Água', group: 'Alimentação', unit: 'L', digits: 1, timing: 'day', cause: true },
+  { key: 'mood', label: 'Humor', group: 'Diário', unit: '', digits: 1, timing: 'day', cause: true, effect: true },
+  { key: 'energy', label: 'Energia', group: 'Diário', unit: '', digits: 1, timing: 'day', cause: true, effect: true },
   { key: 'weight', label: 'Peso', group: 'Corpo', unit: 'kg', digits: 1, timing: 'night' },
   { key: 'bodyFat', label: 'Gordura corporal', group: 'Corpo', unit: '%', digits: 1, timing: 'night' },
   // The change shows the morning after: what was eaten one day meets the next weigh-in.
@@ -225,6 +229,13 @@ export function buildDailyData(sources: Sources, from: DayKey, to: DayKey): Dail
   }
   for (const [day, ml] of sumBy(sources.waterLogs, (log) => log.date, (log) => log.ml)) {
     if (day >= from && day <= to) add(rows, day, 'water', ml / 1000)
+  }
+
+  // The diary's scales, on the days they were filled in.
+  for (const entry of sources.journal) {
+    if (entry.id < from || entry.id > to) continue
+    add(rows, entry.id, 'mood', entry.mood)
+    add(rows, entry.id, 'energy', entry.energy)
   }
 
   // Habits: a missing log on a day the habit existed means not done (0).

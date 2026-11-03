@@ -63,6 +63,10 @@
     <!-- The plate photo and the barcode scanner use the camera from inside the app. -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- The end of a rest has to ring on time, also with the screen off. The notifications plugin
+         declares SCHEDULE_EXACT_ALARM, which Android 14+ denies by default; this one is granted. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
     <!-- Health Connect: the scale's measurements and the watch's sleep, read-only. -->
     <uses-permission android:name="android.permission.health.READ_WEIGHT" />
     <uses-permission android:name="android.permission.health.READ_BODY_FAT" />

@@ -1,22 +1,31 @@
 import { LoaderCircle, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Modal } from '../../components/Modal'
-import { Button, cx, Field, IconButton, Select, TextInput } from '../../components/ui'
+import { Button, cx, Field, IconButton, Select, Switch, TextInput } from '../../components/ui'
 import type { FoodPref, MealKey } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import { logFood, searchFoods, type SearchEntry } from './foods'
 import { MEALS, scale, sumNutrients } from './nutrition'
-import { analyzePhoto, matchItems, preparePhoto, type ReviewItem } from './photo'
+import {
+  analyzePhoto,
+  analyzeText,
+  matchItems,
+  preparePhoto,
+  type MealSource,
+  type PhotoAnalysis,
+  type ReviewItem,
+} from './photo'
+import { keepPhoto } from './photos'
 
 const CONFIDENCE_LABEL = { alta: 'confiança alta', media: 'confiança média', baixa: 'confiança baixa' }
 
 /**
- * Sends the photo for analysis, then lets you fix each item (which food, how many grams)
- * before anything is logged: the AI suggests, you confirm.
+ * Sends the photo or the description for analysis, then lets you fix each item (which food,
+ * how many grams) before anything is logged: the AI suggests, you confirm.
  */
 export function PhotoReview({
-  file,
+  source,
   initialMeal,
   date,
   index,
@@ -24,7 +33,7 @@ export function PhotoReview({
   onClose,
   onDone,
 }: {
-  file: Blob
+  source: MealSource
   initialMeal: MealKey
   date: DayKey
   index: SearchEntry[]
@@ -32,21 +41,28 @@ export function PhotoReview({
   onClose: () => void
   onDone: (count: number, meal: MealKey) => void
 }) {
+  const fromPhoto = source.kind === 'photo'
   const [preview, setPreview] = useState<string>()
   const [items, setItems] = useState<ReviewItem[] | null>(null)
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string>()
   const [meal, setMeal] = useState(initialMeal)
+  const [keep, setKeep] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
-        const photo = await preparePhoto(file)
-        if (cancelled) return
-        setPreview(photo.preview)
-        const analysis = await analyzePhoto(photo)
+        let analysis: PhotoAnalysis
+        if (source.kind === 'photo') {
+          const photo = await preparePhoto(source.file)
+          if (cancelled) return
+          setPreview(photo.preview)
+          analysis = await analyzePhoto(photo)
+        } else {
+          analysis = await analyzeText(source.text)
+        }
         if (cancelled) return
         setItems(matchItems(analysis, index, prefs))
         setNotes(analysis.notes)
@@ -57,8 +73,8 @@ export function PhotoReview({
     return () => {
       cancelled = true
     }
-    // One analysis per photo: later changes to the food index don't re-run it.
-  }, [file])
+    // One analysis per photo or text: later changes to the food index don't re-run it.
+  }, [source])
 
   const update = (key: string, change: Partial<ReviewItem>) =>
     setItems((current) => current && current.map((item) => (item.key === key ? { ...item, ...change } : item)))
@@ -76,27 +92,36 @@ export function PhotoReview({
 
   async function addAll() {
     setSaving(true)
-    for (const { item, food } of chosen) await logFood(food, item.grams, meal, date)
+    // A photo that fails to keep shouldn't stop the meal from being logged.
+    const photoId = source.kind === 'photo' && keep ? await keepPhoto(source.file).catch(() => undefined) : undefined
+    for (const { item, food } of chosen) await logFood(food, item.grams, meal, date, photoId)
     onDone(chosen.length, meal)
     onClose()
   }
 
   return (
-    <Modal open title="Foto do prato" onClose={onClose}>
+    <Modal open title={fromPhoto ? 'Foto do prato' : 'Refeição descrita'} onClose={onClose}>
       {preview && <img src={preview} alt="Foto do prato" className="mb-3 max-h-48 w-full rounded-xl object-cover" />}
+      {source.kind === 'text' && (
+        <blockquote className="mb-3 rounded-xl border-l-4 border-accent-ink bg-surface-2 px-3 py-2 text-sm text-ink-2 whitespace-pre-line">
+          {source.text}
+        </blockquote>
+      )}
 
       {error ? (
         <p className="rounded-xl bg-surface-2 p-3 text-sm text-ink-2">{error}</p>
       ) : !items ? (
         <p className="flex items-center gap-2 py-6 text-sm text-ink-2">
-          <LoaderCircle size={18} className="animate-spin" /> Analisando a foto… leva alguns segundos.
+          <LoaderCircle size={18} className="animate-spin" />
+          {fromPhoto ? 'Analisando a foto… leva alguns segundos.' : 'Separando os alimentos…'}
         </p>
       ) : items.length === 0 ? (
         <p className="rounded-xl bg-surface-2 p-3 text-sm text-ink-2">{notes || 'Nenhum alimento identificado.'}</p>
       ) : (
         <>
           <p className="mb-2 text-xs text-muted">
-            Estimativas a partir da foto: confira o alimento e os gramas de cada item antes de adicionar.
+            Estimativas a partir {fromPhoto ? 'da foto' : 'da descrição'}: confira o alimento e os gramas de cada item antes
+            de adicionar.
           </p>
           <ul className="space-y-3">
             {items.map((item) => (
@@ -130,6 +155,12 @@ export function PhotoReview({
               </Select>
             </Field>
           </div>
+          {fromPhoto && (
+            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+              <span>Guardar a foto com a refeição</span>
+              <Switch checked={keep} onChange={setKeep} label="Guardar a foto com a refeição" />
+            </div>
+          )}
           <Button
             variant="primary"
             className="mt-4 w-full"

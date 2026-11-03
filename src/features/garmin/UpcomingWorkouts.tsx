@@ -32,13 +32,7 @@ export function UpcomingWorkoutsCard({ today }: { today: DayKey }) {
   const weekEnd = shiftDay(today, 6)
   const upcoming = events.filter((event) => event.date >= today && event.date <= weekEnd)
   return (
-    <Card
-      title={
-        <span className="flex items-center gap-2">
-          <CalendarDays size={16} /> Próximos treinos
-        </span>
-      }
-    >
+    <Card icon={CalendarDays} tone="training" title="Próximos treinos">
       {upcoming.length === 0 ? (
         <Empty>Nenhum treino agendado para os próximos 7 dias.</Empty>
       ) : (
@@ -58,13 +52,7 @@ export function TodayPlannedCard({ today }: { today: DayKey }) {
   const todays = events?.filter((event) => event.date === today) ?? []
   if (todays.length === 0) return null
   return (
-    <Card
-      title={
-        <span className="flex items-center gap-2">
-          <CalendarDays size={16} /> Treino planejado para hoje
-        </span>
-      }
-    >
+    <Card icon={CalendarDays} tone="training" title="Treino planejado para hoje">
       <ul className="divide-y divide-line">
         {todays.map((event) => (
           <EventRow key={event.uid ?? event.title} event={event} today={today} showDay={false} />

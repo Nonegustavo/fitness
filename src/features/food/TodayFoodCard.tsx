@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Plus, Utensils } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 import { Button, Card } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
@@ -15,6 +15,8 @@ export function TodayFoodCard({ today }: { today: DayKey }) {
 
   return (
     <Card
+      icon={Utensils}
+      tone="food"
       title="Alimentação"
       action={
         <Link to="/alimentacao" className="text-sm font-medium text-accent-ink">

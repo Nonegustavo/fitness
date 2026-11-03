@@ -62,6 +62,15 @@ export interface Habit extends Synced {
   startDate: DayKey
   archived: 0 | 1
   order: number
+  /** A notification in the Android app, on the chosen weekdays, while the day isn't logged yet. */
+  reminder?: HabitReminder
+}
+
+export interface HabitReminder {
+  /** "20:30", local time. */
+  time: string
+  /** 0 = Sunday … 6 = Saturday. */
+  days: number[]
 }
 
 export interface HabitLog extends Synced {
@@ -84,11 +93,59 @@ export interface MacroGoals {
   fat: number
 }
 
+/** How the day went, in the user's words: one entry per day. */
+export interface JournalEntry extends Synced {
+  /** The day key. */
+  id: DayKey
+  text: string
+  /** 1 (very bad) to 5 (great). */
+  mood?: number
+  /** 1 (exhausted) to 5 (full of energy). */
+  energy?: number
+}
+
+/** One area of the daily analysis: what the data shows and what to do about it. */
+export interface InsightSection {
+  area: 'sono' | 'recuperacao' | 'treino' | 'alimentacao' | 'corpo' | 'habitos' | 'geral'
+  title: string
+  text: string
+  tips: string[]
+}
+
+/** Claude's reading of the data and the diary, generated once a day and synced. */
+export interface DailyInsight extends Synced {
+  /** The day key. */
+  id: DayKey
+  createdAt: number
+  model: string
+  headline: string
+  sections: InsightSection[]
+}
+
+/** A food photo kept on this device; `pending` until it reaches the server's storage. Not synced as a record. */
+export interface PhotoBlob {
+  id: string
+  blob: Blob
+  createdAt: number
+  pending: 0 | 1
+}
+
+export type HomeCardId = 'insights' | 'sleep' | 'planned' | 'workout' | 'food' | 'body' | 'water' | 'habits' | 'journal'
+
+/** The cards of the Hoje screen, as the user arranged them. Cards missing from `order` go last. */
+export interface HomeLayout {
+  order: HomeCardId[]
+  hidden: HomeCardId[]
+}
+
 export interface Settings extends Synced {
   waterGoalMl: number
   measurementSites: MeasurementSite[]
   /** Daily targets; `training` applies on days with a workout, when set. */
   nutrition?: { normal: MacroGoals; training?: MacroGoals }
+  home?: HomeLayout
+  /** The daily analysis by Claude, made once a day on the first opening. On unless set to false. */
+  insightsAuto?: boolean
 }
 
 /** Grams, except kcal. */
@@ -105,7 +162,7 @@ export interface Portion {
   grams: number
 }
 
-/** A food the user created or imported by barcode. TACO foods ship with the app instead. */
+/** A food the user created, imported by barcode or put together as a recipe. TACO foods ship with the app instead. */
 export interface Food extends Synced {
   name: string
   brand?: string
@@ -113,7 +170,20 @@ export interface Food extends Synced {
   /** Per 100 g (or 100 ml). */
   per100: Nutrients
   portions?: Portion[]
-  source: 'custom' | 'openfoodfacts'
+  source: 'custom' | 'openfoodfacts' | 'recipe'
+  /** The TACO food this one replaces in searches: the user's own version of it. */
+  basedOn?: string
+  /** For recipes: what went in, with each food's values as they were when added. */
+  ingredients?: RecipeIngredient[]
+  /** For recipes: the weight once ready, when it differs from the ingredients' sum (water lost or absorbed). */
+  yieldGrams?: number
+}
+
+export interface RecipeIngredient {
+  foodId: string
+  name: string
+  grams: number
+  per100: Nutrients
 }
 
 export type MealKey = 'breakfast' | 'lunch' | 'snack' | 'dinner' | 'supper'
@@ -129,6 +199,8 @@ export interface FoodLog extends Synced {
   grams: number
   /** For this amount, not per 100 g. */
   nutrients: Nutrients
+  /** The plate photo it was logged from, shared by the items of that photo. */
+  photoId?: string
 }
 
 /** Usage of any food, TACO ones included: favorite, last amount, last use. */

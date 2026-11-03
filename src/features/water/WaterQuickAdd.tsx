@@ -1,14 +1,18 @@
 import { CircleCheck, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { celebrate } from '../../components/celebrate'
 import { Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
+import { toneColor } from '../../components/tone'
 import { Button, DecimalInput, Field, Meter } from '../../components/ui'
-import { remove } from '../../db/repo'
+import { useSettings } from '../../db/hooks'
+import { alive, remove } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { WaterContainer } from '../../db/types'
+import { dayKey } from '../../lib/dates'
 import { formatMl, parseDecimal } from '../../lib/format'
 import { CONTAINER_ICONS } from './containerIcons'
-import { addWater, useContainers } from './water'
+import { addWater, sumMl, useContainers } from './water'
 
 export function WaterSummary({ totalMl, goalMl }: { totalMl: number; goalMl: number }) {
   const remaining = goalMl - totalMl
@@ -27,7 +31,7 @@ export function WaterSummary({ totalMl, goalMl }: { totalMl: number; goalMl: num
           </p>
         )}
       </div>
-      <Meter value={totalMl} max={goalMl} label="Água bebida hoje" />
+      <Meter value={totalMl} max={goalMl} label="Água bebida hoje" tone="water" />
     </div>
   )
 }
@@ -35,14 +39,19 @@ export function WaterSummary({ totalMl, goalMl }: { totalMl: number; goalMl: num
 /** One-tap buttons for the favorite containers, plus a custom amount. */
 export function WaterQuickAdd() {
   const containers = useContainers()
+  const settings = useSettings()
   const toast = useToast()
   const [customOpen, setCustomOpen] = useState(false)
   const favorites = (containers ?? []).filter((container) => container.favorite === 1)
 
   async function add(ml: number, container?: WaterContainer) {
+    const before = sumMl(alive(await db.waterLogs.where('date').equals(dayKey()).toArray()))
     const log = await addWater(ml, container?.id)
+    // The glass that crosses the goal gets a small party.
+    const reached = before < settings.waterGoalMl && before + ml >= settings.waterGoalMl
+    if (reached) celebrate()
     toast({
-      message: `+${formatMl(ml)} de água`,
+      message: reached ? `Meta de água batida! 💧 +${formatMl(ml)}` : `+${formatMl(ml)} de água`,
       action: { label: 'Desfazer', onClick: () => void remove(db.waterLogs, log.id) },
     })
   }
@@ -60,7 +69,7 @@ export function WaterQuickAdd() {
               onClick={() => void add(container.ml, container)}
               className="flex min-h-14 items-center gap-3 rounded-xl bg-surface-2 px-3 py-2 text-left transition active:scale-[0.97]"
             >
-              <Icon size={22} className="shrink-0 text-series-1" />
+              <Icon size={22} className="shrink-0" style={{ color: toneColor('water') }} />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{container.name}</span>
                 <span className="block text-xs text-ink-2">{formatMl(container.ml)}</span>

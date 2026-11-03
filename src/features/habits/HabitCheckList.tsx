@@ -1,14 +1,33 @@
 import { Circle, CircleCheckBig, Minus, Plus } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router'
+import { celebrate } from '../../components/celebrate'
+import { useToast } from '../../components/Toast'
 import { cx, Empty, IconButton } from '../../components/ui'
 import type { Habit } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
-import { describeHabit, setHabitValue, useHabitLogs, useHabits } from './habits'
+import { describeHabit, isSuccess, setHabitValue, useHabitLogs, useHabits } from './habits'
 
 /** The day's check-in: a toggle for yes/no habits, a stepper for counted ones. */
 export function HabitCheckList({ date }: { date: DayKey }) {
   const habits = useHabits()
   const logs = useHabitLogs(date, date)
+  const toast = useToast()
+
+  // Completing the last habit to do of the day (not opening a day already complete) is worth a party.
+  const goals = (habits ?? []).filter((habit) => habit.archived === 0 && habit.polarity === 'good')
+  const logged = new Map((logs ?? []).map((log) => [log.habitId, log.value]))
+  const allDone = goals.length > 0 && goals.every((habit) => isSuccess(habit, logged.get(habit.id)))
+  const seen = useRef<{ date: DayKey; allDone: boolean }>(undefined)
+  useEffect(() => {
+    if (!habits || !logs) return
+    if (seen.current?.date === date && !seen.current.allDone && allDone) {
+      celebrate()
+      toast({ message: 'Tudo feito hoje! ✨' })
+    }
+    seen.current = { date, allDone }
+  }, [habits, logs, date, allDone, toast])
+
   if (!habits) return null
 
   const active = habits.filter((habit) => habit.archived === 0)
@@ -53,7 +72,11 @@ function HabitRow({ habit, date, value }: { habit: Habit; date: DayKey; value: n
           onClick={() => void setHabitValue(habit, date, done ? 0 : 1)}
           className="inline-flex size-11 items-center justify-center rounded-full transition active:scale-90"
         >
-          {done ? <CircleCheckBig size={28} className={doneColor} /> : <Circle size={28} className="text-baseline" />}
+          {done ? (
+            <CircleCheckBig size={28} className={cx(doneColor, 'animate-pop')} />
+          ) : (
+            <Circle size={28} className="text-baseline" />
+          )}
         </button>
       ) : (
         <div className="flex items-center">

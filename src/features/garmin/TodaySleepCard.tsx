@@ -1,3 +1,4 @@
+import { Moon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Card, Stat } from '../../components/ui'
 import { relativeDay, shiftDay, type DayKey } from '../../lib/dates'
@@ -12,6 +13,8 @@ export function TodaySleepCard({ today }: { today: DayKey }) {
   const { sleep, hrv, restingHr } = night
   return (
     <Card
+      icon={Moon}
+      tone="sleep"
       title={`Sono · ${relativeDay(night.id, today)}`}
       action={
         <Link to="/sono" className="text-sm font-medium text-accent-ink">

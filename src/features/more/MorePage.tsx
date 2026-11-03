@@ -1,13 +1,22 @@
-import { ChartScatter, ChevronRight, GlassWater, ListChecks, Moon, Settings } from 'lucide-react'
+import { ChartScatter, ChevronRight, GlassWater, ListChecks, Moon, NotebookPen, Settings, Sparkles } from 'lucide-react'
 import { Link } from 'react-router'
+import { IconTile, type Tone } from '../../components/tone'
 import { Card, Page } from '../../components/ui'
 
-const LINKS = [
-  { to: '/sono', label: 'Sono e recuperação', detail: 'Noite, HRV, FC de repouso e Body Battery do Garmin', icon: Moon },
-  { to: '/correlacoes', label: 'Correlações', detail: 'Hábitos, treino e alimentação × sono, recuperação e peso', icon: ChartScatter },
-  { to: '/agua', label: 'Água', detail: 'Meta, recipientes e histórico', icon: GlassWater },
-  { to: '/habitos', label: 'Hábitos', detail: 'Check do dia, sequências e histórico', icon: ListChecks },
-  { to: '/ajustes', label: 'Ajustes', detail: 'Sincronização, Garmin, backup e locais de medida', icon: Settings },
+const LINKS: { to: string; label: string; detail: string; icon: typeof Moon; tone: Tone }[] = [
+  { to: '/sono', label: 'Sono e recuperação', detail: 'Noite, HRV, FC de repouso e Body Battery do Garmin', icon: Moon, tone: 'sleep' },
+  { to: '/analise', label: 'Análise do dia', detail: 'O Claude lê seus dados e o diário', icon: Sparkles, tone: 'analysis' },
+  {
+    to: '/correlacoes',
+    label: 'Correlações',
+    detail: 'Hábitos, treino e alimentação × sono, recuperação e peso',
+    icon: ChartScatter,
+    tone: 'insights',
+  },
+  { to: '/agua', label: 'Água', detail: 'Meta, recipientes e histórico', icon: GlassWater, tone: 'water' },
+  { to: '/habitos', label: 'Hábitos', detail: 'Check do dia, sequências, lembretes e histórico', icon: ListChecks, tone: 'habits' },
+  { to: '/diario', label: 'Diário', detail: 'Como foi o dia, humor e energia', icon: NotebookPen, tone: 'journal' },
+  { to: '/ajustes', label: 'Ajustes', detail: 'Sincronização, Garmin, backup e locais de medida', icon: Settings, tone: 'settings' },
 ]
 
 /** The sections that don't fit the phone's bottom bar. */
@@ -16,10 +25,10 @@ export default function MorePage() {
     <Page title="Mais">
       <Card>
         <ul className="divide-y divide-line">
-          {LINKS.map(({ to, label, detail, icon: Icon }) => (
+          {LINKS.map(({ to, label, detail, icon, tone }) => (
             <li key={to}>
               <Link to={to} className="flex items-center gap-3 py-3 hover:text-accent-ink">
-                <Icon size={22} className="shrink-0 text-ink-2" />
+                <IconTile icon={icon} tone={tone} size="md" />
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{label}</span>
                   <span className="block truncate text-xs text-muted">{detail}</span>

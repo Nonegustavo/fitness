@@ -3,7 +3,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 
-// Minimal stand-ins for what Supabase provides: the API roles, auth.users and auth.uid().
+// Minimal stand-ins for what Supabase provides: the API roles, auth.users and auth.uid(),
+// and the storage tables the photo bucket's policy lives on.
 const SUPABASE_STUBS = `
   create role anon nologin;
   create role authenticated nologin;
@@ -12,6 +13,15 @@ const SUPABASE_STUBS = `
   create function auth.uid() returns uuid language sql stable
     as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   grant usage on schema auth, public to anon, authenticated;
+
+  create schema storage;
+  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+  create table storage.objects (bucket_id text, name text, primary key (bucket_id, name));
+  alter table storage.objects enable row level security;
+  create function storage.foldername(name text) returns text[] language sql immutable
+    as $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
+  grant usage on schema storage to authenticated;
+  grant select, insert, update, delete on storage.objects to authenticated;
 `
 
 const USER_A = '00000000-0000-0000-0000-00000000000a'
@@ -130,5 +140,26 @@ describe('garmin token migration', () => {
     await expect(
       asUser(USER_B, `insert into public.garmin_token (user_id, token, expires_at) values ($1, 'x', now())`, [USER_A]),
     ).rejects.toThrow()
+  })
+})
+
+describe('food photos migration', () => {
+  const upload = (user: string, name: string) =>
+    asUser(user, `insert into storage.objects (bucket_id, name) values ('fotos', $1)`, [name])
+  const list = (user: string) => asUser<{ name: string }>(user, `select name from storage.objects order by name`)
+
+  it('creates a private bucket for JPEG photos', async () => {
+    const rows = (await pg.query<{ public: boolean; allowed_mime_types: string[] }>(
+      `select public, allowed_mime_types from storage.buckets where id = 'fotos'`,
+    )).rows
+    expect(rows).toEqual([{ public: false, allowed_mime_types: ['image/jpeg'] }])
+  })
+
+  it('lets each user read and write only their own folder', async () => {
+    await upload(USER_A, `${USER_A}/prato.jpg`)
+    await expect(upload(USER_B, `${USER_A}/intruso.jpg`)).rejects.toThrow()
+    await expect(upload(USER_A, 'solta.jpg')).rejects.toThrow()
+    expect(await list(USER_A)).toEqual([{ name: `${USER_A}/prato.jpg` }])
+    expect(await list(USER_B)).toEqual([])
   })
 })
