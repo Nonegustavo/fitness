@@ -114,8 +114,17 @@ function testable(x: Metric, y: Metric): boolean {
 }
 
 const MIN_STRENGTH = { groups: 0.3, trend: 0.2 }
+/** Cohen's usual lines for a moderate and a strong relation: d for groups, ρ for trends. */
+const MODERATE = { groups: 0.5, trend: 0.3 }
+const STRONG = { groups: 0.8, trend: 0.5 }
 const MAX_Q = 0.1
 const MAX_PER_CAUSE = 2
+
+/** d and ρ aren't on one scale: the label first, then the strength as a share of the "forte" line. */
+export function strongestFirst(a: Finding, b: Finding): number {
+  const tier = (finding: Finding) => ['fraca', 'moderada', 'forte'].indexOf(strengthLabel(finding))
+  return tier(b) - tier(a) || b.strength / STRONG[b.kind] - a.strength / STRONG[a.kind]
+}
 
 /** The clearest relations in the data: tested together, kept only when unlikely to be chance. */
 export function highlights(data: DailyData, limit = 6): Finding[] {
@@ -132,7 +141,7 @@ export function highlights(data: DailyData, limit = 6): Finding[] {
   const kept = findings
     .map((finding, i) => ({ ...finding, q: q[i] }))
     .filter((finding) => finding.q <= MAX_Q && finding.strength >= MIN_STRENGTH[finding.kind])
-    .sort((a, b) => b.strength - a.strength)
+    .sort(strongestFirst)
   // Two per cause come first, so one habit (or bedtime) can't fill the list; the rest fill any room left.
   const perCause = new Map<string, number>()
   const first = kept.filter((finding) => {
@@ -144,8 +153,8 @@ export function highlights(data: DailyData, limit = 6): Finding[] {
 }
 
 export function strengthLabel(finding: Finding): 'forte' | 'moderada' | 'fraca' {
-  const [strong, moderate] = finding.kind === 'groups' ? [0.8, 0.5] : [0.5, 0.3]
-  return finding.strength >= strong ? 'forte' : finding.strength >= moderate ? 'moderada' : 'fraca'
+  if (finding.strength >= STRONG[finding.kind]) return 'forte'
+  return finding.strength >= MODERATE[finding.kind] ? 'moderada' : 'fraca'
 }
 
 /** When y is measured, relative to x. */

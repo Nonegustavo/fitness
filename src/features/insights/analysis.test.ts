@@ -1,7 +1,7 @@
 import { describe as group, expect, it } from 'vitest'
 import type { Activity, DailyHealth, Habit, HabitLog, WeightEntry } from '../../db/types'
 import { dayRange, shiftDay } from '../../lib/dates'
-import { analyze, describe, highlights, lagFor, pairPoints, roundSplit } from './analysis'
+import { analyze, describe, highlights, lagFor, pairPoints, roundSplit, strongestFirst, type Finding } from './analysis'
 import { buildDailyData, formatMetric, type Metric, type Sources } from './metrics'
 
 const meta = { updatedAt: 1, deleted: 0, dirty: 0 } as const
@@ -121,6 +121,13 @@ group('findings', () => {
     const sources = { ...empty, habits: [habit('a'), habit('b')], habitLogs: [...a.map(log('a')), ...b.map(log('b'))], health }
     const pairs = highlights(buildDailyData(sources, FROM, TO), 4).map((finding) => `${finding.x.key} > ${finding.y.key}`)
     expect(pairs).toEqual(['habit:a > hrv', 'habit:a > sleepScore', 'habit:b > deepHours', 'habit:a > restingHr'])
+  })
+
+  it('ranks a strong trend above a moderate difference between groups', () => {
+    const moderate = { kind: 'groups', strength: 0.7 } as Finding
+    const strong = { kind: 'trend', strength: 0.6 } as Finding
+    const weak = { kind: 'trend', strength: 0.25 } as Finding
+    expect([weak, moderate, strong].sort(strongestFirst)).toEqual([strong, moderate, weak])
   })
 
   it('splits a trend at a round number while each side keeps a quarter of the days', () => {
