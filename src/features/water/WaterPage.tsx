@@ -1,8 +1,8 @@
 import { Pencil, Plus, Star, Target, Trash2 } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
-import { axisStyle, baseOption, Chart, tooltipRow, useChartTokens, type ChartOption } from '../../components/Chart'
+import { DailyBars } from '../../components/DailyBars'
 import { Modal } from '../../components/Modal'
-import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, TableView, TextInput } from '../../components/ui'
+import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, TextInput } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import { patch, remove, save } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
@@ -113,70 +113,21 @@ export default function WaterPage() {
   )
 }
 
+const litersAxis = (value: number) => (value === 0 ? '0' : `${formatNumber(value / 1000)} L`)
+
 function WaterHistory({ days, totals, goalMl }: { days: DayKey[]; totals: Map<DayKey, number>; goalMl: number }) {
-  const t = useChartTokens()
-
-  const option = useMemo<ChartOption>(() => {
-    const base = baseOption(t)
-    const values = days.map((day) => totals.get(day) ?? 0)
-    return {
-      ...base,
-      tooltip: {
-        ...(base.tooltip as object),
-        trigger: 'item',
-        formatter: (params: unknown) => {
-          const { dataIndex, value } = params as { dataIndex: number; value: number }
-          return `<div style="opacity:.7;margin-bottom:4px">${formatDay(days[dataIndex], "EEE, d 'de' MMM")}</div>${tooltipRow(t.series1, formatMl(value), 'de água')}`
-        },
-      },
-      xAxis: {
-        type: 'category',
-        data: days.map((day) => formatDay(day, 'd/M')),
-        ...axisStyle(t),
-        axisLine: { show: true, lineStyle: { color: t.baseline } },
-        splitLine: { show: false },
-      },
-      yAxis: {
-        type: 'value',
-        ...axisStyle(t),
-        max: (extent: { max: number }) => Math.ceil(Math.max(extent.max, goalMl) / 500) * 500,
-        axisLabel: { color: t.muted, fontSize: 11, formatter: (v: number) => (v === 0 ? '0' : `${formatNumber(v / 1000)} L`) },
-      },
-      series: [
-        {
-          type: 'bar',
-          data: values,
-          barMaxWidth: 24,
-          itemStyle: { color: t.series1, borderRadius: [4, 4, 0, 0] },
-          emphasis: { itemStyle: { opacity: 0.8 } },
-          markLine: {
-            symbol: 'none',
-            silent: true,
-            lineStyle: { color: t.ink2, width: 1, type: 'solid' },
-            label: { formatter: 'Meta', position: 'insideEndTop', color: t.ink2, fontSize: 11 },
-            data: [{ yAxis: goalMl }],
-          },
-        },
-      ],
-    }
-  }, [t, days, totals, goalMl])
-
+  const values = useMemo(() => days.map((day) => totals.get(day) ?? 0), [days, totals])
   return (
-    <>
-      <Chart option={option} height={200} label="Água bebida por dia nos últimos 14 dias" />
-      <TableView>
-        <table className="w-full tabular-nums">
-          <tbody>
-            {[...days].reverse().map((day) => (
-              <tr key={day} className="border-b border-line last:border-0">
-                <td className="py-1 text-ink-2">{formatDay(day, "EEE, d 'de' MMM")}</td>
-                <td className="py-1 text-right">{formatMl(totals.get(day) ?? 0)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </TableView>
-    </>
+    <DailyBars
+      days={days}
+      values={values}
+      goals={goalMl}
+      format={formatMl}
+      axisFormat={litersAxis}
+      valueLabel="de água"
+      label="Água bebida por dia nos últimos 14 dias"
+      step={500}
+    />
   )
 }
 

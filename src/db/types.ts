@@ -75,9 +75,80 @@ export interface MeasurementSite {
   label: string
 }
 
+export interface MacroGoals {
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+}
+
 export interface Settings extends Synced {
   waterGoalMl: number
   measurementSites: MeasurementSite[]
+  /** Daily targets; `training` applies on days with a workout, when set. */
+  nutrition?: { normal: MacroGoals; training?: MacroGoals }
+}
+
+/** Grams, except kcal. */
+export interface Nutrients {
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+  fiber?: number
+}
+
+export interface Portion {
+  label: string
+  grams: number
+}
+
+/** A food the user created or imported by barcode. TACO foods ship with the app instead. */
+export interface Food extends Synced {
+  name: string
+  brand?: string
+  barcode?: string
+  /** Per 100 g (or 100 ml). */
+  per100: Nutrients
+  portions?: Portion[]
+  source: 'custom' | 'openfoodfacts'
+}
+
+export type MealKey = 'breakfast' | 'lunch' | 'snack' | 'dinner' | 'supper'
+
+export interface FoodLog extends Synced {
+  date: DayKey
+  meal: MealKey
+  time: number
+  /** "taco:123" or the id of a custom food. */
+  foodId: string
+  /** Copied when logged, so the entry survives later edits of the food. */
+  name: string
+  grams: number
+  /** For this amount, not per 100 g. */
+  nutrients: Nutrients
+}
+
+/** Usage of any food, TACO ones included: favorite, last amount, last use. */
+export interface FoodPref extends Synced {
+  /** The food id. */
+  id: string
+  favorite: 0 | 1
+  lastGrams?: number
+  lastUsedAt?: number
+}
+
+export interface SavedMealItem {
+  foodId: string
+  name: string
+  grams: number
+  nutrients: Nutrients
+}
+
+/** A combination logged often ("café da manhã de sempre"), added in one tap. */
+export interface SavedMeal extends Synced {
+  name: string
+  items: SavedMealItem[]
 }
 
 export type MuscleGroup =

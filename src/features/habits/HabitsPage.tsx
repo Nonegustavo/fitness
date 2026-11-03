@@ -1,7 +1,8 @@
 import { startOfWeek } from 'date-fns'
-import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Legend } from '../../components/Chart'
+import { DayNav } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
 import { Button, Card, DecimalInput, Field, IconButton, Page, Segmented, TextInput } from '../../components/ui'
 import { useToday } from '../../db/hooks'
@@ -108,24 +109,6 @@ export default function HabitsPage() {
         />
       )}
     </Page>
-  )
-}
-
-function DayNav({ date, today, onChange }: { date: DayKey; today: DayKey; onChange: (date: DayKey) => void }) {
-  const label =
-    date === today ? 'Hoje' : date === shiftDay(today, -1) ? 'Ontem' : formatDay(date, "EEE, d 'de' MMM")
-  return (
-    <div className="mb-2 flex items-center justify-between">
-      <IconButton label="Dia anterior" onClick={() => onChange(shiftDay(date, -1))}>
-        <ChevronLeft size={20} />
-      </IconButton>
-      <button type="button" className="text-sm font-semibold first-letter:uppercase" onClick={() => onChange(today)}>
-        {label}
-      </button>
-      <IconButton label="Próximo dia" disabled={date >= today} onClick={() => onChange(shiftDay(date, 1))}>
-        <ChevronRight size={20} />
-      </IconButton>
-    </div>
   )
 }
 

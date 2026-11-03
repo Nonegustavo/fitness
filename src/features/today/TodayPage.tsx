@@ -9,6 +9,7 @@ import { changeOver } from '../../lib/stats'
 import { metricSeries, useWeights } from '../body/body'
 import { WeightModal } from '../body/WeightModal'
 import { HabitCheckList } from '../habits/HabitCheckList'
+import { TodayFoodCard } from '../food/TodayFoodCard'
 import { TodayWorkoutCard } from '../training/TodayWorkoutCard'
 import { sumMl, useWaterLogs } from '../water/water'
 import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
@@ -44,6 +45,7 @@ export default function TodayPage() {
       }
     >
       <TodayWorkoutCard today={today} />
+      <TodayFoodCard today={today} />
 
       <Card
         title="Corpo"

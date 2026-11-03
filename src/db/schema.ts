@@ -2,10 +2,14 @@ import Dexie, { type Table } from 'dexie'
 import { DEFAULT_EXERCISES } from './defaultExercises'
 import type {
   Exercise,
+  Food,
+  FoodLog,
+  FoodPref,
   Habit,
   HabitLog,
   MeasurementEntry,
   MeasurementSite,
+  SavedMeal,
   Settings,
   Synced,
   WaterContainer,
@@ -27,6 +31,10 @@ export const SYNCED_TABLES = [
   'exercises',
   'workoutTemplates',
   'workoutSessions',
+  'foods',
+  'foodLogs',
+  'foodPrefs',
+  'savedMeals',
 ] as const
 
 export type SyncedTableName = (typeof SYNCED_TABLES)[number]
@@ -85,6 +93,10 @@ export class FitnessDB extends Dexie {
   exercises!: Table<Exercise, string>
   workoutTemplates!: Table<WorkoutTemplate, string>
   workoutSessions!: Table<WorkoutSession, string>
+  foods!: Table<Food, string>
+  foodLogs!: Table<FoodLog, string>
+  foodPrefs!: Table<FoodPref, string>
+  savedMeals!: Table<SavedMeal, string>
   meta!: Table<MetaRow, string>
 
   constructor(name = 'fitness') {
@@ -109,6 +121,16 @@ export class FitnessDB extends Dexie {
       })
       .upgrade(async (tx) => {
         await tx.table('exercises').bulkAdd(DEFAULT_EXERCISES)
+        await tx.table('meta').delete(PULL_CURSOR)
+      })
+    this.version(3)
+      .stores({
+        foods: 'id, barcode, dirty',
+        foodLogs: 'id, date, dirty',
+        foodPrefs: 'id, dirty',
+        savedMeals: 'id, dirty',
+      })
+      .upgrade(async (tx) => {
         await tx.table('meta').delete(PULL_CURSOR)
       })
     // Runs instead of the upgrades when the database is created from scratch.

@@ -48,9 +48,15 @@ App pessoal que junta treinos de academia, atividades do Garmin, corpo, sono, h�
 Limitação conhecida: com o celular bloqueado ou o app em segundo plano, o aviso do fim do descanso pode não tocar (limite de PWA). O app mantém a tela ligada durante o treino; o app Android da Fase 4 resolve com notificação nativa.
 
 ### Fase 3 — Alimentação
-- Base TACO/TBCA, alimentos e receitas próprios, código de barras (Open Food Facts)
-- Refeições do dia, metas de kcal e macros (podem mudar entre dia de treino e de descanso), favoritos, repetir refeição
-- Foto do prato: a IA (Claude) identifica os alimentos e estima os gramas; você ajusta e confirma
+- [x] Tabela TACO embutida (593 alimentos, funciona sem internet), busca sem acentos, alimentos próprios
+- [x] Código de barras: câmera no Chrome do Android ou digitando; dados do Open Food Facts, revisados antes de salvar
+- [x] Refeições do dia, metas de kcal e macros, com metas próprias para dias de treino (detectados pelos treinos)
+- [x] Favoritos, recentes com a última quantidade, repetir refeição de ontem, refeições salvas
+- [x] Histórico de 14 dias contra a meta e médias de macros
+- [ ] Foto do prato: a IA (Claude) identifica os alimentos e estima os gramas; você ajusta e confirma. Depende do Supabase configurado e de uma chave da API da Anthropic, que fica guardada no servidor e não no app.
+- [ ] Receitas (alimento montado a partir de ingredientes)
+
+Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
 
 ### Fase 4 — Atividades e integrações
 - Importar .FIT (SDK oficial da Garmin) e analisar: FC, pace, potência, cadência, altimetria, voltas, zonas, mapa

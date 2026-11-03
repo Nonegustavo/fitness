@@ -29,6 +29,7 @@ describe('FitnessDB', () => {
     const db = new FitnessDB('from-v1')
     expect(await db.weights.get('w1')).toMatchObject({ weightKg: 80 })
     expect(await db.exercises.count()).toBeGreaterThan(40)
+    expect(await db.foodLogs.count()).toBe(0)
     // Records pushed by newer clients before this device upgraded must be pulled again.
     expect(await db.meta.get(PULL_CURSOR)).toBeUndefined()
   })

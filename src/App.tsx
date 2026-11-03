@@ -15,6 +15,9 @@ const TemplateEditor = lazy(() => import('./features/training/TemplateEditor'))
 const SessionPage = lazy(() => import('./features/training/SessionPage'))
 const ExercisesPage = lazy(() => import('./features/training/ExercisesPage'))
 const ExerciseDetail = lazy(() => import('./features/training/ExerciseDetail'))
+const FoodPage = lazy(() => import('./features/food/FoodPage'))
+const AddFoodPage = lazy(() => import('./features/food/AddFoodPage'))
+const MorePage = lazy(() => import('./features/more/MorePage'))
 
 const router = createHashRouter([
   {
@@ -28,7 +31,10 @@ const router = createHashRouter([
       { path: 'treinos/sessao/:id', element: <SessionPage /> },
       { path: 'treinos/exercicios', element: <ExercisesPage /> },
       { path: 'treinos/exercicios/:id', element: <ExerciseDetail /> },
+      { path: 'alimentacao', element: <FoodPage /> },
+      { path: 'alimentacao/adicionar', element: <AddFoodPage /> },
       { path: 'corpo', element: <BodyPage /> },
+      { path: 'mais', element: <MorePage /> },
       { path: 'agua', element: <WaterPage /> },
       { path: 'habitos', element: <HabitsPage /> },
       { path: 'ajustes', element: <SettingsPage /> },
