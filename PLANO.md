@@ -56,6 +56,9 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Histórico de 14 dias contra a meta e médias de macros
 - [x] Foto do prato: a IA (Claude) identifica os alimentos e estima os gramas; você ajusta e confirma. Pronto no código; liga quando o Supabase estiver configurado e a chave da Anthropic estiver nos segredos das funções (passo a passo no README).
 - [x] Receitas: ingredientes com gramas, peso pronto (quando muda no preparo) e porções; entram na busca como qualquer alimento
+- [x] Alimentos cadastrados pela porção da embalagem (“2 fatias”, 50 g) e registrados contando porções ou em gramas
+- [x] Macros sempre na mesma ordem e cor: carboidratos (azul), proteína (roxo), gorduras (amarelo); anéis do dia contra a meta
+- [x] Equilíbrio de alimentos e refeições: proporção das calorias de cada macro ao lado da proporção da meta, e quanto do dia cada um representa
 
 Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
 

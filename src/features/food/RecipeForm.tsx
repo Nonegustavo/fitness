@@ -22,7 +22,7 @@ const asText = (value: number) => String(Math.round(value * 10) / 10).replace('.
 const toRow = (ingredient: RecipeIngredient): Row => ({ key: newId(), ingredient, gramsText: asText(ingredient.grams) })
 
 const summary = (n: Nutrients) =>
-  `${formatNumber(n.kcal, 0)} kcal · P ${formatNumber(n.protein, 0)} g · C ${formatNumber(n.carbs, 0)} g · G ${formatNumber(n.fat, 0)} g`
+  `${formatNumber(n.kcal, 0)} kcal · C ${formatNumber(n.carbs, 0)} g · P ${formatNumber(n.protein, 0)} g · G ${formatNumber(n.fat, 0)} g`
 
 /** A dish made of other foods; once saved it is searched and logged like any food. */
 export function RecipeForm({

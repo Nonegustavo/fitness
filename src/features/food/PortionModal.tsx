@@ -1,14 +1,15 @@
 import { Pencil, Star } from 'lucide-react'
 import { useState } from 'react'
 import { Modal } from '../../components/Modal'
-import { Button, cx, DecimalInput, Field, Select } from '../../components/ui'
+import { Button, cx, DecimalInput, Field, Segmented, Select } from '../../components/ui'
 import { db } from '../../db/schema'
 import type { Food, FoodLog, MealKey } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { FoodForm } from './FoodForm'
 import { fromCustom, logFood, toggleFavorite, type FoodItem } from './foods'
-import { amountLabel, MEALS, nutrientsFor } from './nutrition'
+import { MacroBalance, MacroGrams, MacroLine } from './MacroViews'
+import { amountLabel, MEALS, nutrientsFor, portionCount, useDayGoals } from './nutrition'
 import { RecipeForm } from './RecipeForm'
 
 const SOURCE: Record<FoodItem['source'], string> = {
@@ -20,6 +21,7 @@ const SOURCE: Record<FoodItem['source'], string> = {
 }
 
 const QUICK_GRAMS = [50, 100, 150, 200]
+const asText = (value: number) => String(Math.round(value * 100) / 100).replace('.', ',')
 const QUICK_PORTIONS = [0.5, 1, 1.5, 2]
 
 /** How much of a food (grams, or portions for a food without a weight), in which meal; shows the nutrients as you type. */
@@ -44,20 +46,34 @@ export function PortionModal({
   onEdited?: (item: FoodItem) => void
 }) {
   const inPortions = item.unit === 'portion'
-  const [gramsText, setGramsText] = useState(() =>
-    String(lastGrams ?? (inPortions ? 1 : (item.portions[0]?.grams ?? 100))).replace('.', ','),
-  )
+  // A food with a weight and a portion ("1 fatia", 25 g) is counted in portions, or in grams on request.
+  const portion = inPortions ? undefined : item.portions[0]
+  const [byPortion, setByPortion] = useState(!!portion)
+  const [amountText, setAmountText] = useState(() => {
+    if (inPortions) return asText(lastGrams ?? 1)
+    if (portion) return asText(lastGrams ? portionCount(lastGrams, portion) : 1)
+    return asText(lastGrams ?? 100)
+  })
   const [meal, setMeal] = useState(initialMeal)
   // `food: null` edits a TACO food, which becomes the user's own version.
   const [editing, setEditing] = useState<{ food: Food | null } | null>(null)
-  const grams = parseDecimal(gramsText)
+  const goals = useDayGoals(date)
+  const typed = parseDecimal(amountText)
+  const grams = typed !== undefined && byPortion && portion ? typed * portion.grams : typed
   const valid = grams !== undefined && grams > 0 && grams <= 5000
   const amount = nutrientsFor(item.per100, valid ? grams : 0, item.unit)
   const per100 = item.per100
+  const reference = portion && byPortion ? nutrientsFor(per100, portion.grams) : per100
+
+  function switchUnit(next: boolean) {
+    if (!portion || next === byPortion) return
+    setByPortion(next)
+    if (grams !== undefined && grams > 0) setAmountText(asText(next ? portionCount(grams, portion) : Math.round(grams)))
+  }
 
   async function add() {
     if (!valid) return
-    onLogged(await logFood(item, grams, meal, date))
+    onLogged(await logFood(item, grams, meal, date, undefined, byPortion ? portion : undefined))
     onClose()
   }
 
@@ -70,13 +86,37 @@ export function PortionModal({
 
   return (
     <Modal open title={item.name} onClose={onClose}>
-      <p className="-mt-1 mb-4 text-xs text-muted">
-        {SOURCE[item.source]} · {inPortions ? 'por porção' : 'por 100 g'}: {formatNumber(per100.kcal, 0)} kcal · P{' '}
-        {formatNumber(per100.protein)} · C {formatNumber(per100.carbs)} · G {formatNumber(per100.fat)}
+      <p className="-mt-1 mb-4 flex flex-wrap gap-x-2 text-xs text-muted">
+        <span>
+          {SOURCE[item.source]} ·{' '}
+          {inPortions
+            ? 'por porção'
+            : portion && byPortion
+              ? `por ${portion.label} (${formatNumber(portion.grams)} g)`
+              : 'por 100 g'}
+          : {formatNumber(reference.kcal, 0)} kcal
+        </span>
+        <MacroLine nutrients={reference} />
       </p>
+      {portion && (
+        <div className="mb-3">
+          <Segmented
+            label="Medir em"
+            value={byPortion ? 'portion' : 'grams'}
+            onChange={(value) => switchUnit(value === 'portion')}
+            options={[
+              { value: 'portion', label: `Porções (${portion.label})` },
+              { value: 'grams', label: 'Gramas' },
+            ]}
+          />
+        </div>
+      )}
       <div className="grid grid-cols-[1fr_auto] items-end gap-3">
-        <Field label={inPortions ? 'Porções' : 'Quantidade (g)'}>
-          <DecimalInput autoFocus value={gramsText} onChange={(e) => setGramsText(e.target.value)} />
+        <Field
+          label={inPortions ? 'Porções' : byPortion && portion ? `Quantas vezes ${portion.label}` : 'Quantidade (g)'}
+          hint={byPortion && portion && valid ? `${formatNumber(grams, 0)} g` : undefined}
+        >
+          <DecimalInput autoFocus value={amountText} onChange={(e) => setAmountText(e.target.value)} />
         </Field>
         <Button
           aria-pressed={favorite}
@@ -88,41 +128,30 @@ export function PortionModal({
         </Button>
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
-        {inPortions
+        {inPortions || (portion && byPortion)
           ? QUICK_PORTIONS.map((value) => (
-              <Button key={value} size="sm" onClick={() => setGramsText(String(value).replace('.', ','))}>
-                {amountLabel(value, 'portion')}
+              <Button key={value} size="sm" onClick={() => setAmountText(asText(value))}>
+                {inPortions ? amountLabel(value, 'portion') : `${formatNumber(value)}×`}
               </Button>
             ))
           : [
-              ...item.portions.map((portion) => (
-                <Button key={portion.label} size="sm" onClick={() => setGramsText(String(portion.grams).replace('.', ','))}>
-                  {portion.label} · {formatNumber(portion.grams)} g
+              ...item.portions.map((p) => (
+                <Button key={p.label} size="sm" onClick={() => setAmountText(asText(p.grams))}>
+                  {p.label} · {formatNumber(p.grams)} g
                 </Button>
               )),
               ...QUICK_GRAMS.map((value) => (
-                <Button key={value} size="sm" onClick={() => setGramsText(String(value))}>
+                <Button key={value} size="sm" onClick={() => setAmountText(String(value))}>
                   {value} g
                 </Button>
               )),
             ]}
       </div>
 
-      <dl className="mt-4 grid grid-cols-4 gap-2 rounded-xl bg-surface-2 p-3 text-center">
-        {(
-          [
-            ['kcal', formatNumber(amount.kcal, 0)],
-            ['Proteína', `${formatNumber(amount.protein)} g`],
-            ['Carbo', `${formatNumber(amount.carbs)} g`],
-            ['Gordura', `${formatNumber(amount.fat)} g`],
-          ] as const
-        ).map(([label, value]) => (
-          <div key={label}>
-            <dd className="font-semibold tabular-nums">{value}</dd>
-            <dt className="text-xs text-ink-2">{label}</dt>
-          </div>
-        ))}
-      </dl>
+      <div className="mt-4 space-y-3">
+        <MacroGrams nutrients={amount} goals={goals} />
+        {valid && <MacroBalance nutrients={amount} goals={goals} />}
+      </div>
 
       <div className="mt-4">
         <Field label="Refeição">

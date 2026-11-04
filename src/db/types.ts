@@ -180,6 +180,8 @@ export interface Food extends Synced {
   per100: Nutrients
   portions?: Portion[]
   unit?: FoodUnit
+  /** The values were typed per portion (the first one), as on the package label: the form shows them that way again. */
+  labelPerPortion?: boolean
   source: 'custom' | 'openfoodfacts' | 'recipe' | 'health-connect'
   /** The TACO food this one replaces in searches: the user's own version of it. */
   basedOn?: string
@@ -209,6 +211,8 @@ export interface FoodLog extends Synced {
   /** The amount: grams, or portions when `unit` is "portion". */
   grams: number
   unit?: FoodUnit
+  /** The portion it was logged by ("1 fatia", 25 g), so the amount reads and edits as a count of it. */
+  portion?: Portion
   /** For this amount, not per 100 g. */
   nutrients: Nutrients
   /** The plate photo it was logged from, shared by the items of that photo. */
@@ -229,6 +233,7 @@ export interface SavedMealItem {
   name: string
   grams: number
   unit?: FoodUnit
+  portion?: Portion
   nutrients: Nutrients
 }
 

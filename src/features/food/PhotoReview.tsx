@@ -140,7 +140,7 @@ export function PhotoReview({
             <span className="font-semibold">{formatNumber(totals.kcal, 0)} kcal</span>
             <span className="text-ink-2">
               {' '}
-              · P {formatNumber(totals.protein, 0)} g · C {formatNumber(totals.carbs, 0)} g · G{' '}
+              · C {formatNumber(totals.carbs, 0)} g · P {formatNumber(totals.protein, 0)} g · G{' '}
               {formatNumber(totals.fat, 0)} g
             </span>
           </div>

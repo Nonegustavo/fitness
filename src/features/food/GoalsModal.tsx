@@ -7,14 +7,15 @@ import { db, SETTINGS_ID } from '../../db/schema'
 import type { MacroGoals } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { useWeights } from '../body/body'
+import { MacroBalance } from './MacroViews'
 import { kcalFromMacros } from './nutrition'
 
 type GoalTexts = Record<keyof MacroGoals, string>
 
 const FIELDS: { key: keyof MacroGoals; label: string }[] = [
   { key: 'kcal', label: 'Calorias (kcal)' },
-  { key: 'protein', label: 'Proteína (g)' },
   { key: 'carbs', label: 'Carboidratos (g)' },
+  { key: 'protein', label: 'Proteína (g)' },
   { key: 'fat', label: 'Gorduras (g)' },
 ]
 
@@ -28,7 +29,7 @@ const toTexts = (goals?: MacroGoals): GoalTexts => ({
 function parseGoals(texts: GoalTexts): MacroGoals | undefined {
   const values = FIELDS.map(({ key }) => parseDecimal(texts[key]))
   if (values.some((value) => value === undefined || value < 0) || !values[0]) return undefined
-  const [kcal, protein, carbs, fat] = values as number[]
+  const [kcal, carbs, protein, fat] = values as number[]
   return { kcal, protein, carbs, fat }
 }
 
@@ -103,6 +104,12 @@ function GoalFields({
         {fromMacros !== undefined && `Os macros somam ${formatNumber(fromMacros, 0)} kcal.`}
         {protein !== undefined && weightKg && ` Proteína: ${formatNumber(protein / weightKg)} g/kg.`}
       </p>
+      {fromMacros !== undefined && fromMacros > 0 && (
+        <div className="mt-3">
+          <p className="mb-1.5 text-xs text-ink-2">Proporção das calorias: é com ela que as refeições são comparadas.</p>
+          <MacroBalance nutrients={{ kcal: fromMacros, carbs: carbs!, protein: protein!, fat: fat! }} />
+        </div>
+      )}
     </fieldset>
   )
 }

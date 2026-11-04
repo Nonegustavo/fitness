@@ -34,6 +34,11 @@
   --tone-journal: #db2777;
   --tone-recovery: #e11d48;
   --tone-settings: #57534e;
+
+  /* Macronutrients, always in this order: carbs (blue), protein (purple), fat (yellow). */
+  --macro-carbs: #2f7fdc;
+  --macro-protein: #8b5cf6;
+  --macro-fat: #e9a23b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -68,6 +73,10 @@
     --tone-journal: #f472b6;
     --tone-recovery: #fb7185;
     --tone-settings: #a8a29e;
+
+    --macro-carbs: #4294ec;
+    --macro-protein: #a585f5;
+    --macro-fat: #f2ac45;
   }
 }
 
