@@ -12,5 +12,5 @@
     <string name="shortcut_workout">Treino</string>
     <string name="shortcut_weight">Peso</string>
     <string name="shortcut_weight_long">Registrar peso</string>
-    <string name="widget_description">Atalhos para registrar alimento, água, treino e peso</string>
+    <string name="widget_description">Calorias que faltam, água do dia e próximo treino, com atalhos para registrar</string>
 </resources>

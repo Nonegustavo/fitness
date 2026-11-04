@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // The app's own plugins register before the bridge starts.
         registerPlugin(HealthConnectPlugin.class);
+        registerPlugin(WidgetPlugin.class);
         super.onCreate(savedInstanceState);
         // Opened from a shortcut or the widget: start on that screen.
         String route = routeOf(getIntent());

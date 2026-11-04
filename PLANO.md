@@ -81,7 +81,7 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Treino: esforço (RPE 1–10) e dor ou desconforto por região em cada sessão; o esforço entra nas correlações
 - [x] Resumo da semana passada na tela Hoje, contra a semana anterior: calorias, proteína, dias na meta, treinos, sono, passos, peso, água e hábitos
 - [x] Fotos de progresso (frente, lado, costas) na tela Corpo, com comparação de duas datas lado a lado e o peso da tendência
-- [x] App Android: atalhos ao segurar o ícone e widget na tela inicial (alimento, água, treino, peso) — falta conferir no celular
+- [x] App Android: atalhos ao segurar o ícone e widget na tela inicial (4x2) com as calorias que faltam, a água do dia e o próximo treino, acima dos botões de alimento, água, treino e peso — falta conferir no celular
 
 Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
 
