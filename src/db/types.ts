@@ -152,6 +152,14 @@ export type HomeCardId =
   | 'habits'
   | 'journal'
   | 'agenda'
+  | 'focus'
+  | 'quick'
+  | 'race'
+  | 'restingHr'
+  | 'hrv'
+  | 'battery'
+  | 'steps'
+  | 'burn'
 
 /** The cards of the Hoje screen, as the user arranged them. Cards missing from `order` join at their default place. */
 export interface HomeLayout {

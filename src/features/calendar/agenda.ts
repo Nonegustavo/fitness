@@ -192,6 +192,75 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
   )
 }
 
+const NUMBER = String.raw`(\d+(?:[.,]\d+)?)`
+const KM_RANGE = new RegExp(String.raw`${NUMBER}\s*(?:-|–|a|até)\s*${NUMBER}\s*km`, 'i')
+const KM = new RegExp(String.raw`${NUMBER}\s*km`, 'i')
+const decimal = (text: string) => parseFloat(text.replace(',', '.'))
+
+/** The distance in a workout's name: "4,48 - 4,97 Km" counts the longer end, "7 Km" is 7, "(6 a 8km)" is 8. */
+export function eventKm(title: string): number | undefined {
+  const range = KM_RANGE.exec(title)
+  if (range) return decimal(range[2])
+  const single = KM.exec(title)
+  return single ? decimal(single[1]) : undefined
+}
+
+/**
+ * A race the user put in the Garmin calendar: not one of SisRUN's workouts (those start with the
+ * day, "06/11 Sex - …"), and named like a race.
+ */
+export function isRace(event: Pick<PlannedEvent, 'title'>): boolean {
+  if (/^\s*\d{1,2}\/\d{1,2}/.test(event.title)) return false
+  return /r[uú]stica|maratona|meia|prova|corrida d[aeo]s?\b|\b\d+\s?k\b|\d\s?km\b|trail|desafio|circuito|\brun\b/i.test(event.title)
+}
+
+/** The next race from today on, if the Garmin calendar has one. */
+export function nextRace(events: PlannedEvent[] | null, today: DayKey): PlannedEvent | undefined {
+  return (events ?? [])
+    .filter((event) => event.date >= today && isRace(event))
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? 0) - (b.time ?? 0))[0]
+}
+
+export interface WeekSummary {
+  /** Workouts done or in progress (planned or not). */
+  done: number
+  /** Every workout of the week: the ones done and the ones planned (rest days don't count). */
+  total: number
+  runKm: number
+  /** What the planned runs add up to, when their names say. */
+  plannedRunKm?: number
+  /** Time of the workouts done: the watch's timer, or the gym workout's length. */
+  trainedSec: number
+}
+
+/** How a week is going, from its agenda (like SisRUN's "Resumo da semana"). */
+export function weekSummary(items: AgendaItem[]): WeekSummary {
+  const workouts = items.filter((item) => item.kind !== 'rest')
+  const done = workouts.filter((item) => item.status === 'done' || item.status === 'active')
+  let runKm = 0
+  let plannedRunKm = 0
+  let trainedSec = 0
+  for (const item of done) {
+    if (item.activity) {
+      trainedSec += item.activity.timerSec
+      if (item.kind === 'run' && item.activity.distanceM) runKm += item.activity.distanceM / 1000
+    } else if (item.session?.endedAt) {
+      trainedSec += (item.session.endedAt - item.session.startedAt) / 1000
+    }
+  }
+  for (const item of workouts) {
+    if (item.kind === 'run' && item.event) plannedRunKm += eventKm(item.event.title) ?? 0
+  }
+  const km = (value: number) => Math.round(value * 100) / 100
+  return {
+    done: done.length,
+    total: workouts.length,
+    runKm: km(runKm),
+    plannedRunKm: plannedRunKm > 0 ? km(plannedRunKm) : undefined,
+    trainedSec,
+  }
+}
+
 /** The items of each day, for calendars. */
 export function byDay(items: AgendaItem[]): Map<DayKey, AgendaItem[]> {
   const days = new Map<DayKey, AgendaItem[]>()

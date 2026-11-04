@@ -1,17 +1,13 @@
-import { GlassWater, House, ListChecks, Scale, Settings, SlidersHorizontal } from 'lucide-react'
-import { WeeklyCard } from './WeeklyCard'
-import { useMemo, useState } from 'react'
+import { GlassWater, House, ListChecks, Settings, SlidersHorizontal } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router'
-import { Button, Card, IconButton, Page, SkeletonLines, Stat } from '../../components/ui'
+import { Carousel } from '../../components/Carousel'
+import { Card, IconButton, Page, SkeletonLines } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import type { HomeCardId } from '../../db/types'
-import { formatDay, relativeDay, type DayKey } from '../../lib/dates'
-import { formatFixed, formatSigned } from '../../lib/format'
-import { changeOver } from '../../lib/stats'
+import { formatDay, type DayKey } from '../../lib/dates'
 import { TodayInsightCard } from '../analysis/TodayInsightCard'
-import { AgendaStripCard } from '../calendar/cards'
-import { metricSeries, useWeights } from '../body/body'
-import { WeightModal } from '../body/WeightModal'
+import { WeekCard } from '../calendar/cards'
 import { HabitCheckList } from '../habits/HabitCheckList'
 import { TodayFoodCard } from '../food/TodayFoodCard'
 import { TodaySleepCard } from '../garmin/TodaySleepCard'
@@ -22,6 +18,17 @@ import { sumMl, useWaterLogs } from '../water/water'
 import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
 import { CustomizeHome } from './CustomizeHome'
 import { homeLayout } from './homeCards'
+import {
+  BatteryTile,
+  BurnTile,
+  HrvTile,
+  QuickGrid,
+  RaceTile,
+  RestingHrTile,
+  StepsTile,
+  WeightTile,
+} from './QuickTiles'
+import { WeeklyCard } from './WeeklyCard'
 
 const linkClass = 'text-sm font-medium text-accent-ink'
 
@@ -30,6 +37,8 @@ export default function TodayPage() {
   const settings = useSettings()
   const [customizing, setCustomizing] = useState(false)
   const cards = homeLayout(settings.home).filter((card) => card.visible)
+  const focus = cards.filter((card) => card.zone === 'focus')
+  const quick = cards.filter((card) => card.zone === 'quick')
 
   return (
     <Page
@@ -53,9 +62,36 @@ export default function TodayPage() {
         </>
       }
     >
-      {cards.map(({ id }) => (
-        <HomeCard key={id} id={id} today={today} />
-      ))}
+      {cards
+        .filter((card) => card.zone === 'main')
+        .map(({ id }) => {
+          if (id === 'focus') {
+            return (
+              focus.length > 0 && (
+                <div key={id}>
+                  <h2 className="mb-2 text-base font-semibold">Em foco</h2>
+                  <Carousel label="Em foco">
+                    {focus.map((card) => (
+                      <HomeCard key={card.id} id={card.id} today={today} />
+                    ))}
+                  </Carousel>
+                </div>
+              )
+            )
+          }
+          if (id === 'quick') {
+            return (
+              quick.length > 0 && (
+                <QuickGrid key={id}>
+                  {quick.map((card) => (
+                    <HomeCard key={card.id} id={card.id} today={today} />
+                  ))}
+                </QuickGrid>
+              )
+            )
+          }
+          return <HomeCard key={id} id={id} today={today} />
+        })}
 
       <button
         type="button"
@@ -72,6 +108,8 @@ export default function TodayPage() {
 
 function HomeCard({ id, today }: { id: HomeCardId; today: DayKey }) {
   switch (id) {
+    case 'agenda':
+      return <WeekCard today={today} />
     case 'sleep':
       return <TodaySleepCard today={today} />
     case 'planned':
@@ -80,8 +118,6 @@ function HomeCard({ id, today }: { id: HomeCardId; today: DayKey }) {
       return <TodayWorkoutCard today={today} />
     case 'food':
       return <TodayFoodCard today={today} />
-    case 'body':
-      return <BodyCard today={today} />
     case 'water':
       return <WaterCard today={today} />
     case 'habits':
@@ -92,48 +128,25 @@ function HomeCard({ id, today }: { id: HomeCardId; today: DayKey }) {
       return <TodayInsightCard today={today} />
     case 'week':
       return <WeeklyCard today={today} />
-    case 'agenda':
-      return <AgendaStripCard today={today} />
+    case 'body':
+      return <WeightTile today={today} />
+    case 'race':
+      return <RaceTile today={today} />
+    case 'restingHr':
+      return <RestingHrTile today={today} />
+    case 'hrv':
+      return <HrvTile today={today} />
+    case 'battery':
+      return <BatteryTile today={today} />
+    case 'steps':
+      return <StepsTile today={today} />
+    case 'burn':
+      return <BurnTile today={today} />
+    // The carousel and the grid are drawn by the page around their cards.
+    case 'focus':
+    case 'quick':
+      return null
   }
-}
-
-function BodyCard({ today }: { today: DayKey }) {
-  const weights = useWeights()
-  const [weightOpen, setWeightOpen] = useState(false)
-  const weight = useMemo(() => metricSeries(weights ?? [], (entry) => entry.weightKg), [weights])
-  const latest = weights?.at(-1)
-  const trendNow = weight.trend.at(-1)
-  const change7 = changeOver(weight.trend, 7)
-  const weighedToday = weights?.some((entry) => entry.date === today) ?? false
-
-  return (
-    <Card
-      icon={Scale}
-      tone="body"
-      title="Corpo"
-      action={
-        <Link to="/corpo" className={linkClass}>
-          Gráficos
-        </Link>
-      }
-    >
-      {latest ? (
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="Último peso" value={`${formatFixed(latest.weightKg)} kg`} note={relativeDay(latest.date, today)} />
-          <Stat label="Tendência" value={trendNow ? `${formatFixed(trendNow.value)} kg` : '—'} />
-          <Stat label="Em 7 dias" value={change7 === undefined ? '—' : `${formatSigned(change7)} kg`} />
-        </div>
-      ) : (
-        <p className="text-sm text-muted">Nenhuma pesagem ainda.</p>
-      )}
-      {weights && !weighedToday && (
-        <Button variant="primary" className="mt-3 w-full" onClick={() => setWeightOpen(true)}>
-          <Scale size={18} /> Registrar peso de hoje
-        </Button>
-      )}
-      {weightOpen && <WeightModal entry={null} onClose={() => setWeightOpen(false)} />}
-    </Card>
-  )
 }
 
 function WaterCard({ today }: { today: DayKey }) {

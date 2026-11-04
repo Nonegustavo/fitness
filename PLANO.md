@@ -127,7 +127,9 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Alimentos medidos em porções: os que vieram sem peso (Health Connect) são registrados em porções, não em gramas; ficam fora da foto do prato e das receitas, que trabalham com gramas
 - [x] Programar as fichas nos dias (com horário opcional), sugerindo a próxima da sequência; a ficha programada para hoje é a que o Hoje, o "+" e a tela Treinos oferecem para iniciar
 - [x] Calendário (Mais → Calendário; no computador, na barra lateral): o mês com os treinos feitos e programados, a musculação junto com as corridas do Garmin; cada dia mostra os detalhes e permite programar, mudar ou tirar uma ficha
-- [x] Cartão "Próximos 7 dias" no Hoje: a semana lado a lado com os ícones dos treinos de cada dia; tocar num dia abre os detalhes
+- [x] Cartão "Minha semana" no Hoje (no lugar dos "Próximos 7 dias"): a semana atual de domingo a sábado, um ponto por treino (cheio quando feito, contorno quando programado, cinza quando não feito) e um traço nos dias livres; embaixo, treinos feitos do total, km de corrida contra o planejado nos nomes do SisRUN e o tempo de treino; tocar num dia abre os detalhes
+- [x] A semana começa no domingo em todo o app (calendário, "Minha semana", semana passada, séries da semana e histórico dos hábitos)
+- [x] Hoje no estilo do Garmin Connect: "Em foco", um carrossel de cartões grandes para deslizar (sono com nota, qualidade e as fases da noite, alimentação, análise do dia, semana passada), e "Visualização rápida", cartões menores com peso (e "+" para registrar), próxima prova do calendário do Garmin com contagem regressiva, FC de repouso, HRV, Body Battery, passos e calorias gastas; "Personalizar o Hoje" ordena e esconde cada grupo
 - [x] A análise do dia também lê a musculação programada para a semana
 
 ## Observações

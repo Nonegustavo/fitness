@@ -1,4 +1,3 @@
-import { startOfWeek } from 'date-fns'
 import { Archive, ArchiveRestore, Dumbbell, Play, Plus, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
@@ -8,7 +7,7 @@ import { useToday } from '../../db/hooks'
 import { patch, saveOrder } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Exercise, MuscleGroup, WorkoutSession } from '../../db/types'
-import { dayKey, parseDay, relativeDay, shiftDay } from '../../lib/dates'
+import { relativeDay, shiftDay, weekStart } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 import { useActivities } from '../activities/activities'
 import { ActivityRow, FitHowTo, ImportFitButton } from '../activities/components'
@@ -47,8 +46,8 @@ export default function TrainingPage() {
   const active = findActive(sessions)
   const finished = sessions.filter((session) => session.endedAt)
   const next = todays?.template
-  const weekStart = dayKey(startOfWeek(parseDay(today), { weekStartsOn: 1 }))
-  const week = finished.filter((session) => session.date >= weekStart)
+  const thisWeek = weekStart(today)
+  const week = finished.filter((session) => session.date >= thisWeek)
   const weekTotals = week.map(summarize).reduce(
     (total, s) => ({ sets: total.sets + s.sets, volumeKg: total.volumeKg + s.volumeKg }),
     { sets: 0, volumeKg: 0 },
@@ -184,7 +183,7 @@ export default function TrainingPage() {
           <Stat label="Séries" value={weekTotals.sets} />
           <Stat label="Volume" value={`${formatNumber(weekTotals.volumeKg, 0)} kg`} />
         </div>
-        <MuscleMap counts={setsByMuscle(finished, exercises, weekStart, today)} />
+        <MuscleMap counts={setsByMuscle(finished, exercises, thisWeek, today)} />
       </Card>
 
       <ProgressCard sessions={finished} exercises={exercises} today={today} />

@@ -1,15 +1,15 @@
-import { addMonths, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from 'date-fns'
+import { addMonths, endOfMonth, startOfMonth } from 'date-fns'
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { Button, Card, cx, IconButton, Page, Skeleton } from '../../components/ui'
 import { useToday } from '../../db/hooks'
-import { dayKey, dayRange, formatDay, parseDay, type DayKey } from '../../lib/dates'
+import { dayKey, dayRange, formatDay, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { byDay, shortTitle, type AgendaItem } from './agenda'
 import { AgendaIcon, AgendaLegend, DayDetails, dayTitle } from './components'
 import { useAgenda } from './plans'
 
-const WEEKDAYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
 const isDay = (value: string | null): value is DayKey => !!value && /^\d{4}-\d{2}-\d{2}$/.test(value)
 const monthOf = (date: DayKey): DayKey => dayKey(startOfMonth(parseDay(date)))
@@ -21,8 +21,8 @@ export default function CalendarPage() {
   const requested = params.get('dia')
   const selected = isDay(requested) ? requested : today
   const [month, setMonth] = useState(() => monthOf(selected))
-  const from = dayKey(startOfWeek(parseDay(month), { weekStartsOn: 1 }))
-  const to = dayKey(endOfWeek(endOfMonth(parseDay(month)), { weekStartsOn: 1 }))
+  const from = weekStart(month)
+  const to = shiftDay(weekStart(dayKey(endOfMonth(parseDay(month)))), 6)
   const agenda = useAgenda(from, to, today)
   const days = byDay(agenda ?? [])
 

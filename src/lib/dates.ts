@@ -1,4 +1,4 @@
-import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
+import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 /** A calendar day in local time, formatted yyyy-MM-dd (sorts as a string). */
@@ -31,6 +31,12 @@ export function dayRange(from: DayKey, to: DayKey): DayKey[] {
   for (let day = from; day <= to; day = shiftDay(day, 1)) days.push(day)
   return days
 }
+
+/** Weeks start on Sunday everywhere in the app (the calendar, "Minha semana", the weekly summaries). */
+export const WEEK_STARTS_ON = 0
+
+/** The Sunday that starts the week of a day. */
+export const weekStart = (key: DayKey): DayKey => dayKey(startOfWeek(parseDay(key), { weekStartsOn: WEEK_STARTS_ON }))
 
 /** Combines a day key and an "HH:mm" string into a local timestamp. */
 export function dayTime(key: DayKey, time: string): number {

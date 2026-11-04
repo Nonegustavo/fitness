@@ -25,6 +25,10 @@ const HRV_STATUS: Record<string, string> = {
 
 export const hrvStatus = (status: string | undefined): string | undefined => (status ? HRV_STATUS[status] : undefined)
 
+/** Garmin's words for a sleep score: 90 and up excellent, 80 good, 60 fair, below that poor. */
+export const sleepQuality = (score: number): string =>
+  score >= 90 ? 'Excelente' : score >= 80 ? 'Bom' : score >= 60 ? 'Razoável' : 'Ruim'
+
 export interface StagePart {
   key: SleepStage
   label: string

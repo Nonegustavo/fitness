@@ -1,9 +1,8 @@
-import { startOfWeek } from 'date-fns'
 import { CalendarRange } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { Card, SkeletonCard } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
-import { dayKey, formatDay, parseDay, shiftDay, type DayKey } from '../../lib/dates'
+import { formatDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber, formatSigned } from '../../lib/format'
 import { useActivities } from '../activities/activities'
 import { metricSeries, useWeights } from '../body/body'
@@ -16,9 +15,9 @@ import { weekStats, type WeekStats } from './weekly'
 
 /** The last complete week (Monday to Sunday) next to the one before, area by area. */
 export function WeeklyCard({ today }: { today: DayKey }) {
-  const monday = dayKey(startOfWeek(parseDay(today), { weekStartsOn: 1 }))
-  const last = { from: shiftDay(monday, -7), to: shiftDay(monday, -1) }
-  const before = { from: shiftDay(monday, -14), to: shiftDay(monday, -8) }
+  const sunday = weekStart(today)
+  const last = { from: shiftDay(sunday, -7), to: shiftDay(sunday, -1) }
+  const before = { from: shiftDay(sunday, -14), to: shiftDay(sunday, -8) }
 
   const settings = useSettings()
   const foodLogs = useFoodLogs(before.from, last.to)

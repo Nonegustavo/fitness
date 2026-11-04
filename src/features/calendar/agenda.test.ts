@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import { dayTime } from '../../lib/dates'
-import { buildAgenda, eventKind, eventTitle, shortTitle, suggestTemplate, type AgendaSources } from './agenda'
+import {
+  buildAgenda,
+  eventKind,
+  eventKm,
+  eventTitle,
+  isRace,
+  nextRace,
+  shortTitle,
+  suggestTemplate,
+  weekSummary,
+  type AgendaSources,
+} from './agenda'
 
 const meta = { updatedAt: 1, deleted: 0, dirty: 0 } as const
 const TODAY = '2026-11-05'
@@ -152,6 +163,46 @@ describe('buildAgenda', () => {
       [TODAY, 'run', 'planned', undefined],
       ['2026-11-06', 'rest', 'planned', undefined],
     ])
+  })
+})
+
+describe('eventKm, isRace and nextRace', () => {
+  it('read the distance of a workout name, the longer end of a range', () => {
+    expect(eventKm('06/11 Sex - Corrida Intervalado ativo 4,48 - 4,97 Km')).toBe(4.97)
+    expect(eventKm('08/11 Dom - Corrida 7 Km')).toBe(7)
+    expect(eventKm('Rústica de Morungava 2026 (6 a 8km)')).toBe(8)
+    expect(eventKm('Intervalado 10x400 m')).toBeUndefined()
+  })
+
+  it('tell the races apart from the SisRUN workouts and find the next one', () => {
+    const race = { date: '2026-11-08', title: 'Rústica de Morungava 2026 (6 a 8km)' }
+    const workout = { date: '2026-11-08', title: '08/11 Dom - Corrida 7 Km' }
+    expect(isRace(race)).toBe(true)
+    expect(isRace(workout)).toBe(false)
+    expect(isRace({ title: 'Fisioterapia' })).toBe(false)
+    expect(nextRace([workout, race, { date: '2026-10-20', title: 'Meia de Porto Alegre' }], TODAY)).toBe(race)
+    expect(nextRace(null, TODAY)).toBeUndefined()
+  })
+})
+
+describe('weekSummary', () => {
+  it('counts the workouts done of all, the running distance against the planned and the time', () => {
+    const items = buildAgenda(
+      '2026-11-01',
+      '2026-11-07',
+      TODAY,
+      sources({
+        plans: [plan('p1', '2026-11-03', 'legs'), plan('p2', '2026-11-07', 'pull')],
+        sessions: [session('s1', '2026-11-03', 'legs')],
+        events: [
+          { date: '2026-11-04', title: '04/11 Qua - Corrida 6 Km' },
+          { date: '2026-11-06', title: '06/11 Sex - Corrida Intervalado ativo 4,48 - 4,97 Km' },
+          { date: '2026-11-07', title: 'Descanso' },
+        ],
+        activities: [{ ...activity('a1', '2026-11-04', 'running'), distanceM: 6020, timerSec: 2280 }],
+      }),
+    )
+    expect(weekSummary(items)).toEqual({ done: 2, total: 4, runKm: 6.02, plannedRunKm: 10.97, trainedSec: 3600 + 2280 })
   })
 })
 

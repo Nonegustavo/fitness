@@ -1,4 +1,3 @@
-import { startOfWeek } from 'date-fns'
 import { Archive, ArchiveRestore, ListChecks, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Legend } from '../../components/Chart'
@@ -10,7 +9,7 @@ import { useToday } from '../../db/hooks'
 import { patch, remove, save, saveOrder } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Habit } from '../../db/types'
-import { dayKey, dayRange, formatDay, parseDay, shiftDay, type DayKey } from '../../lib/dates'
+import { dayRange, formatDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { isAndroidApp } from '../healthconnect/plugin'
 import { requestNotificationPermission } from '../notifications/native'
@@ -144,8 +143,8 @@ function HabitRow({ habit, onEdit }: { habit: Habit; onEdit: () => void }) {
 }
 
 function HabitHistory({ habits, today }: { habits: Habit[]; today: DayKey }) {
-  // Week columns from Monday, ending with the current week.
-  const firstDay = shiftDay(dayKey(startOfWeek(parseDay(today), { weekStartsOn: 1 })), -7 * (HISTORY_WEEKS - 1))
+  // Week columns from Sunday, ending with the current week.
+  const firstDay = shiftDay(weekStart(today), -7 * (HISTORY_WEEKS - 1))
   const lastDay = shiftDay(firstDay, 7 * HISTORY_WEEKS - 1)
   const days = useMemo(() => dayRange(firstDay, lastDay), [firstDay, lastDay])
   const logs = useHabitLogs(firstDay, today)
