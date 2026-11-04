@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Heart, Minus, Plus, Trash2, TrendingUp, Trophy } from 'lucide-react'
+import { ArrowLeftRight, Check, Disc3, Heart, Link2, Minus, Plus, Trash2, TrendingUp, Trophy, Unlink2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { celebrate } from '../../components/celebrate'
@@ -16,13 +16,17 @@ import { EQUIPMENT, formatReps, formatSet, MUSCLES } from './catalog'
 import { Elapsed } from './components'
 import { ExercisePicker } from './ExercisePicker'
 import { startRest, stopRest } from './restTimer'
-import { lastPerformance, personalRecords, suggestNextWeight, summarize, type Performance } from './stats'
+import { LoadStepper, PlatesModal, SwapModal } from './GymTools'
+import { LOAD_STEP, lastPerformance, personalRecords, suggestNextWeight, summarize, type Performance } from './stats'
 import {
   changeExercise,
   changeSet,
   deleteWorkout,
   finishWorkout,
   newSessionExercise,
+  restsAfter,
+  shiftLoad,
+  swapExercise,
   updateSession,
   useExerciseMap,
   useSessions,
@@ -46,6 +50,7 @@ export default function SessionPage() {
   useWakeLock(active)
 
   const history = useMemo(() => sessions ?? [], [sessions])
+  const library = useMemo(() => [...exercises.values()], [exercises])
   const records = useMemo(
     () => (session && !active ? personalRecords(session, history) : new Set<string>()),
     [session, active, history],
@@ -127,6 +132,9 @@ export default function SessionPage() {
         <ExerciseCard
           key={exercise.key}
           session={session}
+          index={session.exercises.indexOf(exercise)}
+          library={library}
+          history={history}
           exercise={exercise}
           info={exercises.get(exercise.exerciseId)}
           last={lastPerformance(history, exercise.exerciseId, session.startedAt)}
@@ -205,6 +213,9 @@ export default function SessionPage() {
 
 function ExerciseCard({
   session,
+  index,
+  library,
+  history,
   exercise,
   info,
   last,
@@ -213,6 +224,11 @@ function ExerciseCard({
   peaks,
 }: {
   session: WorkoutSession
+  /** Its place in the workout, for the bi-sets. */
+  index: number
+  /** Every exercise, to swap this one for another. */
+  library: Exercise[]
+  history: WorkoutSession[]
   exercise: SessionExercise
   info: Exercise | undefined
   last: Performance | undefined
@@ -222,6 +238,8 @@ function ExerciseCard({
   peaks?: Map<string, number>
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [swapping, setSwapping] = useState(false)
+  const [plates, setPlates] = useState(false)
   const setPeaks = exercise.sets.flatMap((set) => {
     const peak = peaks?.get(set.key)
     return peak === undefined ? [] : [peak]
@@ -248,8 +266,21 @@ function ExerciseCard({
       ? 'grid-cols-[1.75rem_minmax(0,1fr)_4.25rem_3.75rem_2.75rem]'
       : 'grid-cols-[1.75rem_minmax(0,1fr)_4.75rem_2.75rem]'
 
+  // Bi-sets: this one and the next are done alternating, with the rest after the pair.
+  const next = session.exercises[index + 1]
+  const previous = session.exercises[index - 1]
+  const inSuperset = !!exercise.supersetWithNext || !!previous?.supersetWithNext
+  const rests = restsAfter(session.exercises, index)
+  const nameOf = (id: string) => library.find((e) => e.id === id)?.name ?? 'o próximo'
+
+  // The load the next sets will use: typed, or last time's, or the template's.
+  const firstLeft = rows.find(({ set }) => set.kind === 'normal' && !set.done)
+  const nextLoad = firstLeft && (firstLeft.set.weightKg ?? firstLeft.previous?.weightKg ?? firstLeft.set.target?.weightKg)
+  const barbell = info?.equipment === 'barbell' || info?.equipment === 'smith'
+  const step = info && LOAD_STEP[info.equipment] > 0 ? LOAD_STEP[info.equipment] : 2.5
+
   return (
-    <Card>
+    <Card className={cx(inSuperset && 'border-l-4 border-l-(--tone-training)')}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <Link to={`/treinos/exercicios/${exercise.exerciseId}`} className="font-medium hover:text-accent-ink">
@@ -264,10 +295,31 @@ function ExerciseCard({
             <Trophy size={14} className="text-accent-ink" /> Recorde
           </span>
         )}
+        {active && info && (
+          <IconButton label="Trocar por outro exercício" onClick={() => setSwapping(true)}>
+            <ArrowLeftRight size={16} />
+          </IconButton>
+        )}
+        {active && next && (
+          <IconButton
+            label={exercise.supersetWithNext ? 'Desfazer bi-set' : `Bi-set com ${nameOf(next.exerciseId)}`}
+            aria-pressed={!!exercise.supersetWithNext}
+            onClick={() => update((current) => ({ ...current, supersetWithNext: !current.supersetWithNext }))}
+          >
+            {exercise.supersetWithNext ? <Unlink2 size={16} /> : <Link2 size={16} />}
+          </IconButton>
+        )}
         <IconButton label="Remover exercício" onClick={() => setConfirmRemove(true)}>
           <Trash2 size={16} />
         </IconButton>
       </div>
+      {inSuperset && (
+        <p className="mt-1 text-xs font-medium text-(--tone-training)">
+          {exercise.supersetWithNext
+            ? `Bi-set: uma série daqui, uma de ${nameOf(next!.exerciseId)}, e o descanso depois.`
+            : 'Fim do bi-set: o descanso começa depois desta série.'}
+        </p>
+      )}
       {exercise.notes && <p className="mt-1 text-sm text-ink-2">{exercise.notes}</p>}
       {setPeaks.length > 0 && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-2">
@@ -302,6 +354,15 @@ function ExerciseCard({
         </div>
       )}
 
+      {active && type === 'weight_reps' && nextLoad !== undefined && (
+        <LoadStepper weightKg={nextLoad} step={step} onShift={(delta) => update((current) => shiftLoad(current, delta, nextLoad))} />
+      )}
+      {active && barbell && type === 'weight_reps' && (
+        <button type="button" onClick={() => setPlates(true)} className="mt-2 flex items-center gap-1.5 text-xs font-medium text-accent-ink">
+          <Disc3 size={14} /> Anilhas{nextLoad !== undefined && ` para ${formatNumber(nextLoad, 2)} kg`}
+        </button>
+      )}
+
       <div className="mt-3 space-y-1">
         <div className={cx('grid items-end gap-2 px-1 text-xs text-muted', columns)}>
           <span className="text-center">Série</span>
@@ -321,7 +382,7 @@ function ExerciseCard({
             type={type}
             columns={columns}
             restLabel={info?.name ?? 'Descanso'}
-            startsRest={active}
+            startsRest={active && rests}
           />
         ))}
       </div>
@@ -351,6 +412,19 @@ function ExerciseCard({
         </Button>
       </div>
 
+      {swapping && info && (
+        <SwapModal
+          current={info}
+          exercises={library}
+          sessions={history}
+          onClose={() => setSwapping(false)}
+          onPick={(exerciseId) => {
+            setSwapping(false)
+            void updateSession(session.id, (current) => swapExercise(current, exercise.key, exerciseId))
+          }}
+        />
+      )}
+      {plates && <PlatesModal initialKg={nextLoad} onClose={() => setPlates(false)} />}
       {confirmRemove && (
         <Confirm
           title="Remover exercício?"

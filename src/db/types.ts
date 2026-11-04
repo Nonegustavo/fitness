@@ -172,6 +172,8 @@ export interface Settings extends Synced {
   profile?: string
   /** Android reminders that only come when something is missing. */
   smartReminders?: SmartReminders
+  /** The gym's bar and plates, for the plate calculator. */
+  gym?: GymSetup
 }
 
 /** Each one is on when set: a time ("08:30") for the weigh-in and the meals, true for water. */
@@ -184,6 +186,12 @@ export interface SmartReminders {
   dinner?: string
   /** Behind the day's water pace at 11h, 15h and 19h. */
   water?: boolean
+}
+
+export interface GymSetup {
+  barKg: number
+  /** The plate weights the gym has (any number of each). */
+  plates: number[]
 }
 
 export interface WeightGoal {
@@ -358,6 +366,8 @@ export interface TemplateExercise {
   restSec: number
   notes?: string
   sets: PlannedSet[]
+  /** Done alternating with the next exercise (bi-set): the rest comes after the pair. */
+  supersetWithNext?: boolean
 }
 
 export interface WorkoutTemplate extends Synced {
@@ -388,6 +398,8 @@ export interface SessionExercise {
   restSec: number
   notes?: string
   sets: PerformedSet[]
+  /** Done alternating with the next exercise (bi-set): the rest comes after the pair. */
+  supersetWithNext?: boolean
 }
 
 export interface WorkoutSession extends Synced {

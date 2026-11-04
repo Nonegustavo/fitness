@@ -81,7 +81,7 @@ export function lastPerformance(sessions: WorkoutSession[], exerciseId: string, 
 }
 
 /** Next load step by equipment; barbells take a pair of 1.25 kg plates. */
-const LOAD_STEP: Record<Equipment, number> = {
+export const LOAD_STEP: Record<Equipment, number> = {
   barbell: 2.5,
   smith: 2.5,
   dumbbell: 2,
@@ -197,3 +197,41 @@ export function recentEffort(sessions: WorkoutSession[], count = 3): number | un
  */
 export const needsDeload = (stalls: Stall[], effort?: number): boolean =>
   stalls.length >= 3 || (stalls.length >= 2 && effort !== undefined && effort >= 9)
+
+/** Olympic bar and the usual plates of a Brazilian gym. */
+export const DEFAULT_GYM = { barKg: 20, plates: [25, 20, 15, 10, 5, 2.5, 1.25] }
+export const PLATE_OPTIONS = [25, 20, 15, 10, 5, 4, 3, 2.5, 2, 1.25, 1, 0.5]
+
+export interface PlateLoad {
+  /** Heaviest first, for one side of the bar. */
+  perSide: number[]
+  /** What the plates can't make up, per side (0 when exact). */
+  missing: number
+}
+
+/**
+ * The plates for each side of the bar: the closest load at or under the target, with as few
+ * plates as possible. Exact over any plate set (4 kg and 3 kg make 6, where heaviest-first can't).
+ */
+export function platesPerSide(totalKg: number, barKg: number, plates: number[]): PlateLoad {
+  const unit = 0.25
+  const target = Math.max(0, Math.round((totalKg - barKg) / 2 / unit))
+  const sizes = [...new Set(plates.map((p) => Math.round(p / unit)).filter((p) => p > 0))]
+  // fewest[a]: the fewest plates making exactly a units; from[a]: the last plate used.
+  const fewest = new Array<number>(target + 1).fill(Infinity)
+  const from = new Array<number>(target + 1).fill(0)
+  fewest[0] = 0
+  for (let a = 1; a <= target; a++) {
+    for (const size of sizes) {
+      if (size <= a && fewest[a - size] + 1 < fewest[a]) {
+        fewest[a] = fewest[a - size] + 1
+        from[a] = size
+      }
+    }
+  }
+  let reach = target
+  while (reach > 0 && fewest[reach] === Infinity) reach--
+  const perSide: number[] = []
+  for (let a = reach; a > 0; a -= from[a]) perSide.push(from[a] * unit)
+  return { perSide: perSide.sort((x, y) => y - x), missing: (target - reach) * unit }
+}

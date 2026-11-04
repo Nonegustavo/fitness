@@ -158,3 +158,62 @@ describe('stalledExercises', () => {
     expect(stalledExercises([session(1, 60), session(5, 62.5), session(9, 65), session(13, 67.5)], '2026-10-20')).toEqual([])
   })
 })
+
+describe('platesPerSide', () => {
+  it('loads each side with the fewest plates', async () => {
+    const { platesPerSide, DEFAULT_GYM } = await import('./stats')
+    expect(platesPerSide(100, 20, DEFAULT_GYM.plates)).toEqual({ perSide: [25, 15], missing: 0 })
+    expect(platesPerSide(62.5, 20, DEFAULT_GYM.plates)).toEqual({ perSide: [20, 1.25], missing: 0 })
+  })
+
+  it('finds combinations heaviest-first misses, and says what is missing', async () => {
+    const { platesPerSide } = await import('./stats')
+    expect(platesPerSide(32, 20, [4, 3])).toEqual({ perSide: [3, 3], missing: 0 })
+    expect(platesPerSide(21, 20, [1.25])).toEqual({ perSide: [], missing: 0.5 })
+    expect(platesPerSide(15, 20, [5])).toEqual({ perSide: [], missing: 0 })
+  })
+})
+
+describe('workout helpers', () => {
+  const meta = { updatedAt: 0, deleted: 0 as const, dirty: 0 as const }
+  const set = (key: string, done: boolean, weightKg?: number) => ({ key, kind: 'normal' as const, done, weightKg, reps: 8, target: { reps: 8, weightKg } })
+  const session = {
+    ...meta,
+    id: 's',
+    name: 'A',
+    date: '2026-11-04',
+    startedAt: 0,
+    exercises: [
+      { key: 'a', exerciseId: 'supino', restSec: 90, sets: [set('1', true, 60), set('2', false, 60)], supersetWithNext: true },
+      { key: 'b', exerciseId: 'remada', restSec: 90, sets: [set('3', false, 50)] },
+    ],
+  }
+
+  it('rests only after the last exercise of a bi-set', async () => {
+    const { restsAfter } = await import('./training')
+    expect(restsAfter(session.exercises, 0)).toBe(false)
+    expect(restsAfter(session.exercises, 1)).toBe(true)
+  })
+
+  it('moves the load of the sets still to do', async () => {
+    const { shiftLoad } = await import('./training')
+    const shifted = shiftLoad(session.exercises[0], 2.5, 60)
+    expect(shifted.sets.map((s) => s.weightKg)).toEqual([60, 62.5])
+  })
+
+  it('swaps an exercise, keeping the sets already done with the original', async () => {
+    const { swapExercise } = await import('./training')
+    const swapped = swapExercise(session, 'a', 'supino-halteres')
+    expect(swapped.exercises.map((e) => [e.exerciseId, e.sets.length])).toEqual([
+      ['supino', 1],
+      ['supino-halteres', 1],
+      ['remada', 1],
+    ])
+    expect(swapped.exercises[1].sets[0].weightKg).toBeUndefined()
+    expect(swapped.exercises[0].supersetWithNext).toBe(false)
+    expect(swapped.exercises[1].supersetWithNext).toBe(true)
+    const fresh = swapExercise(session, 'b', 'remada-baixa')
+    expect(fresh.exercises.map((e) => e.exerciseId)).toEqual(['supino', 'remada-baixa'])
+    expect(fresh.exercises[1].key).toBe('b')
+  })
+})

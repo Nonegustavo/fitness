@@ -60,6 +60,7 @@ export async function startWorkout(template?: WorkoutTemplate): Promise<string> 
       restSec: exercise.restSec,
       notes: exercise.notes,
       sets: setsFromPlan(exercise.sets),
+      supersetWithNext: exercise.supersetWithNext,
     })),
   })
   return session.id
@@ -116,3 +117,39 @@ export function finishWorkout(id: string) {
 }
 
 export const deleteWorkout = (id: string) => remove(db.workoutSessions, id)
+
+/**
+ * Whether checking a set of this exercise starts the rest: not in the middle of a bi-set, where the
+ * next exercise comes right away.
+ */
+export const restsAfter = (exercises: SessionExercise[], index: number): boolean =>
+  !exercises[index]?.supersetWithNext || index === exercises.length - 1
+
+/** The weight still to lift moved by a step, on every working set not done yet. */
+export function shiftLoad(exercise: SessionExercise, step: number, from: number): SessionExercise {
+  const next = Math.max(0, Math.round((from + step) * 100) / 100)
+  return {
+    ...exercise,
+    sets: exercise.sets.map((set) => (set.kind === 'normal' && !set.done ? { ...set, weightKg: next } : set)),
+  }
+}
+
+/**
+ * Another exercise in the place of this one (the machine is busy): the sets not done yet move to
+ * it, without the old loads. Sets already done stay with the original exercise.
+ */
+export function swapExercise(session: WorkoutSession, exerciseKey: string, exerciseId: string): WorkoutSession {
+  return {
+    ...session,
+    exercises: session.exercises.flatMap((exercise) => {
+      if (exercise.key !== exerciseKey) return [exercise]
+      const done = exercise.sets.filter((set) => set.done)
+      const left = exercise.sets
+        .filter((set) => !set.done)
+        .map((set) => ({ ...set, weightKg: undefined, target: set.target && { ...set.target, weightKg: undefined } }))
+      const swapped = { ...exercise, exerciseId, sets: left, notes: undefined }
+      if (done.length === 0) return [swapped]
+      return [{ ...exercise, sets: done, supersetWithNext: false }, { ...swapped, key: newId() }]
+    }),
+  }
+}

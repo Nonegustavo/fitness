@@ -75,6 +75,7 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Botão "+" em qualquer tela (no computador, "Registrar" na barra lateral): alimento, pesagem, próximo treino, diário e água em 1 toque
 - [x] Lembretes do dia no app Android (Ajustes): pesagem, almoço e jantar nos horários escolhidos e água no ritmo às 11h, 15h e 19h, só quando falta registrar
 - [x] Telas e cartões mostram o formato do conteúdo enquanto carregam, em vez de ficar em branco ou mostrar zeros
+- [x] Na academia: carga das próximas séries com ±1 degrau (2,5 kg na barra, 2 kg no halter, 5 kg na máquina), calculadora de anilhas com a barra e as anilhas da academia, trocar um exercício por outro do mesmo grupo e bi-sets (na ficha e durante o treino, com o descanso depois do par)
 - [x] Treino: mapa do corpo (frente e costas) com as séries da semana por músculo contra a faixa de 10–20
 - [x] Treino: exercícios sem evoluir (3 treinos sem bater o melhor 1RM estimado) e aviso de deload
 - [x] Treino: esforço (RPE 1–10) e dor ou desconforto por região em cada sessão; o esforço entra nas correlações

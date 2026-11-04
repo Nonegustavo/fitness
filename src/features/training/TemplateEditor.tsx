@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Confirm } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
-import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, TextInput } from '../../components/ui'
+import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, Switch, TextInput } from '../../components/ui'
 import { patch, remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Exercise, ExerciseType, PlannedSet, SetKind, WorkoutTemplate } from '../../db/types'
@@ -30,6 +30,8 @@ interface DraftExercise {
   rest: string
   notes: string
   sets: DraftSet[]
+  /** Bi-set with the next exercise. */
+  superset: boolean
 }
 
 interface Draft {
@@ -56,6 +58,7 @@ const newDraftExercise = (exerciseId: string): DraftExercise => ({
   rest: formatClock(DEFAULT_REST_SEC),
   notes: '',
   sets: [newDraftSet(), newDraftSet(), newDraftSet()],
+  superset: false,
 })
 
 function toDraft(template: WorkoutTemplate): Draft {
@@ -67,6 +70,7 @@ function toDraft(template: WorkoutTemplate): Draft {
       exerciseId: exercise.exerciseId,
       rest: formatClock(exercise.restSec),
       notes: exercise.notes ?? '',
+      superset: !!exercise.supersetWithNext,
       sets: exercise.sets.map((set) => ({
         key: newId(),
         kind: set.kind,
@@ -135,7 +139,7 @@ export default function TemplateEditor() {
       notes: draft.notes.trim() || undefined,
       order: template?.order ?? nextOrder,
       archived: template?.archived,
-      exercises: draft.exercises.map((exercise) => {
+      exercises: draft.exercises.map((exercise, i) => {
         const type = exercises.get(exercise.exerciseId)?.type ?? 'weight_reps'
         return {
           key: exercise.key,
@@ -143,6 +147,8 @@ export default function TemplateEditor() {
           restSec: parseClock(exercise.rest) ?? DEFAULT_REST_SEC,
           notes: exercise.notes.trim() || undefined,
           sets: exercise.sets.map((set) => toPlannedSet(set, type)),
+          // The last exercise has no next one to pair with.
+          supersetWithNext: exercise.superset && i < draft.exercises.length - 1 ? true : undefined,
         }
       }),
     })
@@ -198,6 +204,8 @@ export default function TemplateEditor() {
               exercise={exercise}
               info={exercises.get(exercise.exerciseId)}
               index={draft.exercises.indexOf(exercise)}
+              isLast={draft.exercises.indexOf(exercise) === draft.exercises.length - 1}
+              nextName={exercises.get(draft.exercises[draft.exercises.indexOf(exercise) + 1]?.exerciseId ?? '')?.name}
               handle={handle}
               onChange={(change) => updateExercise(exercise.key, change)}
               onRemove={() =>
@@ -266,6 +274,8 @@ function ExerciseEditor({
   exercise,
   info,
   index,
+  isLast,
+  nextName,
   handle,
   onChange,
   onRemove,
@@ -273,6 +283,9 @@ function ExerciseEditor({
   exercise: DraftExercise
   info: Exercise | undefined
   index: number
+  isLast: boolean
+  /** The exercise after this one, for the bi-set. */
+  nextName?: string
   /** The grip that drags the exercise to another position. */
   handle: ReactNode
   onChange: (change: (exercise: DraftExercise) => DraftExercise) => void
@@ -325,6 +338,21 @@ function ExerciseEditor({
           />
         </Field>
       </div>
+      {!isLast && (
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <span className="min-w-0">
+            <span className="block text-sm">Bi-set com o próximo</span>
+            <span className="block truncate text-xs text-muted">
+              {nextName ? `Alterna com ${nextName}; o descanso vem depois do par` : 'O descanso vem depois do par'}
+            </span>
+          </span>
+          <Switch
+            label="Bi-set com o próximo"
+            checked={exercise.superset}
+            onChange={(on) => onChange((current) => ({ ...current, superset: on }))}
+          />
+        </div>
+      )}
 
       <div className="mt-3 space-y-1.5">
         <div className={cx('grid items-end gap-2 text-xs text-muted', columns)}>
