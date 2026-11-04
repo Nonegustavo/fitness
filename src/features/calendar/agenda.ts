@@ -49,6 +49,16 @@ export function eventKind(event: Pick<PlannedEvent, 'title' | 'description'>): A
   return 'run'
 }
 
+/** SisRUN starts its names with the day ("06/11 Sex - Corrida 7 Km"), which the calendar already shows. */
+export const eventTitle = (title: string): string =>
+  title.replace(/^\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s+\p{L}{3,}\.?\s*[-–—:]\s*/u, '').trim() || title.trim()
+
+/** The name for tight spots (the week strip, the widget): without the kind its icon already shows. */
+export function shortTitle(item: Pick<AgendaItem, 'kind' | 'title'>): string {
+  const short = item.kind === 'run' ? item.title.replace(/^corrida\b\s*[-–:]?\s*/i, '') : item.title
+  return short ? short.charAt(0).toUpperCase() + short.slice(1) : item.title
+}
+
 /** The kind of a recorded activity (sport and sub-sport as the watch names them). */
 export function activityKind(activity: Pick<Activity, 'sport' | 'subSport'>): AgendaKind {
   if (activity.subSport === 'strengthTraining') return 'gym'
@@ -142,7 +152,13 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
   for (const event of sources.events ?? []) {
     if (!inRange(event.date)) continue
     const kind = eventKind(event)
-    const base = { key: `event-${event.uid ?? event.title}-${event.date}`, date: event.date, kind, title: event.title, event }
+    const base = {
+      key: `event-${event.uid ?? event.title}-${event.date}`,
+      date: event.date,
+      kind,
+      title: eventTitle(event.title),
+      event,
+    }
     const activity =
       kind === 'rest'
         ? undefined

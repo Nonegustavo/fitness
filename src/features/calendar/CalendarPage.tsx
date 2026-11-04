@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router'
 import { Button, Card, cx, IconButton, Page, Skeleton } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { dayKey, dayRange, formatDay, parseDay, type DayKey } from '../../lib/dates'
-import { byDay, type AgendaItem } from './agenda'
+import { byDay, shortTitle, type AgendaItem } from './agenda'
 import { AgendaIcon, AgendaLegend, DayDetails, dayTitle } from './components'
 import { useAgenda } from './plans'
 
@@ -134,7 +134,7 @@ function DayCell({
         {shown.map((item) => (
           <span key={item.key} className="flex min-w-0 items-center gap-1 text-left text-[11px] text-ink-2">
             <AgendaIcon kind={item.kind} status={item.status} size="xs" />
-            <span className={cx('truncate', item.status === 'missed' && 'line-through')}>{item.title}</span>
+            <span className={cx('truncate', item.status === 'missed' && 'line-through')}>{shortTitle(item)}</span>
           </span>
         ))}
         {more > 0 && <span className="block text-left text-[10px] text-muted">+{more}</span>}

@@ -1,7 +1,7 @@
 import type { MacroGoals, Nutrients } from '../../db/types'
 import { formatTime } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
-import type { AgendaItem, AgendaKind } from '../calendar/agenda'
+import { shortTitle, type AgendaItem, type AgendaKind } from '../calendar/agenda'
 
 /** A workout ahead; the widget shows the first one from the current day on. */
 export interface WidgetWorkout {
@@ -96,7 +96,7 @@ export function widgetWorkouts(items: AgendaItem[]): WidgetWorkout[] {
       const time = item.plan?.time ?? (item.event?.time !== undefined ? formatTime(item.event.time) : undefined)
       return {
         date: item.date,
-        title: item.title,
+        title: shortTitle(item),
         kind: item.kind,
         ...(time && { time }),
         ...(item.status === 'active' && { active: true }),

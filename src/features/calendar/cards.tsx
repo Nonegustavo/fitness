@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import { Modal } from '../../components/Modal'
 import { Card, cx, Empty, SkeletonCard, SkeletonLines } from '../../components/ui'
 import { dayRange, parseDay, shiftDay, type DayKey } from '../../lib/dates'
-import { byDay } from './agenda'
+import { byDay, shortTitle } from './agenda'
 import { AgendaIcon, AgendaItems, DayDetails, dayTitle } from './components'
 import { useAgenda } from './plans'
 
@@ -62,7 +62,7 @@ export function AgendaStripCard({ today }: { today: DayKey }) {
                           item.status === 'missed' && 'line-through',
                         )}
                       >
-                        {item.title}
+                        {shortTitle(item)}
                       </span>
                     </span>
                   ))

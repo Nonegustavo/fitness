@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import { dayTime } from '../../lib/dates'
-import { buildAgenda, eventKind, suggestTemplate, type AgendaSources } from './agenda'
+import { buildAgenda, eventKind, eventTitle, shortTitle, suggestTemplate, type AgendaSources } from './agenda'
 
 const meta = { updatedAt: 1, deleted: 0, dirty: 0 } as const
 const TODAY = '2026-11-05'
@@ -66,6 +66,18 @@ describe('eventKind', () => {
     expect(eventKind({ title: 'Treino de força' })).toBe('gym')
     expect(eventKind({ title: 'Descanso' })).toBe('rest')
     expect(eventKind({ title: 'Caminhada' })).toBe('walk')
+  })
+})
+
+describe('eventTitle and shortTitle', () => {
+  it('drop the day SisRUN puts before the name, and the kind the icon shows in tight spots', () => {
+    expect(eventTitle('06/11 Sex - Corrida Intervalado ativo 4,48 - 4,97 Km')).toBe('Corrida Intervalado ativo 4,48 - 4,97 Km')
+    expect(eventTitle('08/11 Dom - Corrida 7 Km')).toBe('Corrida 7 Km')
+    expect(eventTitle('Rústica de Morungava 2026 (6 a 8km)')).toBe('Rústica de Morungava 2026 (6 a 8km)')
+    expect(shortTitle({ kind: 'run', title: 'Corrida 7 Km' })).toBe('7 Km')
+    expect(shortTitle({ kind: 'run', title: 'Corrida Intervalado ativo' })).toBe('Intervalado ativo')
+    expect(shortTitle({ kind: 'run', title: 'Corrida' })).toBe('Corrida')
+    expect(shortTitle({ kind: 'gym', title: 'PULL DAY' })).toBe('PULL DAY')
   })
 })
 
