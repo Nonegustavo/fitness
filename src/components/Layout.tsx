@@ -59,7 +59,8 @@ export function Layout() {
   }, [pathname])
 
   return (
-    <div className="min-h-dvh lg:flex">
+    // Nothing may widen the screen sideways: on a phone that also pushed the bottom bar out of view.
+    <div className="min-h-dvh overflow-x-clip lg:flex">
       <aside className="hidden border-r border-line bg-surface p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-60 lg:shrink-0 lg:flex-col">
         <div className="mb-6 flex items-center gap-2 px-2 text-lg font-semibold">
           <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" className="size-7" />

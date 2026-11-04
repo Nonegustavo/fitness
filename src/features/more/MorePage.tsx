@@ -2,12 +2,14 @@ import {
   CalendarDays,
   ChartScatter,
   ChevronRight,
+  Footprints,
   GlassWater,
   ListChecks,
   Moon,
   NotebookPen,
   Settings,
   Sparkles,
+  Trophy,
 } from 'lucide-react'
 import { Link } from 'react-router'
 import { IconTile, type Tone } from '../../components/tone'
@@ -21,6 +23,8 @@ const LINKS: { to: string; label: string; detail: string; icon: typeof Moon; ton
     icon: CalendarDays,
     tone: 'training',
   },
+  { to: '/recordes', label: 'Recordes de corrida', detail: 'Os 5 melhores tempos em cada distância e as mais longas', icon: Trophy, tone: 'analysis' },
+  { to: '/passos', label: 'Passos', detail: 'Dia a dia, com as calorias do relógio', icon: Footprints, tone: 'today' },
   { to: '/sono', label: 'Sono e recuperação', detail: 'Noite, HRV, FC de repouso e Body Battery do Garmin', icon: Moon, tone: 'sleep' },
   { to: '/analise', label: 'Análise do dia', detail: 'O Claude lê seus dados e o diário', icon: Sparkles, tone: 'analysis' },
   {

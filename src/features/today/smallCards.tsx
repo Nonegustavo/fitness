@@ -1,16 +1,14 @@
-import { CalendarDays, CalendarRange, Dumbbell, GlassWater, ListChecks, Moon, NotebookPen, Play, Plus, Sparkles, Utensils } from 'lucide-react'
+import { CalendarRange, Dumbbell, GlassWater, ListChecks, Moon, NotebookPen, Play, Plus, Sparkles, Utensils } from 'lucide-react'
 import { useToast } from '../../components/Toast'
 import { toneColor } from '../../components/tone'
-import { cx, IconButton } from '../../components/ui'
+import { IconButton } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { remove } from '../../db/repo'
 import { db } from '../../db/schema'
-import { dayRange, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
+import type { DayKey } from '../../lib/dates'
 import { formatDuration, formatMl, formatNumber } from '../../lib/format'
 import { useInsight } from '../analysis/daily'
-import { byDay, weekSummary } from '../calendar/agenda'
-import { DayMarks } from '../calendar/cards'
-import { useAgenda, useTodayTemplate } from '../calendar/plans'
+import { useTodayTemplate } from '../calendar/plans'
 import { goalsFor, sumNutrients, useFoodLogs, useTrainingDays } from '../food/nutrition'
 import { latestNight, sleepQuality } from '../garmin/recovery'
 import { isSuccess, useHabitLogs, useHabits } from '../habits/habits'
@@ -20,34 +18,6 @@ import { findActive, useSessions } from '../training/training'
 import { addWater, sumMl, useContainers, useWaterLogs } from '../water/water'
 import { Note, SmallCard, ThinBar, TileSkeleton, useRecentHealth, Value } from './tiles'
 import { useLastWeek } from './WeeklyCard'
-
-const LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
-
-export function AgendaSmall({ today }: { today: DayKey }) {
-  const from = weekStart(today)
-  const to = shiftDay(from, 6)
-  const agenda = useAgenda(from, to, today)
-  if (!agenda) return <TileSkeleton />
-  const days = byDay(agenda)
-  const summary = weekSummary(agenda)
-  return (
-    <SmallCard icon={CalendarDays} tone="training" label="Minha semana" to="/calendario">
-      <span className="mt-1 flex justify-between">
-        {dayRange(from, to).map((date) => (
-          <span key={date} className="flex flex-col items-center gap-1.5">
-            <span className={cx('text-[11px] leading-none', date === today ? 'font-bold text-accent-ink' : 'text-muted')}>
-              {LETTERS[parseDay(date).getDay()]}
-            </span>
-            <DayMarks items={days.get(date) ?? []} />
-          </span>
-        ))}
-      </span>
-      <Note>
-        {summary.total > 0 ? `${summary.done}/${summary.total} treinos` : 'nenhum treino'} · {formatNumber(summary.runKm, 1)} km
-      </Note>
-    </SmallCard>
-  )
-}
 
 /** Today's workout in short, with a button to start it. */
 export function WorkoutSmall({ today }: { today: DayKey }) {

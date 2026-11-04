@@ -228,9 +228,14 @@ function ActivitiesCard({ today }: { today: string }) {
       title="Atividades do relógio"
       action={
         activities.length > 0 ? (
-          <Link to="/treinos/atividades" className="text-sm font-medium text-accent-ink">
-            Ver todas
-          </Link>
+          <span className="flex gap-3">
+            <Link to="/recordes" className="text-sm font-medium text-accent-ink">
+              Recordes
+            </Link>
+            <Link to="/treinos/atividades" className="text-sm font-medium text-accent-ink">
+              Ver todas
+            </Link>
+          </span>
         ) : undefined
       }
     >

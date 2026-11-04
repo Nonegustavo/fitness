@@ -169,6 +169,8 @@ export type HomeCardId =
 export interface HomeAreas {
   focus: HomeCardId[]
   quick: HomeCardId[]
+  /** "Minha semana" above "Em foco"; on unless false. */
+  week?: boolean
 }
 
 /** The arrangement of the Hoje screen before the two areas (kept for the hidden cards). */

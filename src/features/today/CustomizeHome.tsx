@@ -2,7 +2,7 @@ import { CircleMinus, CirclePlus, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { Modal } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
-import { Button, IconButton, Segmented } from '../../components/ui'
+import { Button, IconButton, Segmented, Switch } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { patch } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
@@ -25,6 +25,13 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal open title="Personalizar o Hoje" onClose={onClose}>
+      <div className="mb-4 flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">Minha semana no topo</span>
+          <span className="block text-xs text-muted">Os dias de domingo a sábado, acima do "Em foco"</span>
+        </span>
+        <Switch checked={areas.week} label="Mostrar Minha semana no topo" onChange={(week) => store({ ...areas, week })} />
+      </div>
       <Segmented
         label="Área"
         value={area}

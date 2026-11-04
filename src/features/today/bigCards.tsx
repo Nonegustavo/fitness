@@ -274,7 +274,7 @@ export function StepsBig({ today }: { today: DayKey }) {
   if (latestIndex < 0) return null
   const mean = average(values.slice(0, -1).filter((value): value is number => value !== undefined))
   return (
-    <Card icon={Footprints} tone="today" title="Passos" action={detailsLink('/sono')}>
+    <Card icon={Footprints} tone="today" title="Passos" action={detailsLink('/passos')}>
       <Headline
         value={formatNumber(values[latestIndex]!, 0)}
         note={`${days[latestIndex] === today ? 'hoje, até a última sincronização' : relativeDay(days[latestIndex], today)}${mean ? ` · média ${formatNumber(mean, 0)}` : ''}`}

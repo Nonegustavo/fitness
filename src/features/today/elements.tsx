@@ -7,7 +7,6 @@ import type { HomeCardId } from '../../db/types'
 import { formatTime, type DayKey } from '../../lib/dates'
 import { TodayInsightCard } from '../analysis/TodayInsightCard'
 import { eventTitle } from '../calendar/agenda'
-import { WeekCard } from '../calendar/cards'
 import { TodaySleepCard } from '../garmin/TodaySleepCard'
 import { usePlannedEvents } from '../garmin/sync'
 import { TodayPlannedCard } from '../garmin/UpcomingWorkouts'
@@ -19,7 +18,6 @@ import { sumMl, useWaterLogs } from '../water/water'
 import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
 import { BatteryBig, BurnBig, FoodBig, HrvBig, RaceBig, RestingHrBig, StepsBig, WeightBig } from './bigCards'
 import {
-  AgendaSmall,
   FoodSmall,
   HabitsSmall,
   InsightSmall,
@@ -94,7 +92,8 @@ function PlannedSmall({ today }: { today: DayKey }) {
 
 /** The big card ("Em foco") and the small one ("Visualização rápida") of each element. */
 export const ELEMENT_VIEWS: Record<HomeCardId, { big: ElementView; small: ElementView } | undefined> = {
-  agenda: { big: WeekCard, small: AgendaSmall },
+  // "Minha semana" sits above "Em foco" instead.
+  agenda: undefined,
   workout: { big: TodayWorkoutCard, small: WorkoutSmall },
   planned: { big: TodayPlannedCard, small: PlannedSmall },
   sleep: { big: TodaySleepCard, small: SleepSmall },

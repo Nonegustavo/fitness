@@ -231,7 +231,7 @@ export function StepsSmall({ today }: { today: DayKey }) {
   if (!latest) return null
   const before = average(days.filter((day) => day.steps !== undefined && day.id !== latest.id).map((day) => day.steps!))
   return (
-    <SmallCard icon={Footprints} tone="today" label="Passos" to="/sono">
+    <SmallCard icon={Footprints} tone="today" label="Passos" to="/passos">
       <Value value={formatNumber(latest.steps!, 0)} />
       <Note>{latest.id === today ? 'hoje, até a sincronização' : relativeDay(latest.id, today)}</Note>
       {before !== undefined && <Note>média {formatNumber(before, 0)} por dia</Note>}

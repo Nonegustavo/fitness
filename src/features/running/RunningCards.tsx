@@ -198,7 +198,16 @@ export function RecordsBig() {
   if (!records) return <SkeletonCard lines={5} />
   if (records.efforts.length === 0 && !records.longest) return null
   return (
-    <Card icon={Trophy} tone="analysis" title="Recordes pessoais">
+    <Card
+      icon={Trophy}
+      tone="analysis"
+      title="Recordes pessoais"
+      action={
+        <Link to="/recordes" className="text-sm font-medium text-accent-ink">
+          Ver todos
+        </Link>
+      }
+    >
       <ul className="divide-y divide-line">
         {records.efforts.map((record) => (
           <li key={record.label}>
@@ -232,7 +241,7 @@ export function RecordsSmall() {
   const [first, ...rest] = [...records.efforts].reverse().filter((record) => record.meters <= 10000)
   if (!first) return null
   return (
-    <SmallCard icon={Trophy} tone="analysis" label="Recordes">
+    <SmallCard icon={Trophy} tone="analysis" label="Recordes" to="/recordes">
       <Value value={formatClock(first.seconds)} unit={first.short} />
       {rest.slice(0, 2).map((record) => (
         <Note key={record.label}>

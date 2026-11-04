@@ -5,6 +5,7 @@ import { Carousel } from '../../components/Carousel'
 import { IconButton, Page } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import { formatDay } from '../../lib/dates'
+import { WeekCard } from '../calendar/cards'
 import { CustomizeHome } from './CustomizeHome'
 import { ELEMENT_VIEWS } from './elements'
 import { homeAreas } from './homeCards'
@@ -42,6 +43,8 @@ export default function TodayPage() {
         </>
       }
     >
+      {areas.week && <WeekCard today={today} />}
+
       {areas.focus.length > 0 && (
         <div>
           <h2 className="mb-2 text-base font-semibold">Em foco</h2>

@@ -51,7 +51,9 @@ export function Carousel({ label, children }: { label: string; children: ReactNo
       >
         <CardFill.Provider value>
           {Children.map(children, (child) => (
-            <div className="h-72 min-w-0 snap-start" aria-roledescription="página">
+            // `relative`: what a card places absolutely (screen-reader text, for one) stays inside its page;
+            // otherwise it escapes the scrolling track and widens the whole screen.
+            <div className="relative h-72 min-w-0 snap-start" aria-roledescription="página">
               {child}
             </div>
           ))}

@@ -4,6 +4,8 @@ import { dayTime } from '../../lib/dates'
 import {
   bestEffort,
   consistency,
+  effortsByDistance,
+  longestRuns,
   formatPace,
   heatmap,
   personalRecords,
@@ -102,6 +104,18 @@ describe('bestEffort and personalRecords', () => {
       ['10 km', 'long'],
     ])
     expect(records.efforts[0].seconds).toBeCloseTo(200)
-    expect(records.longest).toEqual({ km: 12, date: '2026-10-01', activityId: 'long' })
+    expect(records.longest).toEqual({ km: 12, seconds: 70 * 60, date: '2026-10-01', activityId: 'long' })
+  })
+
+  it('ranks every run over each distance, one time per run, fastest first', () => {
+    const runs = [run('a', '2026-10-01', 5.2, 30), run('b', '2026-10-08', 5.1, 25), run('c', '2026-10-15', 3, 15)]
+    const even = (km: number, minutes: number) => ({ step: 10, distance: Array.from({ length: minutes * 6 + 1 }, (_, i) => (i * km * 1000) / (minutes * 6)) })
+    const ranked = effortsByDistance(runs, new Map([['a', even(5.2, 30)], ['b', even(5.1, 25)], ['c', even(3, 15)]]), 2)
+    expect(ranked.map((distance) => [distance.short, distance.efforts.map((effort) => effort.activityId)])).toEqual([
+      // b runs at 4:54/km, c at 5:00/km and a at 5:46/km.
+      ['1 km', ['b', 'c']],
+      ['5 km', ['b', 'a']],
+    ])
+    expect(longestRuns(runs, 2).map((longRun) => longRun.activityId)).toEqual(['a', 'b'])
   })
 })

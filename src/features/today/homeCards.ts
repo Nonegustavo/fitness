@@ -1,11 +1,10 @@
 import type { HomeAreas, HomeCardId, Settings } from '../../db/types'
 
 /** The two areas of the Hoje screen: big cards side by side, and small cards two per row. */
-export type HomeArea = keyof HomeAreas
+export type HomeArea = 'focus' | 'quick'
 
 /** Every element the Hoje screen offers; each one has a big card and a small one. */
 export const HOME_ELEMENTS: { id: HomeCardId; label: string; detail: string }[] = [
-  { id: 'agenda', label: 'Minha semana', detail: 'Os treinos de domingo a sábado e como a semana vai' },
   { id: 'workout', label: 'Treino', detail: 'A ficha de hoje (programada ou a próxima) ou o treino em andamento' },
   { id: 'planned', label: 'Treino do Garmin', detail: 'O treino de hoje no calendário do Garmin, com a descrição' },
   { id: 'sleep', label: 'Sono', detail: 'Nota, horários e as fases da última noite' },
@@ -31,19 +30,23 @@ export const HOME_ELEMENTS: { id: HomeCardId; label: string; detail: string }[] 
 const KNOWN = new Set(HOME_ELEMENTS.map((element) => element.id))
 
 export const DEFAULT_AREAS: HomeAreas = {
-  focus: ['agenda', 'workout', 'sleep', 'food', 'runVolume', 'habits'],
+  focus: ['workout', 'sleep', 'food', 'runVolume', 'habits'],
   quick: ['water', 'race', 'body', 'restingHr', 'hrv', 'battery', 'steps', 'burn', 'records', 'streak'],
 }
 
 const clean = (ids: HomeCardId[]) => [...new Set(ids.filter((id) => KNOWN.has(id)))]
 
 /** The areas as saved; or else the default, leaving out what the older layout had hidden. */
-export function homeAreas(settings: Pick<Settings, 'homeAreas' | 'home'>): HomeAreas {
-  if (settings.homeAreas) return { focus: clean(settings.homeAreas.focus), quick: clean(settings.homeAreas.quick) }
+export function homeAreas(settings: Pick<Settings, 'homeAreas' | 'home'>): Required<HomeAreas> {
+  if (settings.homeAreas) {
+    const { focus, quick, week } = settings.homeAreas
+    return { focus: clean(focus), quick: clean(quick), week: week !== false }
+  }
   const hidden = new Set(settings.home?.hidden ?? [])
   return {
     focus: DEFAULT_AREAS.focus.filter((id) => !hidden.has(id)),
     quick: DEFAULT_AREAS.quick.filter((id) => !hidden.has(id)),
+    week: true,
   }
 }
 

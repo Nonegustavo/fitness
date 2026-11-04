@@ -5,8 +5,7 @@ import { Modal } from '../../components/Modal'
 import { toneColor } from '../../components/tone'
 import { Card, cx, Empty, SkeletonCard, SkeletonLines } from '../../components/ui'
 import { dayRange, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
-import { formatDuration, formatNumber } from '../../lib/format'
-import { byDay, weekSummary, type AgendaItem, type WeekSummary } from './agenda'
+import { byDay, type AgendaItem } from './agenda'
 import { AgendaItems, DayDetails, dayTitle, KIND_LABELS, KIND_TONES } from './components'
 import { useAgenda } from './plans'
 
@@ -23,8 +22,8 @@ const calendarLink = (
 )
 
 /**
- * The Hoje card: the current week from Sunday to Saturday, a dot for each workout (solid when
- * done, a ring while planned, gray when missed) and a dash on free days, then how the week is going.
+ * The Hoje card above "Em foco": the current week from Sunday to Saturday, a dot for each workout
+ * (solid when done, a ring while planned, gray when missed) and a dash on free days.
  */
 export function WeekCard({ today }: { today: DayKey }) {
   const from = weekStart(today)
@@ -38,14 +37,11 @@ export function WeekCard({ today }: { today: DayKey }) {
       {!agenda ? (
         <SkeletonLines lines={3} />
       ) : (
-        <>
-          <div className="grid grid-cols-7 gap-1.5">
-            {dayRange(from, to).map((date) => (
-              <DayPill key={date} date={date} today={today} items={days.get(date) ?? []} onOpen={() => setOpen(date)} />
-            ))}
-          </div>
-          <WeekNumbers summary={weekSummary(agenda)} />
-        </>
+        <div className="grid grid-cols-7 gap-1.5">
+          {dayRange(from, to).map((date) => (
+            <DayPill key={date} date={date} today={today} items={days.get(date) ?? []} onOpen={() => setOpen(date)} />
+          ))}
+        </div>
       )}
       {open && (
         <Modal open title={capitalized(dayTitle(open, today))} onClose={() => setOpen(undefined)}>
@@ -118,33 +114,6 @@ function Dot({ item, onAccent }: { item: AgendaItem; onAccent: boolean }) {
         ? { boxShadow: `inset 0 0 0 1.5px ${color}` }
         : { background: color }
   return <span className="size-2 rounded-full" style={style} />
-}
-
-/** Done of all the week's workouts, the running distance (done/planned, when the names say) and the time. */
-function WeekNumbers({ summary }: { summary: WeekSummary }) {
-  const numbers = [
-    {
-      value: summary.total > 0 ? `${summary.done}/${summary.total}` : '0',
-      label: summary.total > 0 ? 'treinos feitos' : 'treinos',
-    },
-    {
-      value: summary.plannedRunKm
-        ? `${formatNumber(summary.runKm, 1)}/${formatNumber(summary.plannedRunKm, 1)} km`
-        : `${formatNumber(summary.runKm, 1)} km`,
-      label: 'de corrida',
-    },
-    { value: summary.trainedSec > 0 ? formatDuration(summary.trainedSec * 1000) : '0 min', label: 'de treino' },
-  ]
-  return (
-    <dl className="mt-3 grid grid-cols-3 divide-x divide-line rounded-xl border border-line py-2 text-center">
-      {numbers.map(({ value, label }) => (
-        <div key={label} className="flex min-w-0 flex-col-reverse px-1">
-          <dt className="truncate text-xs text-muted">{label}</dt>
-          <dd className="text-lg font-semibold tabular-nums">{value}</dd>
-        </div>
-      ))}
-    </dl>
-  )
 }
 
 /** The Treinos card: the coming week as a list, with the details of each workout. */
