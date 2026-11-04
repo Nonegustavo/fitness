@@ -1,0 +1,144 @@
+import { addMonths, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from 'date-fns'
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
+import { useSearchParams } from 'react-router'
+import { Button, Card, cx, IconButton, Page, Skeleton } from '../../components/ui'
+import { useToday } from '../../db/hooks'
+import { dayKey, dayRange, formatDay, parseDay, type DayKey } from '../../lib/dates'
+import { byDay, type AgendaItem } from './agenda'
+import { AgendaIcon, AgendaLegend, DayDetails, dayTitle } from './components'
+import { useAgenda } from './plans'
+
+const WEEKDAYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+
+const isDay = (value: string | null): value is DayKey => !!value && /^\d{4}-\d{2}-\d{2}$/.test(value)
+const monthOf = (date: DayKey): DayKey => dayKey(startOfMonth(parseDay(date)))
+
+/** The month at a glance (what was done and what is planned), and the chosen day in detail. */
+export default function CalendarPage() {
+  const today = useToday()
+  const [params, setParams] = useSearchParams()
+  const requested = params.get('dia')
+  const selected = isDay(requested) ? requested : today
+  const [month, setMonth] = useState(() => monthOf(selected))
+  const from = dayKey(startOfWeek(parseDay(month), { weekStartsOn: 1 }))
+  const to = dayKey(endOfWeek(endOfMonth(parseDay(month)), { weekStartsOn: 1 }))
+  const agenda = useAgenda(from, to, today)
+  const days = byDay(agenda ?? [])
+
+  const select = (date: DayKey) => {
+    setParams({ dia: date }, { replace: true })
+    if (monthOf(date) !== month) setMonth(monthOf(date))
+  }
+  const shiftMonth = (by: number) => setMonth(dayKey(addMonths(parseDay(month), by)))
+  const title = dayTitle(selected, today)
+
+  return (
+    <Page title="Calendário" icon={CalendarDays} tone="training" subtitle="Treinos feitos e programados">
+      <Card>
+        <div className="mb-2 flex items-center gap-1">
+          <IconButton label="Mês anterior" onClick={() => shiftMonth(-1)}>
+            <ChevronLeft size={20} />
+          </IconButton>
+          <h2 className="flex-1 text-center font-semibold first-letter:uppercase">{formatDay(month, "MMMM 'de' yyyy")}</h2>
+          <IconButton label="Próximo mês" onClick={() => shiftMonth(1)}>
+            <ChevronRight size={20} />
+          </IconButton>
+        </div>
+        <div className="grid grid-cols-7 gap-0.5 text-center text-[11px] font-medium text-muted uppercase sm:gap-1">
+          {WEEKDAYS.map((weekday) => (
+            <span key={weekday} className="pb-1">
+              {weekday}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
+          {dayRange(from, to).map((date) =>
+            agenda ? (
+              <DayCell
+                key={date}
+                date={date}
+                items={days.get(date) ?? []}
+                outside={monthOf(date) !== month}
+                isToday={date === today}
+                selected={date === selected}
+                onSelect={() => select(date)}
+              />
+            ) : (
+              <Skeleton key={date} className="h-16 rounded-xl" />
+            ),
+          )}
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <AgendaLegend />
+          {(selected !== today || month !== monthOf(today)) && (
+            <Button size="sm" variant="ghost" onClick={() => select(today)}>
+              Hoje
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      <Card title={<span className="block first-letter:uppercase">{title}</span>}>
+        <DayDetails key={selected} date={selected} today={today} />
+      </Card>
+    </Page>
+  )
+}
+
+function DayCell({
+  date,
+  items,
+  outside,
+  isToday,
+  selected,
+  onSelect,
+}: {
+  date: DayKey
+  items: AgendaItem[]
+  outside: boolean
+  isToday: boolean
+  selected: boolean
+  onSelect: () => void
+}) {
+  const shown = items.slice(0, 3)
+  const more = items.length - shown.length
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={`${formatDay(date)}${items.length > 0 ? `: ${items.map((item) => item.title).join(', ')}` : ''}`}
+      className={cx(
+        'flex min-h-16 min-w-0 flex-col items-center gap-1 rounded-xl px-0.5 pt-1.5 pb-1 transition sm:items-stretch sm:px-1.5',
+        selected ? 'bg-surface-2 ring-2 ring-accent-ink' : 'hover:bg-surface-2',
+        outside && 'opacity-40',
+      )}
+    >
+      <span
+        className={cx(
+          'flex size-6 shrink-0 items-center justify-center self-center rounded-full text-xs font-semibold tabular-nums sm:self-start',
+          isToday && 'bg-accent text-white',
+        )}
+      >
+        {Number(date.slice(8))}
+      </span>
+      {/* Phones: just the icons. Wider screens: the names too. */}
+      <span className="flex flex-wrap justify-center gap-0.5 sm:hidden">
+        {shown.map((item) => (
+          <AgendaIcon key={item.key} kind={item.kind} status={item.status} size="xs" />
+        ))}
+        {more > 0 && <span className="text-[10px] leading-[18px] text-muted">+{more}</span>}
+      </span>
+      <span className="hidden min-w-0 space-y-0.5 sm:block">
+        {shown.map((item) => (
+          <span key={item.key} className="flex min-w-0 items-center gap-1 text-left text-[11px] text-ink-2">
+            <AgendaIcon kind={item.kind} status={item.status} size="xs" />
+            <span className={cx('truncate', item.status === 'missed' && 'line-through')}>{item.title}</span>
+          </span>
+        ))}
+        {more > 0 && <span className="block text-left text-[10px] text-muted">+{more}</span>}
+      </span>
+    </button>
+  )
+}

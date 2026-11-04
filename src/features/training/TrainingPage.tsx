@@ -12,11 +12,12 @@ import { dayKey, parseDay, relativeDay, shiftDay } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 import { useActivities } from '../activities/activities'
 import { ActivityRow, FitHowTo, ImportFitButton } from '../activities/components'
-import { UpcomingWorkoutsCard } from '../garmin/UpcomingWorkouts'
+import { UpcomingCard } from '../calendar/cards'
+import { useTodayTemplate } from '../calendar/plans'
 import { MUSCLES } from './catalog'
 import { MuscleMap } from './MuscleMap'
 import { Elapsed, useStartWorkout } from './components'
-import { needsDeload, nextTemplate, recentEffort, setsByMuscle, stalledExercises, summarize } from './stats'
+import { needsDeload, recentEffort, setsByMuscle, stalledExercises, summarize } from './stats'
 import { DISCOMFORT_AREAS } from './discomfort'
 import { findActive, useExerciseMap, useSessions, useTemplates } from './training'
 
@@ -29,6 +30,7 @@ export default function TrainingPage() {
   const sessions = useSessions()
   const exercises = useExerciseMap()
   const start = useStartWorkout()
+  const todays = useTodayTemplate(today)
   const [showAll, setShowAll] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   if (!templates || !sessions) {
@@ -44,7 +46,7 @@ export default function TrainingPage() {
   const archived = templates.filter((template) => template.archived)
   const active = findActive(sessions)
   const finished = sessions.filter((session) => session.endedAt)
-  const next = nextTemplate(templates, finished)
+  const next = todays?.template
   const weekStart = dayKey(startOfWeek(parseDay(today), { weekStartsOn: 1 }))
   const week = finished.filter((session) => session.date >= weekStart)
   const weekTotals = week.map(summarize).reduce(
@@ -122,7 +124,7 @@ export default function TrainingPage() {
                       {template.name}
                       {isNext && (
                         <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 align-middle text-xs font-normal text-ink-2">
-                          próximo
+                          {todays?.plan ? 'hoje' : 'próximo'}
                         </span>
                       )}
                     </p>
@@ -174,7 +176,7 @@ export default function TrainingPage() {
         )}
       </Card>
 
-      <UpcomingWorkoutsCard today={today} />
+      <UpcomingCard today={today} />
 
       <Card title="Esta semana">
         <div className="grid grid-cols-3 gap-3">

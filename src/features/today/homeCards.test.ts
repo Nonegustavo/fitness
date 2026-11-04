@@ -9,12 +9,19 @@ describe('homeLayout', () => {
     expect(homeLayout(undefined)).toEqual(ids.map((id) => ({ id, visible: true })))
   })
 
-  it('keeps the saved order and hidden cards, drops unknown ids and appends cards added later', () => {
-    const layout = homeLayout({ order: ['water', 'sleep', 'gone' as HomeCardId], hidden: ['sleep'] })
-    expect(layout.slice(0, 2)).toEqual([
-      { id: 'water', visible: true },
-      { id: 'sleep', visible: false },
-    ])
-    expect(layout.map((card) => card.id)).toEqual(['water', 'sleep', ...ids.filter((id) => id !== 'water' && id !== 'sleep')])
+  it('keeps the saved order and hidden cards and drops unknown ids', () => {
+    const order = [...ids].reverse()
+    const layout = homeLayout({ order: [...order, 'gone' as HomeCardId], hidden: ['sleep'] })
+    expect(layout.map((card) => card.id)).toEqual(order)
+    expect(layout.filter((card) => !card.visible).map((card) => card.id)).toEqual(['sleep'])
+  })
+
+  it('puts a card added after the layout was saved next to the card before it by default', () => {
+    // A layout saved before the agenda card existed, with the workout moved to the top.
+    const saved = ['workout', ...ids.filter((id) => id !== 'agenda' && id !== 'workout')] as HomeCardId[]
+    const layout = homeLayout({ order: saved, hidden: ['insights'] }).map((card) => card.id)
+    expect(layout.indexOf('agenda')).toBe(layout.indexOf('planned') + 1)
+    expect(layout[0]).toBe('workout')
+    expect(layout).toHaveLength(ids.length)
   })
 })

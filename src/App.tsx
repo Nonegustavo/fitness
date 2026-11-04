@@ -24,6 +24,7 @@ const AnalysisPage = lazy(() => import('./features/analysis/AnalysisPage'))
 const FoodPage = lazy(() => import('./features/food/FoodPage'))
 const AddFoodPage = lazy(() => import('./features/food/AddFoodPage'))
 const MorePage = lazy(() => import('./features/more/MorePage'))
+const CalendarPage = lazy(() => import('./features/calendar/CalendarPage'))
 
 const router = createHashRouter([
   {
@@ -39,6 +40,7 @@ const router = createHashRouter([
       { path: 'treinos/exercicios/:id', element: <ExerciseDetail /> },
       { path: 'treinos/atividades', element: <ActivitiesPage /> },
       { path: 'treinos/atividades/:id', element: <ActivityPage /> },
+      { path: 'calendario', element: <CalendarPage /> },
       { path: 'alimentacao', element: <FoodPage /> },
       { path: 'alimentacao/adicionar', element: <AddFoodPage /> },
       { path: 'corpo', element: <BodyPage /> },

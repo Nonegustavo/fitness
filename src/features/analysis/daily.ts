@@ -50,16 +50,25 @@ export const useInsightState = (): GenerateState => useSyncExternalStore(subscri
 
 /** The summary of the data the analysis reads, built on the device from the local data. */
 export async function contextFor(day: DayKey = dayKey(), withPrevious = true): Promise<string> {
-  const [sources, settings, planned, previous] = await Promise.all([
+  const [sources, settings, planned, previous, plans, templates] = await Promise.all([
     loadSources(),
     db.settings.get(SETTINGS_ID),
     plannedEvents(),
     db.insights.get(shiftDay(day, -1)),
+    db.workoutPlans.where('date').between(day, shiftDay(day, 7), true, true).toArray(),
+    db.workoutTemplates.toArray(),
   ])
+  // Scheduled templates still ahead: one done that day by a workout of the same template is left out.
+  const gymPlans = alive(plans).flatMap((plan) => {
+    const template = templates.find((t) => t.id === plan.templateId && !t.deleted)
+    const done = sources.sessions.some((s) => s.date === plan.date && s.templateId === plan.templateId && s.endedAt)
+    return template && !done ? [{ date: plan.date, name: template.name, time: plan.time }] : []
+  })
   return buildContext({
     sources,
     settings: settings ?? { id: SETTINGS_ID, ...DEFAULT_SETTINGS, updatedAt: 0, deleted: 0, dirty: 0 },
     planned,
+    gymPlans: gymPlans.sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? '')),
     previous: withPrevious && previous && !previous.deleted ? previous : undefined,
     today: day,
     now: new Date(),

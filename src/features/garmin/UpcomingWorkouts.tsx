@@ -1,5 +1,5 @@
 import { CalendarDays } from 'lucide-react'
-import { Card, Empty } from '../../components/ui'
+import { Card } from '../../components/ui'
 import { formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
 import type { PlannedEvent } from './calendar'
 import { usePlannedEvents } from './sync'
@@ -19,30 +19,6 @@ function EventRow({ event, today, showDay = true }: { event: PlannedEvent; today
       <p className="text-sm font-medium">{event.title}</p>
       {event.description && <p className="line-clamp-3 text-xs whitespace-pre-line text-ink-2">{event.description}</p>}
     </li>
-  )
-}
-
-/**
- * The planned workouts of the coming week, from the published Garmin Connect calendar (where
- * SisRUN and other coaching apps send theirs). Hidden while no calendar link is set up.
- */
-export function UpcomingWorkoutsCard({ today }: { today: DayKey }) {
-  const events = usePlannedEvents()
-  if (!events) return null
-  const weekEnd = shiftDay(today, 6)
-  const upcoming = events.filter((event) => event.date >= today && event.date <= weekEnd)
-  return (
-    <Card icon={CalendarDays} tone="training" title="Próximos treinos">
-      {upcoming.length === 0 ? (
-        <Empty>Nenhum treino agendado para os próximos 7 dias.</Empty>
-      ) : (
-        <ul className="divide-y divide-line">
-          {upcoming.map((event) => (
-            <EventRow key={event.uid ?? `${event.date}-${event.title}`} event={event} today={today} />
-          ))}
-        </ul>
-      )}
-    </Card>
   )
 }
 

@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   ChartScatter,
   Dumbbell,
   Ellipsis,
@@ -24,6 +25,7 @@ import { cx } from './ui'
 const SECTIONS: { to: string; label: string; icon: typeof House; tone: Tone }[] = [
   { to: '/', label: 'Hoje', icon: House, tone: 'today' },
   { to: '/treinos', label: 'Treinos', icon: Dumbbell, tone: 'training' },
+  { to: '/calendario', label: 'Calendário', icon: CalendarDays, tone: 'training' },
   { to: '/alimentacao', label: 'Alimentação', icon: Utensils, tone: 'food' },
   { to: '/corpo', label: 'Corpo', icon: Scale, tone: 'body' },
   { to: '/sono', label: 'Sono', icon: Moon, tone: 'sleep' },
@@ -35,9 +37,10 @@ const SECTIONS: { to: string; label: string; icon: typeof House; tone: Tone }[] 
   { to: '/ajustes', label: 'Ajustes', icon: Settings, tone: 'settings' },
 ]
 
-// The phone's bottom bar fits five: the first four sections, then "Mais" for the rest.
-const BOTTOM = SECTIONS.slice(0, 4)
-const UNDER_MORE = ['/mais', ...SECTIONS.slice(4).map((section) => section.to)]
+// The phone's bottom bar fits five: these four sections, then "Mais" for the rest.
+const BOTTOM_PATHS = ['/', '/treinos', '/alimentacao', '/corpo']
+const BOTTOM = SECTIONS.filter((section) => BOTTOM_PATHS.includes(section.to))
+const UNDER_MORE = ['/mais', ...SECTIONS.filter((section) => !BOTTOM_PATHS.includes(section.to)).map((section) => section.to)]
 
 const bottomClass = (active: boolean) =>
   cx('flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition', active ? 'text-accent-ink' : 'text-muted')

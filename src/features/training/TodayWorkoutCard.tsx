@@ -4,22 +4,24 @@ import { Link, useNavigate } from 'react-router'
 import { Button, Card, SkeletonCard } from '../../components/ui'
 import type { DayKey } from '../../lib/dates'
 import { formatDuration } from '../../lib/format'
+import { useTodayTemplate } from '../calendar/plans'
 import { Elapsed, useStartWorkout } from './components'
-import { nextTemplate, summarize } from './stats'
+import { summarize } from './stats'
 import { findActive, useSessions, useTemplates } from './training'
 
-/** The workout in progress, today's finished one, or the next template in the rotation. */
+/** The workout in progress, today's finished one, the template scheduled for today or the rotation's next. */
 export function TodayWorkoutCard({ today }: { today: DayKey }) {
   const navigate = useNavigate()
   const templates = useTemplates()
   const sessions = useSessions()
+  const todays = useTodayTemplate(today)
   const start = useStartWorkout()
   if (!templates || !sessions) return <SkeletonCard lines={2} />
 
   const active = findActive(sessions)
   const finished = sessions.filter((session) => session.endedAt)
   const doneToday = finished.find((session) => session.date === today)
-  const next = nextTemplate(templates, finished)
+  const next = todays?.template
 
   let body
   if (active) {
@@ -47,7 +49,15 @@ export function TodayWorkoutCard({ today }: { today: DayKey }) {
     )
   } else if (next) {
     body = (
-      <Row label="Próximo da sequência" title={next.name} detail={`${next.exercises.length} exercícios`}>
+      <Row
+        label={
+          todays?.plan
+            ? `Programado para hoje${todays.plan.time ? ` às ${todays.plan.time}` : ''}`
+            : 'Próximo da sequência'
+        }
+        title={next.name}
+        detail={`${next.exercises.length} exercícios`}
+      >
         <Button variant="primary" onClick={() => void start(next)}>
           <Play size={16} /> Iniciar
         </Button>

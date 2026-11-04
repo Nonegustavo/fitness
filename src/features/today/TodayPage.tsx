@@ -9,6 +9,7 @@ import { formatDay, relativeDay, type DayKey } from '../../lib/dates'
 import { formatFixed, formatSigned } from '../../lib/format'
 import { changeOver } from '../../lib/stats'
 import { TodayInsightCard } from '../analysis/TodayInsightCard'
+import { AgendaStripCard } from '../calendar/cards'
 import { metricSeries, useWeights } from '../body/body'
 import { WeightModal } from '../body/WeightModal'
 import { HabitCheckList } from '../habits/HabitCheckList'
@@ -91,6 +92,8 @@ function HomeCard({ id, today }: { id: HomeCardId; today: DayKey }) {
       return <TodayInsightCard today={today} />
     case 'week':
       return <WeeklyCard today={today} />
+    case 'agenda':
+      return <AgendaStripCard today={today} />
   }
 }
 

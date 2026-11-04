@@ -20,6 +20,8 @@ export interface ContextInput {
   sources: Sources
   settings: Settings
   planned: PlannedEvent[] | null
+  /** Templates scheduled in the app and not done yet. */
+  gymPlans?: { date: DayKey; name: string; time?: string }[]
   /** Yesterday's analysis, so today's doesn't repeat it. */
   previous?: DailyInsight
   today: DayKey
@@ -37,7 +39,7 @@ export function hasRecentData(sources: Sources, today: DayKey): boolean {
  * diary), the last month against the one before, the goals, the relations the app found in the
  * data and the workouts planned ahead. Built on the device, from the local data.
  */
-export function buildContext({ sources, settings, planned, previous, today, now }: ContextInput): string {
+export function buildContext({ sources, settings, planned, gymPlans, previous, today, now }: ContextInput): string {
   const first = firstDayOf(sources) ?? today
   const all = buildDailyData(sources, first, today)
   const metric = new Map(all.metrics.map((m) => [m.key, m]))
@@ -93,6 +95,12 @@ export function buildContext({ sources, settings, planned, previous, today, now 
       const detail = event.description?.replace(/\s+/g, ' ').trim().slice(0, 200)
       out.push(`- ${formatDay(event.date, 'EEE d/MM')}: ${event.title}${detail ? ` — ${detail}` : ''}`)
     }
+  }
+
+  const gym = (gymPlans ?? []).filter((plan) => plan.date >= today && plan.date <= shiftDay(today, PLANNED_DAYS))
+  if (gym.length > 0) {
+    out.push('', '## Musculação programada no app')
+    for (const plan of gym) out.push(`- ${formatDay(plan.date, 'EEE d/MM')}: ${plan.name}${plan.time ? ` às ${plan.time}` : ''}`)
   }
   return out.join('\n')
 }

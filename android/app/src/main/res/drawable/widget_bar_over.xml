@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A progress bar of the widget: a dim track and the fill, both rounded. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <corners android:radius="4dp" />
+            <solid android:color="#38FBBF24" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <scale android:scaleWidth="100%" android:scaleGravity="left|center_vertical">
+            <shape android:shape="rectangle">
+                <corners android:radius="4dp" />
+                <solid android:color="#FFFBBF24" />
+            </shape>
+        </scale>
+    </item>
+</layer-list>

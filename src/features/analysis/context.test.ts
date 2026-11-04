@@ -51,6 +51,7 @@ const build = (sources: Sources) =>
     sources,
     settings,
     planned: [{ date: shiftDay(TODAY, 1), title: 'Rodagem 8 km', description: 'Ritmo leve' }],
+    gymPlans: [{ date: shiftDay(TODAY, 2), name: 'PULL DAY', time: '18:30' }],
     previous: { id: shiftDay(TODAY, -1), headline: 'Sono melhorando', sections: [], createdAt: 1, model: 'x', ...meta },
     today: TODAY,
     now: new Date(2026, 10, 3, 7, 40),
@@ -84,6 +85,7 @@ describe('buildContext', () => {
 
   it('lists the workouts planned for the next week', () => {
     expect(text).toContain('- quarta 4/11: Rodagem 8 km — Ritmo leve')
+    expect(text).toContain('## Musculação programada no app\n- quinta 5/11: PULL DAY às 18:30')
   })
 
   it('stays well under the function limit', () => {

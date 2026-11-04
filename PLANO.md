@@ -81,7 +81,8 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Treino: esforço (RPE 1–10) e dor ou desconforto por região em cada sessão; o esforço entra nas correlações
 - [x] Resumo da semana passada na tela Hoje, contra a semana anterior: calorias, proteína, dias na meta, treinos, sono, passos, peso, água e hábitos
 - [x] Fotos de progresso (frente, lado, costas) na tela Corpo, com comparação de duas datas lado a lado e o peso da tendência
-- [x] App Android: atalhos ao segurar o ícone e widget na tela inicial (4x2) com as calorias que faltam, a água do dia e o próximo treino, acima dos botões de alimento, água, treino e peso — falta conferir no celular
+- [x] App Android: atalhos ao segurar o ícone e widget na tela inicial (4x2) com as calorias que faltam, a água do dia e o próximo treino, acima dos botões de alimento, água, treino e peso
+- [x] Widget com barras de progresso contra as metas (calorias, carboidratos, proteína, gorduras e água), os ícones de cada área e o próximo treino da agenda (ficha programada, corrida do Garmin ou a próxima da sequência), que continua certo depois da meia-noite
 
 Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
 
@@ -124,6 +125,10 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Correção: na montagem de fichas no computador, a página ficava sem rolar depois de criar um exercício no seletor
 - [x] Fichas arquivadas: saem da rotação e da lista principal, mas continuam guardadas para voltar quando quiser
 - [x] Alimentos medidos em porções: os que vieram sem peso (Health Connect) são registrados em porções, não em gramas; ficam fora da foto do prato e das receitas, que trabalham com gramas
+- [x] Programar as fichas nos dias (com horário opcional), sugerindo a próxima da sequência; a ficha programada para hoje é a que o Hoje, o "+" e a tela Treinos oferecem para iniciar
+- [x] Calendário (Mais → Calendário; no computador, na barra lateral): o mês com os treinos feitos e programados, a musculação junto com as corridas do Garmin; cada dia mostra os detalhes e permite programar, mudar ou tirar uma ficha
+- [x] Cartão "Próximos 7 dias" no Hoje: a semana lado a lado com os ícones dos treinos de cada dia; tocar num dia abre os detalhes
+- [x] A análise do dia também lê a musculação programada para a semana
 
 ## Observações
 

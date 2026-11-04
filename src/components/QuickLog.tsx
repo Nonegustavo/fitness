@@ -1,10 +1,11 @@
 import { Dumbbell, NotebookPen, Plus, Scale, Utensils, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
+import { useToday } from '../db/hooks'
+import { useTodayTemplate } from '../features/calendar/plans'
 import { mealAt } from '../features/food/nutrition'
-import { nextTemplate } from '../features/training/stats'
 import { useStartWorkout } from '../features/training/components'
-import { findActive, useSessions, useTemplates } from '../features/training/training'
+import { findActive, useSessions } from '../features/training/training'
 import { useRestTimer } from '../features/training/restTimer'
 import { WaterQuickAdd } from '../features/water/WaterQuickAdd'
 import { Modal } from './Modal'
@@ -55,15 +56,15 @@ export function QuickLogButton({ variant }: { variant: 'floating' | 'sidebar' })
 
 function QuickLogSheet({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
-  const templates = useTemplates()
   const sessions = useSessions()
+  const todays = useTodayTemplate(useToday())
   const start = useStartWorkout()
   const go = (to: string) => {
     onClose()
     navigate(to)
   }
   const active = findActive(sessions ?? [])
-  const next = templates && sessions ? nextTemplate(templates, sessions.filter((s) => s.endedAt)) : undefined
+  const next = todays?.template
 
   const actions: { label: string; detail?: string; icon: LucideIcon; tone: Tone; onClick: () => void }[] = [
     {
@@ -75,7 +76,7 @@ function QuickLogSheet({ onClose }: { onClose: () => void }) {
     { label: 'Pesagem', icon: Scale, tone: 'body', onClick: () => go('/corpo?novo=peso') },
     {
       label: active ? 'Voltar ao treino' : next ? `Treino ${next.name}` : 'Treino',
-      detail: active ? active.name : next ? 'próxima ficha' : undefined,
+      detail: active ? active.name : next ? (todays?.plan ? 'programado para hoje' : 'próxima ficha') : undefined,
       icon: Dumbbell,
       tone: 'training',
       onClick: () => {

@@ -151,8 +151,9 @@ export type HomeCardId =
   | 'water'
   | 'habits'
   | 'journal'
+  | 'agenda'
 
-/** The cards of the Hoje screen, as the user arranged them. Cards missing from `order` go last. */
+/** The cards of the Hoje screen, as the user arranged them. Cards missing from `order` join at their default place. */
 export interface HomeLayout {
   order: HomeCardId[]
   hidden: HomeCardId[]
@@ -400,6 +401,14 @@ export interface SessionExercise {
   sets: PerformedSet[]
   /** Done alternating with the next exercise (bi-set): the rest comes after the pair. */
   supersetWithNext?: boolean
+}
+
+/** A gym workout scheduled for a day: which template (ficha), and at what time when one was picked. */
+export interface WorkoutPlan extends Synced {
+  date: DayKey
+  templateId: string
+  /** "18:30". */
+  time?: string
 }
 
 export interface WorkoutSession extends Synced {

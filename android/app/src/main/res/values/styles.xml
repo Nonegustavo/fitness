@@ -20,19 +20,30 @@
         <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@color/splash_background</item>
     </style>
-    <!-- One of the widget's three numbers: they share the width. -->
-    <style name="QuickWidgetStat">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">match_parent</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:gravity">center</item>
-        <item name="android:orientation">vertical</item>
+    <!-- The home-screen widget (layout/quick_widget.xml): white and gray text on a dark card. -->
+    <style name="QuickWidgetIcon">
+        <item name="android:layout_width">32dp</item>
+        <item name="android:layout_height">32dp</item>
+        <item name="android:padding">7dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:importantForAccessibility">no</item>
     </style>
 
     <style name="QuickWidgetValue">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:textSize">20sp</item>
+        <item name="android:textColor">#FFF0EFEC</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <style name="QuickWidgetTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">#FFF0EFEC</item>
+        <item name="android:textSize">14sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:maxLines">1</item>
         <item name="android:ellipsize">end</item>
@@ -44,9 +55,65 @@
         <item name="android:textColor">#FFC3C2B7</item>
         <item name="android:textSize">11sp</item>
         <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
     </style>
 
-    <!-- A button of the home-screen widget: the four share the width. -->
+    <!-- A bar toward a goal; the fill goes from 0 to 1000. -->
+    <style name="QuickWidgetBar" parent="@android:style/Widget.ProgressBar.Horizontal">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">4dp</item>
+        <item name="android:layout_marginTop">3dp</item>
+        <item name="android:minHeight">4dp</item>
+        <item name="android:maxHeight">4dp</item>
+        <item name="android:indeterminate">false</item>
+        <item name="android:max">1000</item>
+        <item name="android:progress">0</item>
+    </style>
+
+    <style name="QuickWidgetBar.Large">
+        <item name="android:layout_height">6dp</item>
+        <item name="android:layout_marginTop">0dp</item>
+        <item name="android:minHeight">6dp</item>
+        <item name="android:maxHeight">6dp</item>
+    </style>
+
+    <!-- One of the four bars of the second row (three macros and the water): they share the width. -->
+    <style name="QuickWidgetMeter">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <style name="QuickWidgetMeterRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
+    <style name="QuickWidgetMeterName">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <style name="QuickWidgetMeterValue">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">3dp</item>
+        <item name="android:gravity">end</item>
+        <item name="android:text">—</item>
+        <item name="android:textColor">#FFC3C2B7</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <!-- A shortcut of the widget: its section's icon over its name; the four share the width. -->
     <style name="QuickWidgetButton">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">match_parent</item>
@@ -54,8 +121,24 @@
         <item name="android:layout_margin">3dp</item>
         <item name="android:background">@drawable/widget_button</item>
         <item name="android:gravity">center</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingStart">2dp</item>
+        <item name="android:paddingEnd">2dp</item>
+    </style>
+
+    <style name="QuickWidgetButtonIcon">
+        <item name="android:layout_width">16dp</item>
+        <item name="android:layout_height">16dp</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+
+    <style name="QuickWidgetButtonText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">2dp</item>
         <item name="android:textColor">#FFF0EFEC</item>
-        <item name="android:textSize">13sp</item>
+        <item name="android:textSize">11sp</item>
         <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
     </style>
 </resources>

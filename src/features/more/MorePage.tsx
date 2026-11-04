@@ -1,9 +1,26 @@
-import { ChartScatter, ChevronRight, GlassWater, ListChecks, Moon, NotebookPen, Settings, Sparkles } from 'lucide-react'
+import {
+  CalendarDays,
+  ChartScatter,
+  ChevronRight,
+  GlassWater,
+  ListChecks,
+  Moon,
+  NotebookPen,
+  Settings,
+  Sparkles,
+} from 'lucide-react'
 import { Link } from 'react-router'
 import { IconTile, type Tone } from '../../components/tone'
 import { Card, Page } from '../../components/ui'
 
 const LINKS: { to: string; label: string; detail: string; icon: typeof Moon; tone: Tone }[] = [
+  {
+    to: '/calendario',
+    label: 'Calendário',
+    detail: 'Programar as fichas nos dias, com as corridas do Garmin',
+    icon: CalendarDays,
+    tone: 'training',
+  },
   { to: '/sono', label: 'Sono e recuperação', detail: 'Noite, HRV, FC de repouso e Body Battery do Garmin', icon: Moon, tone: 'sleep' },
   { to: '/analise', label: 'Análise do dia', detail: 'O Claude lê seus dados e o diário', icon: Sparkles, tone: 'analysis' },
   {
