@@ -1,7 +1,8 @@
-import { Check, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
+import { Check, ChevronRight, ClipboardCopy, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { Confirm } from '../../components/Modal'
+import { Confirm, Modal } from '../../components/Modal'
+import { useToast } from '../../components/Toast'
 import { IconTile } from '../../components/tone'
 import { Button, Card, Empty, Page, Switch } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
@@ -11,7 +12,8 @@ import type { DailyInsight } from '../../db/types'
 import { formatDay, formatTime, relativeDay } from '../../lib/dates'
 import { useSyncState } from '../../sync/controller'
 import { AREAS } from './areas'
-import { generateInsight, useInsight, useInsightHistory, useInsightState } from './daily'
+import { CHAT_INSTRUCTIONS, chatMessage } from './chatPrompt'
+import { contextFor, generateInsight, useInsight, useInsightHistory, useInsightState } from './daily'
 
 export default function AnalysisPage() {
   const today = useToday()
@@ -80,6 +82,22 @@ export default function AnalysisPage() {
         </div>
       </Card>
 
+      <ChatCard day={day} today={today} />
+
+      <Card>
+        <Link to="/ajustes?secao=sobre-mim" className="flex items-center justify-between gap-3">
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">Sobre mim</span>
+            <span className="block truncate text-xs text-muted">
+              {settings.profile?.trim()
+                ? settings.profile.trim()
+                : 'Sua rotina, histórico e objetivos, para análises mais certeiras'}
+            </span>
+          </span>
+          <ChevronRight size={16} className="shrink-0 text-muted" />
+        </Link>
+      </Card>
+
       {others.length > 0 && (
         <Card title="Outros dias">
           <ul className="divide-y divide-line">
@@ -146,5 +164,66 @@ function InsightView({ insight }: { insight: DailyInsight }) {
         })}
       </div>
     </article>
+  )
+}
+
+/**
+ * The same summary as text to paste in a conversation with Claude: no API key or cost per analysis,
+ * and the conversation (or a Project) keeps the history.
+ */
+function ChatCard({ day, today }: { day: string; today: string }) {
+  const toast = useToast()
+  const [withInstructions, setWithInstructions] = useState(true)
+  const [fallback, setFallback] = useState<string | null>(null)
+
+  async function copy(text: string, what: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast({ message: `${what} copiado: cole numa conversa com o Claude` })
+    } catch {
+      // Some WebViews block the clipboard: show the text to copy by hand.
+      setFallback(text)
+    }
+  }
+
+  return (
+    <Card title="Usar no app do Claude">
+      <p className="text-sm text-ink-2">
+        Copie o resumo dos seus dados e cole numa conversa do Claude. Usa o seu plano do Claude em vez da chave da API, e a
+        conversa guarda o histórico para comparar os dias.
+      </p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block text-sm">Incluir as instruções</span>
+          <span className="block text-xs text-muted">Desligue se elas já estão nas instruções de um Projeto</span>
+        </span>
+        <Switch checked={withInstructions} label="Incluir as instruções" onChange={setWithInstructions} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          variant="primary"
+          onClick={async () => copy(chatMessage(await contextFor(day, false), withInstructions), 'Resumo')}
+        >
+          <ClipboardCopy size={16} /> Copiar resumo {day === today ? 'de hoje' : 'do dia'}
+        </Button>
+        <Button onClick={() => void copy(CHAT_INSTRUCTIONS, 'Instruções')}>Copiar só as instruções</Button>
+      </div>
+      <p className="mt-3 text-xs text-muted">
+        Dica: no claude.ai, crie um Projeto “Treinador”, cole as instruções nas instruções do projeto e mande só o resumo
+        a cada dia, sempre na mesma conversa ou em conversas do projeto.
+      </p>
+      {fallback && (
+        <Modal open title="Copie o texto" onClose={() => setFallback(null)}>
+          <textarea
+            readOnly
+            autoFocus
+            rows={12}
+            value={fallback}
+            onFocus={(e) => e.currentTarget.select()}
+            className="w-full rounded-xl border border-line bg-surface p-3 font-mono text-xs text-ink"
+          />
+        </Modal>
+      )}
+    </Card>
   )
 }

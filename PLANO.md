@@ -103,6 +103,8 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 ### Depois das fases — uso do dia a dia
 - [x] Diário: como foi o dia em texto livre, com humor e energia de 1 a 5, na tela Hoje e numa tela própria com busca; humor e energia entram nas correlações
 - [x] Análise do dia: o Claude lê duas semanas de dados e o diário, compara com o mês anterior, usa as correlações e os treinos planejados, e diz o que melhorar em cada área (1 vez por dia, ao abrir; dá para desligar)
+- [x] "Sobre mim" nos Ajustes (rotina, histórico, limitações, objetivos), lido pela análise junto com a meta de peso e o esforço dos treinos
+- [x] Copiar o resumo dos dados (com ou sem as instruções) para colar numa conversa ou Projeto do Claude, sem usar a chave da API
 - [x] Tela Hoje personalizável: escolher os cartões e arrastar para mudar a ordem; vale para todos os aparelhos
 - [x] Arrastar e soltar (mouse, dedo ou teclado) para ordenar exercícios da ficha, fichas (a ordem é a rotação), hábitos e recipientes de água
 - [x] Deslizar para a esquerda apaga registros de água, alimentos, pesagens, medidas e refeições salvas, com "Desfazer"

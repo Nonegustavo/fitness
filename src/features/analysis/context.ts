@@ -7,12 +7,14 @@ import { describe, highlights, strengthLabel } from '../insights/analysis'
 import { buildDailyData, formatMetric, type DailyData, type DayRow, type Metric, type Sources } from '../insights/metrics'
 import { mean } from '../insights/stats'
 import { firstDayOf } from '../insights/useDailyData'
+import { DISCOMFORT_AREAS } from '../training/discomfort'
 import { summarize } from '../training/stats'
 
 export const DETAIL_DAYS = 14
 const TREND_DAYS = 30
 const DIARY_CHARS = 600
 const PLANNED_DAYS = 7
+export const PROFILE_CHARS = 3000
 
 export interface ContextInput {
   sources: Sources
@@ -44,12 +46,26 @@ export function buildContext({ sources, settings, planned, previous, today, now 
   out.push(`Hoje é ${formatDay(today, "EEEE, d 'de' MMMM 'de' yyyy")}; agora são ${formatTime(now.getTime())}.`)
   if (previous) out.push(`A análise de ontem começou com: "${previous.headline}". Não repita, traga o que mudou.`)
 
+  const profile = settings.profile?.trim()
+  if (profile) {
+    out.push('', '## Sobre a pessoa (escrito por ela)')
+    out.push('Leve em conta a rotina, as limitações e os objetivos abaixo ao interpretar os dados e ao dar dicas.')
+    out.push(profile.slice(0, PROFILE_CHARS))
+  }
+
   out.push('', '## Metas')
   out.push(`- Água: ${formatNumber(settings.waterGoalMl / 1000, 1)} L por dia.`)
   const goals = settings.nutrition
   if (goals) {
     out.push(`- Alimentação: ${macros(goals.normal)} por dia.`)
     if (goals.training) out.push(`- Em dia de treino: ${macros(goals.training)}.`)
+  }
+  const weightGoal = settings.weightGoal
+  if (weightGoal) {
+    const rate = formatNumber(Math.abs(weightGoal.kgPerWeek), 2)
+    const pace =
+      weightGoal.kgPerWeek === 0 ? 'manter' : `${weightGoal.kgPerWeek < 0 ? 'perder' : 'ganhar'} ${rate} kg por semana`
+    out.push(`- Peso: chegar a ${formatNumber(weightGoal.targetKg, 1)} kg (${pace}).`)
   }
   const habits = sources.habits.filter((habit) => !habit.archived)
   for (const habit of habits) out.push(`- Hábito: ${describeHabit(habit)}.`)
@@ -132,7 +148,11 @@ function dayLine(day: DayKey, row: DayRow | undefined, metric: Map<string, Metri
       .filter((session) => session.date === day && session.endedAt)
       .map((session) => {
         const { sets, volumeKg } = summarize(session)
-        return `musculação «${session.name}», ${sets} séries, ${formatNumber(volumeKg, 0)} kg levantados`
+        const effort = session.effort ? `, esforço ${session.effort}/10` : ''
+        const pain = session.discomfort?.length
+          ? `, desconforto: ${session.discomfort.map((area) => DISCOMFORT_AREAS[area] ?? area).join(', ').toLowerCase()}`
+          : ''
+        return `musculação «${session.name}», ${sets} séries, ${formatNumber(volumeKg, 0)} kg levantados${effort}${pain}`
       }),
   ]
   if (workouts.length > 0) parts.push(`treino: ${workouts.join('; ')}`)

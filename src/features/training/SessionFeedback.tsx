@@ -2,19 +2,8 @@ import { patch } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { WorkoutSession } from '../../db/types'
 import { Card, cx } from '../../components/ui'
+import { DISCOMFORT_AREAS } from './discomfort'
 
-/** Where a session can hurt or feel off, for the discomfort chips and the training page. */
-export const DISCOMFORT_AREAS: Record<string, string> = {
-  neck: 'Pescoço',
-  shoulder: 'Ombro',
-  elbow: 'Cotovelo',
-  wrist: 'Punho',
-  upperBack: 'Costas (alto)',
-  lowerBack: 'Lombar',
-  hip: 'Quadril',
-  knee: 'Joelho',
-  ankle: 'Tornozelo',
-}
 
 const EFFORT_HINT: Record<number, string> = {
   1: 'muito leve',

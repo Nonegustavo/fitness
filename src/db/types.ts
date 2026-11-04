@@ -168,6 +168,8 @@ export interface Settings extends Synced {
   insightsAuto?: boolean
   /** Where the weight is headed, and how fast (kg a week, negative to lose). */
   weightGoal?: WeightGoal
+  /** The user describing themselves (routine, history, goals) for the analyses by Claude. */
+  profile?: string
 }
 
 export interface WeightGoal {

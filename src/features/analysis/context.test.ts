@@ -125,3 +125,18 @@ describe('parseInsight', () => {
     expect(parseInsight(null)).toBeUndefined()
   })
 })
+
+describe('profile and weight goal', () => {
+  it('puts what the person wrote about themselves and the weight goal in the summary', () => {
+    const text = buildContext({
+      sources: world(),
+      settings: { ...settings, profile: 'Tenho tendinite no ombro.', weightGoal: { targetKg: 75, kgPerWeek: -0.5 } },
+      planned: null,
+      today: TODAY,
+      now: new Date(2026, 10, 3, 7, 40),
+    })
+    expect(text).toContain('## Sobre a pessoa (escrito por ela)')
+    expect(text).toContain('Tenho tendinite no ombro.')
+    expect(text).toContain('- Peso: chegar a 75 kg (perder 0,5 kg por semana).')
+  })
+})

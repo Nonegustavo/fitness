@@ -48,26 +48,31 @@ const subscribe = (listener: () => void) => {
 
 export const useInsightState = (): GenerateState => useSyncExternalStore(subscribe, () => state)
 
+/** The summary of the data the analysis reads, built on the device from the local data. */
+export async function contextFor(day: DayKey = dayKey(), withPrevious = true): Promise<string> {
+  const [sources, settings, planned, previous] = await Promise.all([
+    loadSources(),
+    db.settings.get(SETTINGS_ID),
+    plannedEvents(),
+    db.insights.get(shiftDay(day, -1)),
+  ])
+  return buildContext({
+    sources,
+    settings: settings ?? { id: SETTINGS_ID, ...DEFAULT_SETTINGS, updatedAt: 0, deleted: 0, dirty: 0 },
+    planned,
+    previous: withPrevious && previous && !previous.deleted ? previous : undefined,
+    today: day,
+    now: new Date(),
+  })
+}
+
 /** Builds today's summary on the device and asks Claude (daily-insights function) to read it. */
 export async function generateInsight(day: DayKey = dayKey()): Promise<void> {
   if (state.generating) return
   if (!supabase) throw new Error('Configure a sincronização para usar a análise do dia.')
   setState({ generating: true })
   try {
-    const [sources, settings, planned, previous] = await Promise.all([
-      loadSources(),
-      db.settings.get(SETTINGS_ID),
-      plannedEvents(),
-      db.insights.get(shiftDay(day, -1)),
-    ])
-    const context = buildContext({
-      sources,
-      settings: settings ?? { id: SETTINGS_ID, ...DEFAULT_SETTINGS, updatedAt: 0, deleted: 0, dirty: 0 },
-      planned,
-      previous: previous && !previous.deleted ? previous : undefined,
-      today: day,
-      now: new Date(),
-    })
+    const context = await contextFor(day)
     const { data, error } = await supabase.functions.invoke('daily-insights', { body: { context } })
     if (error instanceof FunctionsHttpError) {
       const answer = (await error.context.json().catch(() => null)) as { error?: string } | null

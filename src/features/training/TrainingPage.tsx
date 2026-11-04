@@ -17,7 +17,7 @@ import { MUSCLES } from './catalog'
 import { MuscleMap } from './MuscleMap'
 import { Elapsed, useStartWorkout } from './components'
 import { needsDeload, nextTemplate, recentEffort, setsByMuscle, stalledExercises, summarize } from './stats'
-import { DISCOMFORT_AREAS } from './SessionFeedback'
+import { DISCOMFORT_AREAS } from './discomfort'
 import { findActive, useExerciseMap, useSessions, useTemplates } from './training'
 
 const HISTORY_LIMIT = 10
