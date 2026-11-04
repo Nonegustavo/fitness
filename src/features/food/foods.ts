@@ -114,23 +114,24 @@ export function searchFoods(index: SearchEntry[], query: string, prefs: Map<stri
     .map(([, item]) => item)
 }
 
-/**
- * Logs a food (grams, or portions for a food measured in portions) and remembers the amount for next
- * time. `portion` is the portion it was counted by, when it was.
- */
-export async function logFood(
-  item: FoodItem,
-  grams: number,
-  meal: MealKey,
-  date: DayKey,
-  photoId?: string,
-  portion?: Portion,
-): Promise<FoodLog> {
+/** Where a food goes: the meal and day, and optionally when it was eaten ("12:30"; now by default). */
+export interface LogTarget {
+  meal: MealKey
+  date: DayKey
+  time?: string
+  /** The plate photo it came from. */
+  photoId?: string
+  /** The portion it was counted by, when it was. */
+  portion?: Portion
+}
+
+/** Logs a food (grams, or portions for a food measured in portions) and remembers the amount for next time. */
+export async function logFood(item: FoodItem, grams: number, { meal, date, time, photoId, portion }: LogTarget): Promise<FoodLog> {
   const now = Date.now()
   const log = await save(db.foodLogs, {
     date,
     meal,
-    time: dayTime(date, formatTime(now)),
+    time: dayTime(date, time ?? formatTime(now)),
     foodId: item.id,
     name: item.name,
     grams,
@@ -141,6 +142,15 @@ export async function logFood(
   })
   await updatePref(item.id, { lastGrams: grams, lastUsedAt: now })
   return log
+}
+
+/**
+ * What one tap adds: the amount used last time, or one portion, or 100 g. Counted by the food's
+ * portion when it has one.
+ */
+export function usualAmount(item: FoodItem, lastGrams?: number): { grams: number; portion?: Portion } {
+  const portion = item.unit === 'portion' ? undefined : item.portions[0]
+  return { grams: lastGrams ?? (item.unit === 'portion' ? 1 : (portion?.grams ?? 100)), portion }
 }
 
 /** Changes some of a food's preferences, keeping the rest. */

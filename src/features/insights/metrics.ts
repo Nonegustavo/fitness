@@ -86,6 +86,8 @@ const BASE_METRICS: Metric[] = [
   // Only on days with a rated session: how hard it felt, against the night after and the next days.
   { key: 'effort', label: 'Esforço do treino', group: 'Treino', unit: '', digits: 1, timing: 'day', cause: true, effect: true },
   { key: 'kcal', label: 'Calorias consumidas', group: 'Alimentação', unit: 'kcal', digits: 0, timing: 'day', cause: true, effect: true },
+  // Of the days logged in full (1000 kcal or more), the latest food with calories: late dinners × sleep.
+  { key: 'lastMeal', label: 'Hora da última refeição', group: 'Alimentação', unit: 'clock', digits: 2, timing: 'day', cause: true },
   { key: 'protein', label: 'Proteína', group: 'Alimentação', unit: 'g', digits: 0, timing: 'day', cause: true },
   { key: 'carbs', label: 'Carboidratos', group: 'Alimentação', unit: 'g', digits: 0, timing: 'day', cause: true },
   { key: 'fat', label: 'Gorduras', group: 'Alimentação', unit: 'g', digits: 0, timing: 'day', cause: true },
@@ -127,6 +129,13 @@ export function hourAxis(metric: Metric, values: number[]): { min?: number; max?
   const step = [0.25, 0.5, 1, 2, 3].find((size) => (hi - lo) / size <= 5) ?? 6
   const min = Math.floor(lo / step) * step
   return { min, max: Math.max(Math.ceil(hi / step) * step, min + step), interval: step }
+}
+
+/** A meal's time of day in hours; one in the small hours (a late supper) counts as 24+. */
+function mealClock(time: number): number {
+  const date = new Date(time)
+  const hours = date.getHours() + date.getMinutes() / 60
+  return hours < 4 ? hours + 24 : hours
 }
 
 /** Bedtime in hours, counting past midnight as 24+ so 23:30 → 23.5 and 00:30 → 24.5. */
@@ -223,8 +232,15 @@ export function buildDailyData(sources: Sources, from: DayKey, to: DayKey): Dail
     total.fat += log.nutrients.fat
     totals.set(log.date, total)
   }
+  const lastMeal = new Map<DayKey, number>()
+  for (const log of sources.foodLogs) {
+    if (log.nutrients.kcal < 30) continue
+    const hours = mealClock(log.time)
+    if (hours > (lastMeal.get(log.date) ?? -1)) lastMeal.set(log.date, hours)
+  }
   for (const [day, total] of totals) {
     if (day < from || day > to) continue
+    if (total.kcal >= 1000) add(rows, day, 'lastMeal', lastMeal.get(day))
     add(rows, day, 'kcal', total.kcal)
     add(rows, day, 'protein', total.protein)
     add(rows, day, 'carbs', total.carbs)

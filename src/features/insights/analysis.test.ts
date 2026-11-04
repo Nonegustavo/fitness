@@ -1,6 +1,6 @@
 import { describe as group, expect, it } from 'vitest'
 import type { Activity, DailyHealth, Habit, HabitLog, WeightEntry } from '../../db/types'
-import { dayRange, shiftDay } from '../../lib/dates'
+import { dayRange, dayTime, shiftDay } from '../../lib/dates'
 import { analyze, describe, highlights, lagFor, pairPoints, roundSplit, strongestFirst, type Finding } from './analysis'
 import { buildDailyData, formatMetric, type Metric, type Sources } from './metrics'
 
@@ -185,5 +185,42 @@ group('formatMetric', () => {
     expect(formatMetric(change, 0.109)).toBe('+0,11 kg')
     expect(formatMetric(change, -0.146)).toBe('-0,15 kg')
     expect(formatMetric(change, -0.001)).toBe('0 kg')
+  })
+})
+
+group('last meal of the day', () => {
+  const log = (date: string, clock: string, kcal: number) => ({
+    id: `${date}-${clock}`,
+    date,
+    meal: 'dinner' as const,
+    time: dayTime(date, clock),
+    foodId: 'x',
+    name: 'x',
+    grams: 100,
+    nutrients: { kcal, protein: 0, carbs: 0, fat: 0 },
+    updatedAt: 0,
+    deleted: 0 as const,
+    dirty: 0 as const,
+  })
+
+  it('takes the latest food with calories on days logged in full, a late supper as 24+', () => {
+    const data = buildDailyData(
+      {
+        ...empty,
+        foodLogs: [
+          log('2026-10-01', '12:00', 900),
+          log('2026-10-01', '21:30', 600),
+          log('2026-10-01', '22:10', 2), // coffee: no calories, not a meal
+          log('2026-10-02', '13:00', 1200),
+          log('2026-10-02', '00:30', 300),
+          log('2026-10-03', '08:00', 400), // only breakfast logged
+        ],
+      },
+      '2026-10-01',
+      '2026-10-03',
+    )
+    expect(data.rows.get('2026-10-01')?.lastMeal).toBe(21.5)
+    expect(data.rows.get('2026-10-02')?.lastMeal).toBe(24.5)
+    expect(data.rows.get('2026-10-03')?.lastMeal).toBeUndefined()
   })
 })

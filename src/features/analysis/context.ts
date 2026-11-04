@@ -159,7 +159,8 @@ function dayLine(day: DayKey, row: DayRow | undefined, metric: Map<string, Metri
   else if (value('activityMinutes') === 0) parts.push('sem treino')
 
   if (value('kcal') !== undefined) {
-    parts.push(`comeu ${show('kcal')} (proteína ${show('protein')}, carboidratos ${show('carbs')}, gorduras ${show('fat')})`)
+    const last = show('lastMeal') ? `, última refeição às ${show('lastMeal')}` : ''
+    parts.push(`comeu ${show('kcal')} (proteína ${show('protein')}, carboidratos ${show('carbs')}, gorduras ${show('fat')}${last})`)
   }
   if (show('water')) parts.push(`água ${show('water')}`)
   if (show('weight')) parts.push(`peso ${show('weight')}${show('bodyFat') ? `, gordura ${show('bodyFat')}` : ''}`)

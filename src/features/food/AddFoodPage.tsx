@@ -9,13 +9,13 @@ import { useToday } from '../../db/hooks'
 import { remove } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { FoodLog, FoodPref, MealKey, SavedMeal } from '../../db/types'
-import { shiftDay } from '../../lib/dates'
+import { formatTime, shiftDay } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import { useSyncState } from '../../sync/controller'
 import { BarcodeScanner } from './BarcodeScanner'
 import { FoodForm, type FoodDraft } from './FoodForm'
-import { buildIndex, fromCustom, recentForMeal, searchFoods, TACO_SOURCE, useFoodCatalog, useFoodPrefs, weighed, type FoodItem } from './foods'
-import { logItems, MEAL_LABEL, mealAt, MEALS, sumNutrients, useFoodLogs, useSavedMeals } from './nutrition'
+import { buildIndex, fromCustom, logFood, recentForMeal, searchFoods, usualAmount, TACO_SOURCE, useFoodCatalog, useFoodPrefs, weighed, type FoodItem } from './foods'
+import { amountLabel, logItems, MEAL_LABEL, mealAt, MEALS, nutrientsFor, sumNutrients, useFoodLogs, useSavedMeals } from './nutrition'
 import { fetchProduct } from './openFoodFacts'
 import type { MealSource } from './photo'
 import { PhotoReview } from './PhotoReview'
@@ -34,6 +34,8 @@ export default function AddFoodPage() {
   const date = params.get('data') ?? today
   const requested = params.get('refeicao')
   const [meal, setMeal] = useState<MealKey>(isMeal(requested) ? requested : mealAt(new Date()))
+  // When it was eaten; null follows the clock (logged now).
+  const [time, setTime] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<Tab>('recent')
   const [selected, setSelected] = useState<FoodItem | null>(null)
@@ -73,9 +75,18 @@ export default function AddFoodPage() {
   const recipes = catalog.filter((item) => item.source === 'recipe').sort((a, b) => a.name.localeCompare(b.name))
 
   const onLogged = (log: FoodLog) => {
-    toast({ message: `${log.name} · ${MEAL_LABEL[log.meal]}`, action: { label: 'Desfazer', onClick: () => void remove(db.foodLogs, log.id) } })
+    toast({
+      message: `${log.name} · ${amountLabel(log.grams, log.unit, log.portion).split(' · ')[0]} · ${MEAL_LABEL[log.meal]}`,
+      action: { label: 'Desfazer', onClick: () => void remove(db.foodLogs, log.id) },
+    })
     setQuery('')
     search.current?.focus()
+  }
+
+  /** The "+" of a list: the usual amount, without opening the food. */
+  async function quickAdd(item: FoodItem) {
+    const { grams, portion } = usualAmount(item, prefs.get(item.id)?.lastGrams)
+    onLogged(await logFood(item, grams, { meal, date, time: time ?? undefined, portion }))
   }
 
   const onBarcode = useCallback(
@@ -104,12 +115,16 @@ export default function AddFoodPage() {
   )
 
   async function addSavedMeal(saved: SavedMeal) {
-    await logItems(saved.items, meal, date)
+    await logItems(saved.items, meal, date, time ?? undefined)
     toast({ message: `${saved.name} · ${MEAL_LABEL[meal]}` })
   }
 
   const list = (items: FoodItem[], empty: string) =>
-    items.length === 0 ? <Empty>{empty}</Empty> : <FoodList items={items} prefs={prefs} onSelect={setSelected} />
+    items.length === 0 ? (
+      <Empty>{empty}</Empty>
+    ) : (
+      <FoodList items={items} prefs={prefs} onSelect={setSelected} onAdd={(item) => void quickAdd(item)} />
+    )
 
   return (
     <Page title="Adicionar alimento" back={{ to: date === today ? '/alimentacao' : `/alimentacao?data=${date}`, label: 'Alimentação' }}>
@@ -152,7 +167,7 @@ export default function AddFoodPage() {
             }}
           />
         </div>
-        <div className="mt-3">
+        <div className="mt-3 grid grid-cols-[1fr_8.5rem] gap-3">
           <Field label="Refeição">
             <Select value={meal} onChange={(e) => setMeal(e.target.value as MealKey)}>
               {MEALS.map(({ key, label }) => (
@@ -161,6 +176,13 @@ export default function AddFoodPage() {
                 </option>
               ))}
             </Select>
+          </Field>
+          <Field label="Hora">
+            <TextInput
+              type="time"
+              value={time ?? formatTime(Date.now())}
+              onChange={(e) => setTime(e.target.value || null)}
+            />
           </Field>
         </div>
       </Card>
@@ -247,6 +269,7 @@ export default function AddFoodPage() {
           item={selected}
           initialMeal={meal}
           date={date}
+          time={time ?? undefined}
           lastGrams={prefs.get(selected.id)?.lastGrams}
           favorite={prefs.get(selected.id)?.favorite === 1}
           quick={prefs.get(selected.id)?.quick}
@@ -276,6 +299,7 @@ export default function AddFoodPage() {
           source={review}
           initialMeal={meal}
           date={date}
+          time={time ?? undefined}
           index={weighedIndex}
           prefs={prefs}
           onClose={() => setReview(null)}
@@ -343,25 +367,51 @@ function FoodList({
   items,
   prefs,
   onSelect,
+  onAdd,
 }: {
   items: FoodItem[]
   prefs: Map<string, FoodPref>
   onSelect: (item: FoodItem) => void
+  /** The "+": logs the usual amount right away. */
+  onAdd: (item: FoodItem) => void
 }) {
   return (
     <ul className="divide-y divide-line">
-      {items.map((item) => (
-        <li key={item.id}>
-          <button type="button" onClick={() => onSelect(item)} className="flex w-full items-center gap-3 py-2 text-left">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm">{item.name}</p>
-              <p className="truncate text-xs text-muted">{item.detail}</p>
-            </div>
-            {prefs.get(item.id)?.favorite === 1 && <Star size={14} className="shrink-0 fill-current text-accent-ink" />}
-            <span className="shrink-0 text-right text-xs text-ink-2 tabular-nums">{kcalPer(item)}</span>
-          </button>
-        </li>
-      ))}
+      {items.map((item) => {
+        const pref = prefs.get(item.id)
+        const usual = usualAmount(item, pref?.lastGrams)
+        const usualLabel = amountLabel(usual.grams, item.unit, usual.portion).split(' · ')[0]
+        return (
+          <li key={item.id} className="flex items-center gap-1">
+            <button type="button" onClick={() => onSelect(item)} className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">{item.name}</p>
+                <p className="truncate text-xs text-muted">{item.detail}</p>
+              </div>
+              {pref?.favorite === 1 && <Star size={14} className="shrink-0 fill-current text-accent-ink" />}
+              <span className="shrink-0 text-right text-xs text-ink-2 tabular-nums">
+                {pref?.lastGrams !== undefined ? (
+                  <>
+                    <span className="block">{formatNumber(nutrientsFor(item.per100, usual.grams, item.unit).kcal, 0)} kcal</span>
+                    <span className="block text-muted">{usualLabel}</span>
+                  </>
+                ) : (
+                  kcalPer(item)
+                )}
+              </span>
+            </button>
+            <button
+              type="button"
+              aria-label={`Adicionar ${usualLabel} de ${item.name}`}
+              title={`Adicionar ${usualLabel}`}
+              onClick={() => onAdd(item)}
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink transition hover:brightness-110 active:scale-90"
+            >
+              <Plus size={18} />
+            </button>
+          </li>
+        )
+      })}
     </ul>
   )
 }

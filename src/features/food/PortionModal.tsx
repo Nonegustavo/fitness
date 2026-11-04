@@ -29,6 +29,7 @@ export function PortionModal({
   item,
   initialMeal,
   date,
+  time,
   lastGrams,
   favorite,
   quick,
@@ -39,6 +40,8 @@ export function PortionModal({
   item: FoodItem
   initialMeal: MealKey
   date: DayKey
+  /** When it was eaten ("12:30"); now when unset. */
+  time?: string
   lastGrams?: number
   favorite: boolean
   /** The 1-tap shortcut's amount, when the food is one. */
@@ -76,7 +79,7 @@ export function PortionModal({
 
   async function add() {
     if (!valid) return
-    onLogged(await logFood(item, grams, meal, date, undefined, byPortion ? portion : undefined))
+    onLogged(await logFood(item, grams, { meal, date, time, portion: byPortion ? portion : undefined }))
     onClose()
   }
 

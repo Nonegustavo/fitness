@@ -181,6 +181,9 @@ export function describe(finding: Finding): string {
   if (x.key === 'bedtime') {
     return `Dormindo depois das ${formatMetric(x, finding.split)}: ${what} de ${fy(finding.highMean)} ${when}; antes disso, ${fy(finding.lowMean)}.`
   }
+  if (x.key === 'lastMeal') {
+    return `Comendo depois das ${formatMetric(x, finding.split)}: ${what} de ${fy(finding.highMean)} ${when}; comendo antes, ${fy(finding.lowMean)}.`
+  }
   const above = finding.split === 0 ? 'acima de zero' : `acima de ${formatMetric(x, finding.split)}`
   return `${x.label} ${above}: ${what} de ${fy(finding.highMean)} ${when}; nos outros dias, ${fy(finding.lowMean)}.`
 }

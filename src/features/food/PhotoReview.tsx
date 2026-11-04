@@ -28,6 +28,7 @@ export function PhotoReview({
   source,
   initialMeal,
   date,
+  time,
   index,
   prefs,
   onClose,
@@ -36,6 +37,8 @@ export function PhotoReview({
   source: MealSource
   initialMeal: MealKey
   date: DayKey
+  /** When it was eaten ("12:30"); now when unset. */
+  time?: string
   index: SearchEntry[]
   prefs: Map<string, FoodPref>
   onClose: () => void
@@ -94,7 +97,7 @@ export function PhotoReview({
     setSaving(true)
     // A photo that fails to keep shouldn't stop the meal from being logged.
     const photoId = source.kind === 'photo' && keep ? await keepPhoto(source.file).catch(() => undefined) : undefined
-    for (const { item, food } of chosen) await logFood(food, item.grams, meal, date, photoId)
+    for (const { item, food } of chosen) await logFood(food, item.grams, { meal, date, time, photoId })
     onDone(chosen.length, meal)
     onClose()
   }

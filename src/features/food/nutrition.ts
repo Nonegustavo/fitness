@@ -126,10 +126,19 @@ export function useSavedMeals(): SavedMeal[] | undefined {
   )
 }
 
-/** Logs a list of items (a saved meal, or yesterday's lunch) into a meal of a day. */
-export async function logItems(items: SavedMealItem[], meal: MealKey, date: DayKey): Promise<void> {
-  const time = dayTime(date, formatTime(Date.now()))
-  for (const { foodId, name, grams, unit, portion, nutrients } of items) {
-    await save(db.foodLogs, { date, meal, time, foodId, name, grams, unit, portion, nutrients })
+/**
+ * Logs a list of items (a saved meal, or yesterday's lunch) into a meal of a day. Items copied from
+ * another day keep their time of day; the others get `time`, or now.
+ */
+export async function logItems(
+  items: (SavedMealItem & { time?: number })[],
+  meal: MealKey,
+  date: DayKey,
+  time?: string,
+): Promise<void> {
+  const fallback = time ?? formatTime(Date.now())
+  for (const { foodId, name, grams, unit, portion, nutrients, time: at } of items) {
+    const clock = at === undefined ? fallback : formatTime(at)
+    await save(db.foodLogs, { date, meal, time: dayTime(date, clock), foodId, name, grams, unit, portion, nutrients })
   }
 }

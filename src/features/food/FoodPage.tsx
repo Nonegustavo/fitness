@@ -11,10 +11,11 @@ import { useSettings, useToday } from '../../db/hooks'
 import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { FoodLog, MacroGoals, MealKey, Nutrients, QuickAmount } from '../../db/types'
-import { dayRange, formatDay, shiftDay, type DayKey } from '../../lib/dates'
+import { dayRange, dayTime, formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { useDailyHealth } from '../garmin/recovery'
 import { logFood, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
+import { closeTheDay, remainingOf, type Suggestion } from './closeDay'
 import { GoalsModal } from './GoalsModal'
 import { useExpenditure } from './useExpenditure'
 import { amountLabel, goalsFor, mealAt, multiply, OPTIONAL_NUTRIENTS, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
@@ -79,17 +80,28 @@ export default function FoodPage() {
 
       <QuickBar date={date} />
 
-      {MEALS.map(({ key }) => (
-        <MealCard
-          key={key}
-          meal={key}
-          date={date}
-          entries={dayLogs.filter((log) => log.meal === key)}
-          yesterday={yesterday.filter((log) => log.meal === key)}
-          goals={goals}
-          onAdd={() => navigate(`/alimentacao/adicionar?refeicao=${key}&data=${date}`)}
-        />
-      ))}
+      {date === today && goals && <CloseDayCard date={date} eaten={totals} goals={goals} />}
+
+      {groupMeals(dayLogs).map((group) =>
+        group.entries.length > 0 ? (
+          <MealCard
+            key={group.meals[0]}
+            meal={group.meals[0]}
+            date={date}
+            entries={group.entries}
+            goals={goals}
+            onAdd={() => navigate(`/alimentacao/adicionar?refeicao=${group.meals[0]}&data=${date}`)}
+          />
+        ) : (
+          <EmptyMeals
+            key={group.meals.join()}
+            meals={group.meals}
+            date={date}
+            yesterday={yesterday}
+            onAdd={(meal) => navigate(`/alimentacao/adicionar?refeicao=${meal}&data=${date}`)}
+          />
+        ),
+      )}
 
       <Card title="Últimos 14 dias">
         <FoodHistory today={today} />
@@ -117,7 +129,7 @@ function QuickBar({ date }: { date: DayKey }) {
   if (quick.length === 0) return null
 
   async function add(item: FoodItem, quick: QuickAmount) {
-    const log = await logFood(item, quick.grams, mealAt(new Date()), date, undefined, quick.portion)
+    const log = await logFood(item, quick.grams, { meal: mealAt(new Date()), date, portion: quick.portion })
     toast({
       message: `${item.name} · ${MEAL_LABEL[log.meal]}`,
       action: { label: 'Desfazer', onClick: () => void remove(db.foodLogs, log.id) },
@@ -134,6 +146,79 @@ function QuickBar({ date }: { date: DayKey }) {
         </Button>
       ))}
     </div>
+  )
+}
+
+/**
+ * What's left of the day and a few ways to close it with the user's own foods (favorites and the
+ * ones eaten before), each added in one tap.
+ */
+function CloseDayCard({ date, eaten, goals }: { date: DayKey; eaten: Nutrients; goals: MacroGoals }) {
+  const toast = useToast()
+  const prefs = useFoodPrefs()
+  const catalog = useFoodCatalog()
+  const left = remainingOf(goals, eaten)
+  const suggestions = useMemo(() => {
+    const byId = new Map(catalog.map((item) => [item.id, item]))
+    // The 40 foods used most recently, plus the favorites.
+    const foods = [...prefs.values()]
+      .filter((pref) => pref.favorite || pref.lastUsedAt)
+      .sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0))
+      .slice(0, 40)
+      .flatMap((pref) => {
+        const item = byId.get(pref.id)
+        return item ? [{ item, lastGrams: pref.lastGrams }] : []
+      })
+    return closeTheDay(foods, left)
+    // A new `left` object comes with every render; its values are what matter.
+  }, [prefs, catalog, left.kcal, left.protein, left.carbs, left.fat])
+
+  // The last stretch of the day: with more than that left, it's still meals ahead, not a gap to close.
+  if (left.kcal < 150 || left.kcal > 900 || suggestions.length === 0) return null
+
+  async function add(suggestion: Suggestion) {
+    const meal = mealAt(new Date())
+    const logs: FoodLog[] = []
+    for (const pick of suggestion.picks) logs.push(await logFood(pick.item, pick.grams, { meal, date, portion: pick.portion }))
+    toast({
+      message: `${suggestion.picks.length === 1 ? '1 item' : `${suggestion.picks.length} itens`} · ${MEAL_LABEL[meal]}`,
+      action: { label: 'Desfazer', onClick: () => logs.forEach((log) => void remove(db.foodLogs, log.id)) },
+    })
+  }
+
+  return (
+    <Card title="Para fechar o dia" icon={Target} tone="food">
+      <p className="mb-2 text-sm text-ink-2">
+        Faltam <span className="font-semibold text-ink tabular-nums">{formatNumber(left.kcal, 0)} kcal</span>
+        {left.protein >= 5 && (
+          <>
+            {' '}
+            e <span className="font-semibold tabular-nums" style={{ color: 'var(--macro-protein)' }}>{formatNumber(left.protein, 0)} g de proteína</span>
+          </>
+        )}
+        . Com o que você costuma comer:
+      </p>
+      <ul className="divide-y divide-line">
+        {suggestions.map((suggestion) => (
+          <li key={suggestion.picks.map((pick) => pick.item.id + pick.grams).join()} className="flex items-center gap-3 py-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm">
+                {suggestion.picks
+                  .map((pick) => `${pick.item.name.split(',')[0]} (${amountLabel(pick.grams, pick.item.unit, pick.portion).split(' · ')[0]})`)
+                  .join(' + ')}
+              </p>
+              <p className="flex flex-wrap gap-x-2 text-xs text-muted">
+                <span>{kcal(suggestion.total.kcal)}</span>
+                <MacroLine nutrients={suggestion.total} />
+              </p>
+            </div>
+            <Button size="sm" onClick={() => void add(suggestion)}>
+              <Plus size={16} /> Adicionar
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Card>
   )
 }
 
@@ -162,18 +247,73 @@ function EnergyLine({ date, today }: { date: DayKey; today: DayKey }) {
   )
 }
 
+/** The meals in order, with the empty ones next to each other grouped (they show as thin rows). */
+function groupMeals(logs: FoodLog[]): { meals: MealKey[]; entries: FoodLog[] }[] {
+  const groups: { meals: MealKey[]; entries: FoodLog[] }[] = []
+  for (const { key } of MEALS) {
+    const entries = logs.filter((log) => log.meal === key)
+    const last = groups.at(-1)
+    if (entries.length === 0 && last && last.entries.length === 0) last.meals.push(key)
+    else groups.push({ meals: [key], entries })
+  }
+  return groups
+}
+
+/** Meals with nothing logged: one line each, with "+" and yesterday's to repeat. */
+function EmptyMeals({
+  meals,
+  date,
+  yesterday,
+  onAdd,
+}: {
+  meals: MealKey[]
+  date: DayKey
+  yesterday: FoodLog[]
+  onAdd: (meal: MealKey) => void
+}) {
+  const toast = useToast()
+  return (
+    <ul className="divide-y divide-line rounded-2xl border border-line bg-surface px-4">
+      {meals.map((meal) => {
+        const before = yesterday.filter((log) => log.meal === meal)
+        return (
+          <li key={meal} className="flex min-h-12 items-center gap-2 py-1.5">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-ink-2">{MEAL_LABEL[meal]}</p>
+              {before.length > 0 && (
+                <button
+                  type="button"
+                  className="flex max-w-full items-center gap-1 text-xs text-accent-ink"
+                  onClick={async () => {
+                    await logItems(before, meal, date)
+                    toast({ message: `${MEAL_LABEL[meal]} de ontem repetido` })
+                  }}
+                >
+                  <Repeat size={12} className="shrink-0" />
+                  <span className="truncate">Repetir ontem: {before.map((log) => log.name.split(',')[0]).join(', ')}</span>
+                </button>
+              )}
+            </div>
+            <Button size="sm" variant="ghost" aria-label={`Adicionar em ${MEAL_LABEL[meal]}`} onClick={() => onAdd(meal)}>
+              <Plus size={16} /> Adicionar
+            </Button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 function MealCard({
   meal,
   date,
   entries,
-  yesterday,
   goals,
   onAdd,
 }: {
   meal: MealKey
   date: DayKey
   entries: FoodLog[]
-  yesterday: FoodLog[]
   goals?: MacroGoals
   onAdd: () => void
 }) {
@@ -191,23 +331,18 @@ function MealCard({
     toast({ message: `${MEAL_LABEL[meal]} copiado para hoje` })
   }
 
-  async function repeatYesterday() {
-    await logItems(yesterday, meal, date)
-    toast({ message: `${MEAL_LABEL[meal]} de ontem repetido` })
-  }
-
   return (
     <Card
       title={
-        entries.length > 0 ? (
-          <button type="button" onClick={() => setViewing(true)} className="flex items-center gap-1 text-left hover:text-ink">
+        <button type="button" onClick={() => setViewing(true)} className="block text-left hover:text-ink">
+          <span className="flex items-center gap-1">
             {MEAL_LABEL[meal]}
-            <span className="font-normal text-muted"> · {kcal(total.kcal)}</span>
             <ChevronRight size={16} className="text-muted" />
-          </button>
-        ) : (
-          MEAL_LABEL[meal]
-        )
+          </span>
+          <span className="block text-xs font-normal text-muted tabular-nums">
+            {formatTime(Math.min(...entries.map((entry) => entry.time)))} · {kcal(total.kcal)}
+          </span>
+        </button>
       }
       action={
         <Button size="sm" variant="ghost" onClick={onAdd}>
@@ -215,54 +350,44 @@ function MealCard({
         </Button>
       }
     >
-      {entries.length === 0 ? (
-        yesterday.length > 0 ? (
-          <Button size="sm" variant="ghost" onClick={() => void repeatYesterday()}>
-            <Repeat size={16} /> Repetir de ontem ({yesterday.length} {yesterday.length === 1 ? 'item' : 'itens'})
-          </Button>
-        ) : (
-          <p className="text-sm text-muted">Nada registrado.</p>
-        )
-      ) : (
-        <>
-          <button type="button" onClick={() => setViewing(true)} className="mb-2 block w-full" aria-label={`Ver ${MEAL_LABEL[meal]}`}>
-            <SplitBar nutrients={total} />
-          </button>
-          {photoIds.length > 0 && (
-            <div className="mb-2 flex gap-2 overflow-x-auto">
-              {photoIds.map((id) => (
-                <PhotoThumb key={id} id={id} />
-              ))}
-            </div>
-          )}
-          <ul className="divide-y divide-line">
-            {entries.map((entry) => (
-              <SwipeToDelete key={entry.id} onDelete={() => removeWithUndo(db.foodLogs, entry.id, `${entry.name} removido`)}>
-                <button type="button" onClick={() => setEditing(entry)} className="flex w-full items-center gap-3 py-2 text-left">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{entry.name}</p>
-                    <p className="flex flex-wrap gap-x-2 text-xs text-muted">
-                      <span>{amountLabel(entry.grams, entry.unit, entry.portion)}</span>
-                      <MacroLine nutrients={entry.nutrients} />
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
-                </button>
-              </SwipeToDelete>
+      <>
+        <button type="button" onClick={() => setViewing(true)} className="mb-2 block w-full" aria-label={`Ver ${MEAL_LABEL[meal]}`}>
+          <SplitBar nutrients={total} />
+        </button>
+        {photoIds.length > 0 && (
+          <div className="mb-2 flex gap-2 overflow-x-auto">
+            {photoIds.map((id) => (
+              <PhotoThumb key={id} id={id} />
             ))}
-          </ul>
-          <div className="mt-1 flex flex-wrap gap-1">
-            <Button size="sm" variant="ghost" onClick={() => setSaving(true)}>
-              <Bookmark size={16} /> Salvar como refeição
-            </Button>
-            {date !== today && (
-              <Button size="sm" variant="ghost" onClick={() => void copyToToday()}>
-                <Copy size={16} /> Copiar para hoje
-              </Button>
-            )}
           </div>
-        </>
-      )}
+        )}
+        <ul className="divide-y divide-line">
+          {entries.map((entry) => (
+            <SwipeToDelete key={entry.id} onDelete={() => removeWithUndo(db.foodLogs, entry.id, `${entry.name} removido`)}>
+              <button type="button" onClick={() => setEditing(entry)} className="flex w-full items-center gap-3 py-2 text-left">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm">{entry.name}</p>
+                  <p className="flex flex-wrap gap-x-2 text-xs text-muted">
+                    <span>{amountLabel(entry.grams, entry.unit, entry.portion)}</span>
+                    <MacroLine nutrients={entry.nutrients} />
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
+              </button>
+            </SwipeToDelete>
+          ))}
+        </ul>
+        <div className="mt-1 flex flex-wrap gap-1">
+          <Button size="sm" variant="ghost" onClick={() => setSaving(true)}>
+            <Bookmark size={16} /> Salvar como refeição
+          </Button>
+          {date !== today && (
+            <Button size="sm" variant="ghost" onClick={() => void copyToToday()}>
+              <Copy size={16} /> Copiar para hoje
+            </Button>
+          )}
+        </div>
+      </>
       {editing && <EntryModal entry={editing} goals={goals} onClose={() => setEditing(null)} />}
       {viewing && (
         <MealModal
@@ -296,6 +421,14 @@ function MealModal({
   onEdit: (entry: FoodLog) => void
 }) {
   const [amounts, setAmounts] = useState<Record<string, string> | null>(null)
+  const [clock, setClock] = useState(() => formatTime(Math.min(...entries.map((entry) => entry.time))))
+
+  /** One time for the whole meal, as it was eaten together. */
+  async function changeClock(value: string) {
+    setClock(value)
+    if (!/^\d{2}:\d{2}$/.test(value)) return
+    for (const entry of entries) await save(db.foodLogs, { ...entry, time: dayTime(entry.date, value) })
+  }
   // While editing, the totals follow the amounts as they're typed.
   const shown = entries.map((entry) => {
     const grams = amounts ? gramsFromText(entry, amounts[entry.id]) : undefined
@@ -315,6 +448,12 @@ function MealModal({
   return (
     <Modal open title={`${MEAL_LABEL[meal]} · ${kcal(total.kcal)}`} onClose={onClose}>
       <div className="space-y-4">
+        <label className="flex items-center justify-between gap-3 text-sm">
+          <span className="text-ink-2">Hora da refeição</span>
+          <span className="w-32 shrink-0">
+            <TextInput type="time" value={clock} onChange={(e) => void changeClock(e.target.value)} />
+          </span>
+        </label>
         <MacroBalance nutrients={total} goals={goals} />
         <MacroGrams nutrients={total} goals={goals} />
         <OtherNutrients nutrients={total} />
@@ -421,6 +560,7 @@ function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGo
   const unitGrams = portion?.grams ?? 1
   const [gramsText, setGramsText] = useState(asText(entry.grams / unitGrams))
   const [meal, setMeal] = useState(entry.meal)
+  const [clock, setClock] = useState(formatTime(entry.time))
   const [perGram, setPerGram] = useState(
     () => Object.fromEntries(VALUE_FIELDS.map(({ key }) => [key, entry.nutrients[key] / entry.grams])) as Record<ValueKey, number>,
   )
@@ -461,7 +601,8 @@ function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGo
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!valid) return
-    const { id, date, time, foodId, photoId, unit, portion: loggedBy } = entry
+    const { id, date, foodId, photoId, unit, portion: loggedBy } = entry
+    const time = /^\d{2}:\d{2}$/.test(clock) ? dayTime(date, clock) : entry.time
     const nutrients: Nutrients = {
       kcal: perGram.kcal * grams,
       protein: perGram.protein * grams,
@@ -491,16 +632,19 @@ function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGo
           >
             <DecimalInput value={gramsText} onChange={(e) => changeGrams(e.target.value)} />
           </Field>
-          <Field label="Refeição">
-            <Select value={meal} onChange={(e) => setMeal(e.target.value as MealKey)}>
-              {MEALS.map(({ key, label }) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </Select>
+          <Field label="Hora">
+            <TextInput type="time" value={clock} onChange={(e) => setClock(e.target.value)} />
           </Field>
         </div>
+        <Field label="Refeição">
+          <Select value={meal} onChange={(e) => setMeal(e.target.value as MealKey)}>
+            {MEALS.map(({ key, label }) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </Field>
         {editingValues ? (
           <fieldset>
             <legend className="mb-1 text-sm font-medium text-ink-2">Valores desta porção</legend>
