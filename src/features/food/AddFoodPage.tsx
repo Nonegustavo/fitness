@@ -318,6 +318,13 @@ function DescribeModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
   )
 }
 
+/** "120 kcal/2 fatias" for a food with a portion, "128 kcal/100 g" otherwise. */
+function kcalPer(item: FoodItem): string {
+  const portion = item.unit === 'portion' ? undefined : item.portions[0]
+  if (portion) return `${formatNumber((item.per100.kcal * portion.grams) / 100, 0)} kcal/${portion.label}`
+  return `${formatNumber(item.per100.kcal, 0)} kcal/${item.unit === 'portion' ? 'porção' : '100 g'}`
+}
+
 function FoodList({
   items,
   prefs,
@@ -337,9 +344,7 @@ function FoodList({
               <p className="truncate text-xs text-muted">{item.detail}</p>
             </div>
             {prefs.get(item.id)?.favorite === 1 && <Star size={14} className="shrink-0 fill-current text-accent-ink" />}
-            <span className="shrink-0 text-xs text-ink-2 tabular-nums">
-              {formatNumber(item.per100.kcal, 0)} kcal/{item.unit === 'portion' ? 'porção' : '100 g'}
-            </span>
+            <span className="shrink-0 text-right text-xs text-ink-2 tabular-nums">{kcalPer(item)}</span>
           </button>
         </li>
       ))}

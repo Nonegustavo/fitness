@@ -1,12 +1,13 @@
 import { Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
-import { Button, DecimalInput, Field, TextInput } from '../../components/ui'
+import { Button, DecimalInput, Field, Segmented, TextInput } from '../../components/ui'
 import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Food, FoodUnit, Nutrients, Portion } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
-import { kcalFromMacros } from './nutrition'
+import { MacroBalance } from './MacroViews'
+import { kcalFromMacros, multiply } from './nutrition'
 
 /** What a scan or a search hands to the form before it becomes a saved food. */
 export interface FoodDraft {
@@ -16,6 +17,8 @@ export interface FoodDraft {
   per100?: Nutrients
   portion?: Portion
   unit?: FoodUnit
+  /** The values in `per100` are per `portion`, as typed from the label (only while a draft). */
+  perPortion?: boolean
   source?: Food['source']
   /** A TACO food being replaced by the user's own version of it. */
   basedOn?: string
@@ -23,11 +26,14 @@ export interface FoodDraft {
 
 const FIELDS = [
   { key: 'kcal', label: 'Calorias (kcal)' },
-  { key: 'protein', label: 'Proteína (g)' },
   { key: 'carbs', label: 'Carboidratos (g)' },
+  { key: 'protein', label: 'Proteína (g)' },
   { key: 'fat', label: 'Gorduras (g)' },
   { key: 'fiber', label: 'Fibras (g)' },
 ] as const
+
+/** What the typed values refer to: 100 g, or a portion as the label puts it ("1 fatia", 25 g). */
+type Basis = '100g' | 'portion'
 
 type NutrientKey = (typeof FIELDS)[number]['key']
 
@@ -55,9 +61,16 @@ export function FoodForm({
         unit: food.unit,
         source: food.source,
         basedOn: food.basedOn,
+        // Shown per portion again, as it was typed.
+        ...(food.labelPerPortion && food.portions?.[0] && food.unit !== 'portion'
+          ? { per100: multiply(food.per100, food.portions[0].grams / 100), perPortion: true }
+          : {}),
       }
     : (initial ?? {})
   const inPortions = start.unit === 'portion'
+  // A new food starts per portion: that's how the package labels show it.
+  const [basis, setBasis] = useState<Basis>(start.perPortion || (!food && !start.per100 && !inPortions) ? 'portion' : '100g')
+  const perPortion = basis === 'portion' && !inPortions
   const [name, setName] = useState(start.name ?? '')
   const [brand, setBrand] = useState(start.brand ?? '')
   const [barcode, setBarcode] = useState(start.barcode ?? '')
@@ -73,30 +86,71 @@ export function FoodForm({
   >
   const required = (['kcal', 'protein', 'carbs', 'fat'] as const).every((key) => (values[key] ?? -1) >= 0)
   const grams = parseDecimal(portionGrams)
-  const portionValid = portionLabel.trim() === '' || (grams !== undefined && grams > 0)
+  const portionValid = perPortion
+    ? grams !== undefined && grams > 0
+    : portionLabel.trim() === '' || (grams !== undefined && grams > 0)
   const valid = name.trim() !== '' && required && portionValid
   const fromMacros =
     values.protein !== undefined && values.carbs !== undefined && values.fat !== undefined
       ? kcalFromMacros({ protein: values.protein, carbs: values.carbs, fat: values.fat })
       : undefined
 
+  /** Switching what the values refer to converts them, when the portion's weight is known. */
+  function changeBasis(next: Basis) {
+    if (next === basis) return
+    setBasis(next)
+    if (!grams || grams <= 0) return
+    const factor = next === 'portion' ? grams / 100 : 100 / grams
+    setTexts(
+      Object.fromEntries(
+        FIELDS.map(({ key }) => [key, values[key] === undefined ? texts[key] : asText(values[key]! * factor)]),
+      ) as Record<NutrientKey, string>,
+    )
+  }
+
+  // A plain function, not a component, so the inputs keep focus between renders.
+  const portionFields = () => (
+    <div className="grid grid-cols-[1fr_6rem] gap-3">
+      <Field label={perPortion ? 'Porção' : 'Nome'}>
+        <TextInput
+          aria-label="Nome da porção"
+          value={portionLabel}
+          onChange={(e) => setPortionLabel(e.target.value)}
+          placeholder="Ex.: 2 fatias"
+        />
+      </Field>
+      <Field label="Gramas">
+        <DecimalInput
+          aria-label="Gramas da porção"
+          value={portionGrams}
+          onChange={(e) => setPortionGrams(e.target.value)}
+          placeholder="g"
+        />
+      </Field>
+    </div>
+  )
+
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!valid) return
+    const typed: Nutrients = {
+      kcal: values.kcal!,
+      protein: values.protein!,
+      carbs: values.carbs!,
+      fat: values.fat!,
+      fiber: values.fiber,
+    }
+    const label = portionLabel.trim() || (perPortion ? '1 porção' : '')
     const saved = await save(db.foods, {
       id: food?.id,
       name: name.trim(),
       brand: brand.trim() || undefined,
       barcode: barcode.trim() || undefined,
-      per100: {
-        kcal: values.kcal!,
-        protein: values.protein!,
-        carbs: values.carbs!,
-        fat: values.fat!,
-        fiber: values.fiber,
-      },
-      portions: portionLabel.trim() && grams ? [{ label: portionLabel.trim(), grams }] : undefined,
+      // Kept per 100 g, whatever was typed, so everything else keeps working in grams.
+      per100: perPortion && grams ? multiply(typed, 100 / grams) : typed,
+      portions: label && grams ? [{ label, grams }] : undefined,
       unit: start.unit,
+      labelPerPortion: perPortion || undefined,
       source: start.source ?? 'custom',
       basedOn: start.basedOn,
     })
@@ -141,9 +195,31 @@ export function FoodForm({
           </Field>
         </div>
 
+        {inPortions ? (
+          <p className="text-xs text-muted">Veio sem o peso, então é medido em porções.</p>
+        ) : (
+          <Field label="Valores da tabela" group>
+            <Segmented
+              label="Valores da tabela"
+              value={basis}
+              onChange={changeBasis}
+              options={[
+                { value: 'portion', label: 'Por porção' },
+                { value: '100g', label: 'Por 100 g' },
+              ]}
+            />
+          </Field>
+        )}
+
+        {perPortion && portionFields()}
+
         <fieldset>
           <legend className="mb-1 text-sm font-medium text-ink-2">
-            {inPortions ? 'Valores por porção' : 'Valores por 100 g (ou 100 ml)'}
+            {inPortions
+              ? 'Valores por porção'
+              : perPortion
+                ? `Valores por ${portionLabel.trim() || 'porção'}${grams ? ` (${formatNumber(grams)} g)` : ''}`
+                : 'Valores por 100 g (ou 100 ml)'}
           </legend>
           <div className="grid grid-cols-2 gap-3">
             {FIELDS.map(({ key, label }) => (
@@ -157,25 +233,14 @@ export function FoodForm({
           )}
         </fieldset>
 
-        {inPortions ? (
-          <p className="text-xs text-muted">Veio sem o peso, então é medido em porções.</p>
-        ) : (
+        {required && (
+          <MacroBalance nutrients={{ kcal: values.kcal!, carbs: values.carbs!, protein: values.protein!, fat: values.fat! }} />
+        )}
+
+        {!inPortions && !perPortion && (
           <fieldset>
             <legend className="mb-1 text-sm font-medium text-ink-2">Porção (opcional)</legend>
-            <div className="grid grid-cols-[1fr_6rem] gap-3">
-              <TextInput
-                aria-label="Nome da porção"
-                value={portionLabel}
-                onChange={(e) => setPortionLabel(e.target.value)}
-                placeholder="Ex.: 1 fatia"
-              />
-              <DecimalInput
-                aria-label="Gramas da porção"
-                value={portionGrams}
-                onChange={(e) => setPortionGrams(e.target.value)}
-                placeholder="g"
-              />
-            </div>
+            {portionFields()}
           </fieldset>
         )}
 

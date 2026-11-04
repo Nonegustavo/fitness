@@ -1,4 +1,4 @@
-import { Bookmark, Dumbbell, Plus, Repeat, Target, Trash2, Utensils } from 'lucide-react'
+import { Bookmark, ChevronRight, Dumbbell, Plus, Repeat, Target, Trash2, Utensils } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { DailyBars } from '../../components/DailyBars'
@@ -10,11 +10,12 @@ import { Button, Card, DecimalInput, Field, Page, Select, TextInput } from '../.
 import { useSettings, useToday } from '../../db/hooks'
 import { save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { FoodLog, MealKey, Nutrients } from '../../db/types'
+import type { FoodLog, MacroGoals, MealKey, Nutrients } from '../../db/types'
 import { dayRange, formatDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { GoalsModal } from './GoalsModal'
 import { amountLabel, goalsFor, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
+import { MacroBalance, MacroGrams, MacroLine, SplitBar } from './MacroViews'
 import { NutritionSummary } from './NutritionSummary'
 import { PhotoThumb } from './PhotoThumb'
 
@@ -64,6 +65,7 @@ export default function FoodPage() {
           date={date}
           entries={dayLogs.filter((log) => log.meal === key)}
           yesterday={yesterday.filter((log) => log.meal === key)}
+          goals={goals}
           onAdd={() => navigate(`/alimentacao/adicionar?refeicao=${key}&data=${date}`)}
         />
       ))}
@@ -82,18 +84,21 @@ function MealCard({
   date,
   entries,
   yesterday,
+  goals,
   onAdd,
 }: {
   meal: MealKey
   date: DayKey
   entries: FoodLog[]
   yesterday: FoodLog[]
+  goals?: MacroGoals
   onAdd: () => void
 }) {
   const toast = useToast()
   const removeWithUndo = useRemoveWithUndo()
   const [editing, setEditing] = useState<FoodLog | null>(null)
   const [saving, setSaving] = useState(false)
+  const [viewing, setViewing] = useState(false)
   const total = sumNutrients(entries.map((entry) => entry.nutrients))
   const photoIds = [...new Set(entries.flatMap((entry) => (entry.photoId ? [entry.photoId] : [])))]
 
@@ -105,10 +110,15 @@ function MealCard({
   return (
     <Card
       title={
-        <>
-          {MEAL_LABEL[meal]}
-          {entries.length > 0 && <span className="font-normal text-muted"> · {kcal(total.kcal)}</span>}
-        </>
+        entries.length > 0 ? (
+          <button type="button" onClick={() => setViewing(true)} className="flex items-center gap-1 text-left hover:text-ink">
+            {MEAL_LABEL[meal]}
+            <span className="font-normal text-muted"> · {kcal(total.kcal)}</span>
+            <ChevronRight size={16} className="text-muted" />
+          </button>
+        ) : (
+          MEAL_LABEL[meal]
+        )
       }
       action={
         <Button size="sm" variant="ghost" onClick={onAdd}>
@@ -126,6 +136,9 @@ function MealCard({
         )
       ) : (
         <>
+          <button type="button" onClick={() => setViewing(true)} className="mb-2 block w-full" aria-label={`Ver ${MEAL_LABEL[meal]}`}>
+            <SplitBar nutrients={total} />
+          </button>
           {photoIds.length > 0 && (
             <div className="mb-2 flex gap-2 overflow-x-auto">
               {photoIds.map((id) => (
@@ -139,9 +152,9 @@ function MealCard({
                 <button type="button" onClick={() => setEditing(entry)} className="flex w-full items-center gap-3 py-2 text-left">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">{entry.name}</p>
-                    <p className="text-xs text-muted">
-                      {amountLabel(entry.grams, entry.unit)} · P {formatNumber(entry.nutrients.protein, 0)} · C{' '}
-                      {formatNumber(entry.nutrients.carbs, 0)} · G {formatNumber(entry.nutrients.fat, 0)}
+                    <p className="flex flex-wrap gap-x-2 text-xs text-muted">
+                      <span>{amountLabel(entry.grams, entry.unit, entry.portion)}</span>
+                      <MacroLine nutrients={entry.nutrients} />
                     </p>
                   </div>
                   <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
@@ -154,16 +167,70 @@ function MealCard({
           </Button>
         </>
       )}
-      {editing && <EntryModal entry={editing} onClose={() => setEditing(null)} />}
+      {editing && <EntryModal entry={editing} goals={goals} onClose={() => setEditing(null)} />}
+      {viewing && (
+        <MealModal
+          meal={meal}
+          entries={entries}
+          goals={goals}
+          onClose={() => setViewing(false)}
+          onEdit={(entry) => {
+            setViewing(false)
+            setEditing(entry)
+          }}
+        />
+      )}
       {saving && <SaveMealModal meal={meal} date={date} entries={entries} onClose={() => setSaving(false)} />}
     </Card>
   )
 }
 
+/** A meal at a glance: its calories and macros against the day's goal, and where its energy comes from. */
+function MealModal({
+  meal,
+  entries,
+  goals,
+  onClose,
+  onEdit,
+}: {
+  meal: MealKey
+  entries: FoodLog[]
+  goals?: MacroGoals
+  onClose: () => void
+  onEdit: (entry: FoodLog) => void
+}) {
+  const total = sumNutrients(entries.map((entry) => entry.nutrients))
+  return (
+    <Modal open title={`${MEAL_LABEL[meal]} · ${kcal(total.kcal)}`} onClose={onClose}>
+      <div className="space-y-4">
+        <MacroBalance nutrients={total} goals={goals} />
+        <MacroGrams nutrients={total} goals={goals} />
+        <ul className="divide-y divide-line">
+          {entries.map((entry) => (
+            <li key={entry.id}>
+              <button type="button" onClick={() => onEdit(entry)} className="w-full py-2 text-left">
+                <div className="flex items-center gap-3">
+                  <p className="min-w-0 flex-1 truncate text-sm">{entry.name}</p>
+                  <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
+                </div>
+                <p className="flex flex-wrap gap-x-2 text-xs text-muted">
+                  <span>{amountLabel(entry.grams, entry.unit, entry.portion)}</span>
+                  <MacroLine nutrients={entry.nutrients} />
+                </p>
+                <SplitBar nutrients={entry.nutrients} className="mt-1.5 h-1" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Modal>
+  )
+}
+
 const VALUE_FIELDS = [
   { key: 'kcal', label: 'Calorias (kcal)' },
-  { key: 'protein', label: 'Proteína (g)' },
   { key: 'carbs', label: 'Carboidratos (g)' },
+  { key: 'protein', label: 'Proteína (g)' },
   { key: 'fat', label: 'Gorduras (g)' },
 ] as const
 
@@ -175,10 +242,13 @@ const asText = (value: number) => String(Math.round(value * 10) / 10).replace('.
  * Changes a logged food: amount, meal, name, and its values when the table or the estimate was off.
  * A new amount scales the values, keeping any that were typed.
  */
-function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void }) {
+function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGoals; onClose: () => void }) {
   const removeWithUndo = useRemoveWithUndo()
   const [name, setName] = useState(entry.name)
-  const [gramsText, setGramsText] = useState(asText(entry.grams))
+  // Logged by a portion: the amount is typed as a count of it.
+  const portion = entry.unit !== 'portion' && entry.portion && entry.portion.grams > 0 ? entry.portion : undefined
+  const unitGrams = portion?.grams ?? 1
+  const [gramsText, setGramsText] = useState(asText(entry.grams / unitGrams))
   const [meal, setMeal] = useState(entry.meal)
   const [perGram, setPerGram] = useState(
     () => Object.fromEntries(VALUE_FIELDS.map(({ key }) => [key, entry.nutrients[key] / entry.grams])) as Record<ValueKey, number>,
@@ -187,7 +257,8 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
     () => Object.fromEntries(VALUE_FIELDS.map(({ key }) => [key, asText(entry.nutrients[key])])) as Record<ValueKey, string>,
   )
   const [editingValues, setEditingValues] = useState(false)
-  const grams = parseDecimal(gramsText)
+  const typed = parseDecimal(gramsText)
+  const grams = typed === undefined ? undefined : typed * unitGrams
   const valid =
     name.trim() !== '' &&
     grams !== undefined &&
@@ -195,9 +266,18 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
     grams <= 5000 &&
     VALUE_FIELDS.every(({ key }) => (parseDecimal(texts[key]) ?? -1) >= 0)
 
+  const amount = grams && grams > 0 ? grams : entry.grams
+  const current: Nutrients = {
+    kcal: perGram.kcal * amount,
+    carbs: perGram.carbs * amount,
+    protein: perGram.protein * amount,
+    fat: perGram.fat * amount,
+  }
+
   function changeGrams(text: string) {
     setGramsText(text)
-    const next = parseDecimal(text)
+    const count = parseDecimal(text)
+    const next = count === undefined ? undefined : count * unitGrams
     if (next && next > 0) setTexts(Object.fromEntries(VALUE_FIELDS.map(({ key }) => [key, asText(perGram[key] * next)])) as Record<ValueKey, string>)
   }
 
@@ -210,7 +290,7 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!valid) return
-    const { id, date, time, foodId, photoId, unit } = entry
+    const { id, date, time, foodId, photoId, unit, portion: loggedBy } = entry
     const nutrients: Nutrients = {
       kcal: perGram.kcal * grams,
       protein: perGram.protein * grams,
@@ -218,7 +298,7 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
       fat: perGram.fat * grams,
       fiber: entry.nutrients.fiber === undefined ? undefined : (entry.nutrients.fiber / entry.grams) * grams,
     }
-    await save(db.foodLogs, { id, date, time, foodId, photoId, name: name.trim(), meal, grams, unit, nutrients })
+    await save(db.foodLogs, { id, date, time, foodId, photoId, name: name.trim(), meal, grams, unit, portion: loggedBy, nutrients })
     onClose()
   }
 
@@ -230,7 +310,10 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
           <TextInput value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label={entry.unit === 'portion' ? 'Porções' : 'Quantidade (g)'}>
+          <Field
+            label={entry.unit === 'portion' ? 'Porções' : portion ? `Vezes ${portion.label}` : 'Quantidade (g)'}
+            hint={portion && grams ? `${formatNumber(grams, 0)} g` : undefined}
+          >
             <DecimalInput value={gramsText} onChange={(e) => changeGrams(e.target.value)} />
           </Field>
           <Field label="Refeição">
@@ -255,14 +338,13 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
             </div>
           </fieldset>
         ) : (
-          <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-ink-2">
-            <span>
-              {texts.kcal} kcal · P {texts.protein} g · C {texts.carbs} g · G {texts.fat} g
-            </span>
-            <button type="button" className="font-medium text-accent-ink" onClick={() => setEditingValues(true)}>
+          <div className="space-y-3">
+            <MacroGrams nutrients={current} goals={goals} />
+            <MacroBalance nutrients={current} goals={goals} />
+            <button type="button" className="text-sm font-medium text-accent-ink" onClick={() => setEditingValues(true)}>
               Corrigir valores
             </button>
-          </p>
+          </div>
         )}
         <div className="flex gap-2">
           <Button
@@ -292,7 +374,14 @@ function SaveMealModal({ meal, date, entries, onClose }: { meal: MealKey; date: 
     if (!name.trim()) return
     await save(db.savedMeals, {
       name: name.trim(),
-      items: entries.map(({ foodId, name: food, grams, unit, nutrients }) => ({ foodId, name: food, grams, unit, nutrients })),
+      items: entries.map(({ foodId, name: food, grams, unit, portion, nutrients }) => ({
+        foodId,
+        name: food,
+        grams,
+        unit,
+        portion,
+        nutrients,
+      })),
     })
     toast({ message: 'Refeição salva: ela aparece em Adicionar' })
     onClose()
@@ -353,8 +442,8 @@ function FoodHistory({ today }: { today: DayKey }) {
       />
       {average && (
         <p className="mt-2 text-xs text-ink-2">
-          Média de {n} {n === 1 ? 'dia' : 'dias'} com registro: {kcal(average.kcal / n)} · P{' '}
-          {formatNumber(average.protein / n, 0)} g · C {formatNumber(average.carbs / n, 0)} g · G{' '}
+          Média de {n} {n === 1 ? 'dia' : 'dias'} com registro: {kcal(average.kcal / n)} · C{' '}
+          {formatNumber(average.carbs / n, 0)} g · P {formatNumber(average.protein / n, 0)} g · G{' '}
           {formatNumber(average.fat / n, 0)} g
         </p>
       )}

@@ -114,13 +114,17 @@ export function searchFoods(index: SearchEntry[], query: string, prefs: Map<stri
     .map(([, item]) => item)
 }
 
-/** Logs a food (grams, or portions for a food measured in portions) and remembers the amount for next time. */
+/**
+ * Logs a food (grams, or portions for a food measured in portions) and remembers the amount for next
+ * time. `portion` is the portion it was counted by, when it was.
+ */
 export async function logFood(
   item: FoodItem,
   grams: number,
   meal: MealKey,
   date: DayKey,
   photoId?: string,
+  portion?: Portion,
 ): Promise<FoodLog> {
   const now = Date.now()
   const log = await save(db.foodLogs, {
@@ -131,6 +135,7 @@ export async function logFood(
     name: item.name,
     grams,
     unit: item.unit,
+    portion: item.unit === 'portion' ? undefined : portion,
     nutrients: nutrientsFor(item.per100, grams, item.unit),
     photoId,
   })
