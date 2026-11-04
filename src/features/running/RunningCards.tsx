@@ -71,7 +71,7 @@ export function RunVolumeBig({ today }: { today: DayKey }) {
       <p className="text-4xl leading-none font-semibold tabular-nums">
         {formatNumber(current.km, 1)}
         <span className="ml-1.5 text-base font-normal text-ink-2">
-          km esta semana{planned ? ` de ${formatNumber(planned, 1)} planejados` : ''}
+          km esta semana{planned ? ` de ${formatNumber(planned, 1)} previstos` : ''}
         </span>
       </p>
       <p className="mt-1 text-sm text-ink-2">

@@ -202,7 +202,8 @@ describe('weekSummary', () => {
         activities: [{ ...activity('a1', '2026-11-04', 'running'), distanceM: 6020, timerSec: 2280 }],
       }),
     )
-    expect(weekSummary(items)).toEqual({ done: 2, total: 4, runKm: 6.02, plannedRunKm: 10.97, trainedSec: 3600 + 2280 })
+    // The plan of the week: the 6,02 km already run and the 4,97 km still to do.
+    expect(weekSummary(items)).toEqual({ done: 2, total: 4, runKm: 6.02, plannedRunKm: 10.99, trainedSec: 3600 + 2280 })
   })
 })
 

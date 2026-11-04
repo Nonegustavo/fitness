@@ -227,7 +227,7 @@ export interface WeekSummary {
   /** Every workout of the week: the ones done and the ones planned (rest days don't count). */
   total: number
   runKm: number
-  /** What the planned runs add up to, when their names say. */
+  /** The week's running as planned: the km run plus the runs still to do, when their names say. */
   plannedRunKm?: number
   /** Time of the workouts done: the watch's timer, or the gym workout's length. */
   trainedSec: number
@@ -248,15 +248,16 @@ export function weekSummary(items: AgendaItem[]): WeekSummary {
       trainedSec += (item.session.endedAt - item.session.startedAt) / 1000
     }
   }
+  // The Garmin calendar only keeps what is ahead, so the week's plan is what was run plus the runs still to do.
   for (const item of workouts) {
-    if (item.kind === 'run' && item.event) plannedRunKm += eventKm(item.event.title) ?? 0
+    if (item.kind === 'run' && item.status === 'planned' && item.event) plannedRunKm += eventKm(item.event.title) ?? 0
   }
   const km = (value: number) => Math.round(value * 100) / 100
   return {
     done: done.length,
     total: workouts.length,
     runKm: km(runKm),
-    plannedRunKm: plannedRunKm > 0 ? km(plannedRunKm) : undefined,
+    plannedRunKm: plannedRunKm > 0 ? km(runKm + plannedRunKm) : undefined,
     trainedSec,
   }
 }
