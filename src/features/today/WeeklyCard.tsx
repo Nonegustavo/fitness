@@ -13,8 +13,8 @@ import { useSessions } from '../training/training'
 import { useWaterLogs } from '../water/water'
 import { weekStats, type WeekStats } from './weekly'
 
-/** The last complete week (Monday to Sunday) next to the one before, area by area. */
-export function WeeklyCard({ today }: { today: DayKey }) {
+/** The last complete week (Sunday to Saturday) next to the one before, area by area; undefined while loading. */
+export function useLastWeek(today: DayKey): { from: DayKey; to: DayKey; rows: Row[] } | undefined {
   const sunday = weekStart(today)
   const last = { from: shiftDay(sunday, -7), to: shiftDay(sunday, -1) }
   const before = { from: shiftDay(sunday, -14), to: shiftDay(sunday, -8) }
@@ -47,13 +47,18 @@ export function WeeklyCard({ today }: { today: DayKey }) {
     // The week bounds derive from `today`.
   }, [foodLogs, sessions, activities, health, weights, water, habits, habitLogs, settings, trainingDays, today])
 
-  if (!stats) return <SkeletonCard lines={4} />
-  const rows = rowsOf(stats.last, stats.before)
+  return stats && { ...last, rows: rowsOf(stats.last, stats.before) }
+}
+
+export function WeeklyCard({ today }: { today: DayKey }) {
+  const week = useLastWeek(today)
+  if (!week) return <SkeletonCard lines={4} />
+  const { from, to, rows } = week
   return (
     <Card
       icon={CalendarRange}
       tone="insights"
-      title={`Semana de ${formatDay(last.from, 'd/M')} a ${formatDay(last.to, 'd/M')}`}
+      title={`Semana de ${formatDay(from, 'd/M')} a ${formatDay(to, 'd/M')}`}
     >
       {rows.length === 0 ? (
         <p className="text-sm text-muted">Sem registros na semana passada.</p>
@@ -77,7 +82,7 @@ export function WeeklyCard({ today }: { today: DayKey }) {
   )
 }
 
-interface Row {
+export interface Row {
   label: string
   value: ReactNode
   change?: string

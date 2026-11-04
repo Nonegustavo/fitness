@@ -1,44 +1,24 @@
-import { GlassWater, House, ListChecks, Settings, SlidersHorizontal } from 'lucide-react'
+import { House, Settings, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Carousel } from '../../components/Carousel'
-import { Card, IconButton, Page, SkeletonLines } from '../../components/ui'
+import { IconButton, Page } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
-import type { HomeCardId } from '../../db/types'
-import { formatDay, type DayKey } from '../../lib/dates'
-import { TodayInsightCard } from '../analysis/TodayInsightCard'
-import { WeekCard } from '../calendar/cards'
-import { HabitCheckList } from '../habits/HabitCheckList'
-import { TodayFoodCard } from '../food/TodayFoodCard'
-import { TodaySleepCard } from '../garmin/TodaySleepCard'
-import { TodayPlannedCard } from '../garmin/UpcomingWorkouts'
-import { TodayJournalCard } from '../journal/TodayJournalCard'
-import { TodayWorkoutCard } from '../training/TodayWorkoutCard'
-import { sumMl, useWaterLogs } from '../water/water'
-import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
+import { formatDay } from '../../lib/dates'
 import { CustomizeHome } from './CustomizeHome'
-import { homeLayout } from './homeCards'
-import {
-  BatteryTile,
-  BurnTile,
-  HrvTile,
-  QuickGrid,
-  RaceTile,
-  RestingHrTile,
-  StepsTile,
-  WeightTile,
-} from './QuickTiles'
-import { WeeklyCard } from './WeeklyCard'
+import { ELEMENT_VIEWS } from './elements'
+import { homeAreas } from './homeCards'
+import { QuickGrid } from './tiles'
 
-const linkClass = 'text-sm font-medium text-accent-ink'
-
+/**
+ * The Hoje screen, like Garmin Connect's: "Em foco", big cards side by side to swipe through, and
+ * "Visualização rápida", small cards two per row. Which elements go in each is up to the user.
+ */
 export default function TodayPage() {
   const today = useToday()
   const settings = useSettings()
   const [customizing, setCustomizing] = useState(false)
-  const cards = homeLayout(settings.home).filter((card) => card.visible)
-  const focus = cards.filter((card) => card.zone === 'focus')
-  const quick = cards.filter((card) => card.zone === 'quick')
+  const areas = homeAreas(settings)
 
   return (
     <Page
@@ -62,36 +42,26 @@ export default function TodayPage() {
         </>
       }
     >
-      {cards
-        .filter((card) => card.zone === 'main')
-        .map(({ id }) => {
-          if (id === 'focus') {
-            return (
-              focus.length > 0 && (
-                <div key={id}>
-                  <h2 className="mb-2 text-base font-semibold">Em foco</h2>
-                  <Carousel label="Em foco">
-                    {focus.map((card) => (
-                      <HomeCard key={card.id} id={card.id} today={today} />
-                    ))}
-                  </Carousel>
-                </div>
-              )
-            )
-          }
-          if (id === 'quick') {
-            return (
-              quick.length > 0 && (
-                <QuickGrid key={id}>
-                  {quick.map((card) => (
-                    <HomeCard key={card.id} id={card.id} today={today} />
-                  ))}
-                </QuickGrid>
-              )
-            )
-          }
-          return <HomeCard key={id} id={id} today={today} />
-        })}
+      {areas.focus.length > 0 && (
+        <div>
+          <h2 className="mb-2 text-base font-semibold">Em foco</h2>
+          <Carousel label="Em foco">
+            {areas.focus.map((id) => {
+              const Big = ELEMENT_VIEWS[id]?.big
+              return Big && <Big key={id} today={today} />
+            })}
+          </Carousel>
+        </div>
+      )}
+
+      {areas.quick.length > 0 && (
+        <QuickGrid>
+          {areas.quick.map((id) => {
+            const Small = ELEMENT_VIEWS[id]?.small
+            return Small && <Small key={id} today={today} />
+          })}
+        </QuickGrid>
+      )}
 
       <button
         type="button"
@@ -103,87 +73,5 @@ export default function TodayPage() {
 
       {customizing && <CustomizeHome onClose={() => setCustomizing(false)} />}
     </Page>
-  )
-}
-
-function HomeCard({ id, today }: { id: HomeCardId; today: DayKey }) {
-  switch (id) {
-    case 'agenda':
-      return <WeekCard today={today} />
-    case 'sleep':
-      return <TodaySleepCard today={today} />
-    case 'planned':
-      return <TodayPlannedCard today={today} />
-    case 'workout':
-      return <TodayWorkoutCard today={today} />
-    case 'food':
-      return <TodayFoodCard today={today} />
-    case 'water':
-      return <WaterCard today={today} />
-    case 'habits':
-      return <HabitsCard today={today} />
-    case 'journal':
-      return <TodayJournalCard today={today} />
-    case 'insights':
-      return <TodayInsightCard today={today} />
-    case 'week':
-      return <WeeklyCard today={today} />
-    case 'body':
-      return <WeightTile today={today} />
-    case 'race':
-      return <RaceTile today={today} />
-    case 'restingHr':
-      return <RestingHrTile today={today} />
-    case 'hrv':
-      return <HrvTile today={today} />
-    case 'battery':
-      return <BatteryTile today={today} />
-    case 'steps':
-      return <StepsTile today={today} />
-    case 'burn':
-      return <BurnTile today={today} />
-    // The carousel and the grid are drawn by the page around their cards.
-    case 'focus':
-    case 'quick':
-      return null
-  }
-}
-
-function WaterCard({ today }: { today: DayKey }) {
-  const settings = useSettings()
-  const waterLogs = useWaterLogs(today, today)
-  return (
-    <Card
-      icon={GlassWater}
-      tone="water"
-      title="Água"
-      action={
-        <Link to="/agua" className={linkClass}>
-          Detalhes
-        </Link>
-      }
-    >
-      {waterLogs ? <WaterSummary totalMl={sumMl(waterLogs)} goalMl={settings.waterGoalMl} /> : <SkeletonLines lines={2} />}
-      <div className="mt-4">
-        <WaterQuickAdd />
-      </div>
-    </Card>
-  )
-}
-
-function HabitsCard({ today }: { today: DayKey }) {
-  return (
-    <Card
-      icon={ListChecks}
-      tone="habits"
-      title="Hábitos"
-      action={
-        <Link to="/habitos" className={linkClass}>
-          Histórico
-        </Link>
-      }
-    >
-      <HabitCheckList date={today} />
-    </Card>
   )
 }

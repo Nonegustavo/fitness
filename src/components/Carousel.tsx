@@ -1,9 +1,10 @@
 import { Children, useEffect, useRef, useState, type ReactNode } from 'react'
-import { cx } from './ui'
+import { CardFill, cx } from './ui'
 
 /**
  * Big cards side by side, one at a time, with the next one peeking at the edge: swipe (or tap the
- * dots) to move. All pages take the height of the tallest. A page that renders nothing is left out.
+ * dots) to move. Every page has the same height; a longer card scrolls inside. A page that renders
+ * nothing is left out.
  */
 export function Carousel({ label, children }: { label: string; children: ReactNode }) {
   const track = useRef<HTMLDivElement>(null)
@@ -48,11 +49,13 @@ export function Carousel({ label, children }: { label: string; children: ReactNo
           pages === 1 && 'auto-cols-[100%]',
         )}
       >
-        {Children.map(children, (child) => (
-          <div className="min-w-0 snap-start" aria-roledescription="página">
-            {child}
-          </div>
-        ))}
+        <CardFill.Provider value>
+          {Children.map(children, (child) => (
+            <div className="h-72 min-w-0 snap-start" aria-roledescription="página">
+              {child}
+            </div>
+          ))}
+        </CardFill.Provider>
       </div>
       {pages > 1 && (
         <div className="mt-2 flex justify-center gap-1.5">

@@ -13,7 +13,7 @@ import {
   Sparkles,
   Utensils,
 } from 'lucide-react'
-import { Suspense } from 'react'
+import { Suspense, useLayoutEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { SyncStatus } from '../features/settings/SyncStatus'
 import { RestTimerBar } from '../features/training/RestTimerBar'
@@ -45,9 +45,18 @@ const UNDER_MORE = ['/mais', ...SECTIONS.filter((section) => !BOTTOM_PATHS.inclu
 const bottomClass = (active: boolean) =>
   cx('flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition', active ? 'text-accent-ink' : 'text-muted')
 
+// The app manages the scroll itself: the browser's own restoring would fight the reset below.
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+
 export function Layout() {
   const { pathname } = useLocation()
   const inMore = UNDER_MORE.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+
+  // Every screen opens at its top. All screens share the page's scroll, so without this one kept
+  // the position of the last. Changes within a screen (?dia=, ?refeicao=) keep where it is.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
 
   return (
     <div className="min-h-dvh lg:flex">

@@ -1,62 +1,92 @@
-import { RotateCcw } from 'lucide-react'
+import { CircleMinus, CirclePlus, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
 import { Modal } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
-import { Button, Switch } from '../../components/ui'
+import { Button, IconButton, Segmented } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { patch } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
-import type { HomeCardId } from '../../db/types'
-import { HOME_CARDS, homeLayout, layoutToSave, type HomeZone, type PlacedCard } from './homeCards'
+import type { HomeAreas } from '../../db/types'
+import { HOME_ELEMENTS, homeAreas, toggleElement, type HomeArea } from './homeCards'
 
-const SECTIONS: { zone: HomeZone; title: string; hint: string }[] = [
-  { zone: 'main', title: 'Cartões', hint: 'Na ordem da tela. "Em foco" e "Visualização rápida" são os grupos abaixo.' },
-  { zone: 'focus', title: 'Em foco', hint: 'Os cartões grandes do carrossel, para deslizar.' },
-  { zone: 'quick', title: 'Visualização rápida', hint: 'Os cartões menores, dois por linha.' },
-]
+const AREA_HINTS: Record<HomeArea, string> = {
+  focus: 'Cartões grandes, todos do mesmo tamanho, para deslizar de lado.',
+  quick: 'Cartões menores com o resumo, dois por linha.',
+}
 
-/** Show, hide and reorder the cards of the Hoje screen, group by group. Every change saves at once and syncs. */
+/** Which elements go in each area of the Hoje screen, and in what order. Every change saves at once and syncs. */
 export function CustomizeHome({ onClose }: { onClose: () => void }) {
   const settings = useSettings()
-  const layout = homeLayout(settings.home)
-  const inZone = (zone: HomeZone) => layout.filter((card) => card.zone === zone)
-  const store = (cards: PlacedCard[]) => void patch(db.settings, SETTINGS_ID, { home: layoutToSave(cards) })
-  // Reordering one group keeps the others as they are.
-  const reorder = (zone: HomeZone, list: PlacedCard[]) =>
-    store(SECTIONS.flatMap((section) => (section.zone === zone ? list : inZone(section.zone))))
-  const show = (id: HomeCardId, visible: boolean) => store(layout.map((card) => (card.id === id ? { ...card, visible } : card)))
+  const areas = homeAreas(settings)
+  const [area, setArea] = useState<HomeArea>('focus')
+  const store = (next: HomeAreas) => void patch(db.settings, SETTINGS_ID, { homeAreas: next })
+  const shown = areas[area].map((id) => HOME_ELEMENTS.find((element) => element.id === id)!)
+  const available = HOME_ELEMENTS.filter((element) => !areas[area].includes(element.id))
 
   return (
     <Modal open title="Personalizar o Hoje" onClose={onClose}>
-      <p className="text-sm text-ink-2">Arraste para mudar a ordem e desligue o que não quer ver.</p>
-      {SECTIONS.map(({ zone, title, hint }) => (
-        <section key={zone} className="mt-4">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <p className="text-xs text-muted">{hint}</p>
-          <SortableList
-            className="mt-1 divide-y divide-line"
-            itemClassName="flex items-center gap-2 bg-surface py-1.5"
-            items={inZone(zone)}
-            getId={(card) => card.id}
-            onReorder={(list) => reorder(zone, list)}
-          >
-            {(card, handle) => {
-              const info = HOME_CARDS.find((known) => known.id === card.id)!
-              return (
-                <>
-                  <span className="-ml-2 flex">{handle}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{info.label}</span>
-                    <span className="block truncate text-xs text-muted">{info.detail}</span>
-                  </span>
-                  <Switch checked={card.visible} label={`Mostrar ${info.label}`} onChange={(visible) => show(card.id, visible)} />
-                </>
-              )
-            }}
-          </SortableList>
-        </section>
-      ))}
+      <Segmented
+        label="Área"
+        value={area}
+        onChange={setArea}
+        options={[
+          { value: 'focus', label: 'Em foco' },
+          { value: 'quick', label: 'Visualização rápida' },
+        ]}
+      />
+      <p className="mt-2 text-xs text-muted">{AREA_HINTS[area]} Um elemento pode estar nas duas áreas.</p>
+
+      <h3 className="mt-4 text-sm font-semibold">Aparecem, nesta ordem</h3>
+      {shown.length === 0 ? (
+        <p className="py-3 text-sm text-muted">Nada nesta área: ela fica escondida.</p>
+      ) : (
+        <SortableList
+          className="divide-y divide-line"
+          itemClassName="flex items-center gap-2 bg-surface py-1.5"
+          items={shown}
+          getId={(element) => element.id}
+          onReorder={(list) => store({ ...areas, [area]: list.map((element) => element.id) })}
+        >
+          {(element, handle) => (
+            <>
+              <span className="-ml-2 flex">{handle}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{element.label}</span>
+                <span className="block truncate text-xs text-muted">{element.detail}</span>
+              </span>
+              <IconButton label={`Tirar ${element.label}`} onClick={() => store(toggleElement(areas, area, element.id, false))}>
+                <CircleMinus size={20} />
+              </IconButton>
+            </>
+          )}
+        </SortableList>
+      )}
+
+      {available.length > 0 && (
+        <>
+          <h3 className="mt-4 text-sm font-semibold">Mais opções</h3>
+          <ul className="divide-y divide-line">
+            {available.map((element) => (
+              <li key={element.id} className="flex items-center gap-2 py-1.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">{element.label}</span>
+                  <span className="block truncate text-xs text-muted">{element.detail}</span>
+                </span>
+                <IconButton
+                  label={`Adicionar ${element.label}`}
+                  className="text-accent-ink"
+                  onClick={() => store(toggleElement(areas, area, element.id, true))}
+                >
+                  <CirclePlus size={20} />
+                </IconButton>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
       <div className="mt-4 flex gap-2">
-        <Button variant="ghost" onClick={() => void patch(db.settings, SETTINGS_ID, { home: undefined })}>
+        <Button variant="ghost" onClick={() => void patch(db.settings, SETTINGS_ID, { homeAreas: undefined })}>
           <RotateCcw size={16} /> Voltar ao padrão
         </Button>
         <Button variant="primary" className="ml-auto" onClick={onClose}>

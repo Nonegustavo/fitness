@@ -160,8 +160,18 @@ export type HomeCardId =
   | 'battery'
   | 'steps'
   | 'burn'
+  | 'runVolume'
+  | 'pace'
+  | 'records'
+  | 'streak'
 
-/** The cards of the Hoje screen, as the user arranged them. Cards missing from `order` join at their default place. */
+/** What the Hoje screen shows: big cards in "Em foco" (a carousel) and small ones in "Visualização rápida". */
+export interface HomeAreas {
+  focus: HomeCardId[]
+  quick: HomeCardId[]
+}
+
+/** The arrangement of the Hoje screen before the two areas (kept for the hidden cards). */
 export interface HomeLayout {
   order: HomeCardId[]
   hidden: HomeCardId[]
@@ -173,6 +183,7 @@ export interface Settings extends Synced {
   /** Daily targets; `training` applies on days with a workout, when set. */
   nutrition?: { normal: MacroGoals; training?: MacroGoals }
   home?: HomeLayout
+  homeAreas?: HomeAreas
   /** The daily analysis by Claude, made once a day on the first opening. On unless set to false. */
   insightsAuto?: boolean
   /** Where the weight is headed, and how fast (kg a week, negative to lose). */

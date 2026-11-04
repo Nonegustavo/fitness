@@ -90,14 +90,21 @@ function DayPill({
       <span className={cx('text-lg leading-none font-semibold tabular-nums', !isToday && free && 'text-muted')}>
         {Number(date.slice(8))}
       </span>
-      <span aria-hidden className="flex h-2 items-center justify-center gap-[3px]">
-        {free ? (
-          <span className={cx('h-[3px] w-3.5 rounded-full', isToday ? 'bg-white/60' : 'bg-baseline')} />
-        ) : (
-          items.slice(0, 3).map((item) => <Dot key={item.key} item={item} onAccent={isToday} />)
-        )}
-      </span>
+      <DayMarks items={items} onAccent={isToday} />
     </button>
+  )
+}
+
+/** A day's workouts as dots, or a dash when it's free. */
+export function DayMarks({ items, onAccent = false }: { items: AgendaItem[]; onAccent?: boolean }) {
+  return (
+    <span aria-hidden className="flex h-2 items-center justify-center gap-[3px]">
+      {items.length === 0 ? (
+        <span className={cx('h-[3px] w-3.5 rounded-full', onAccent ? 'bg-white/60' : 'bg-baseline')} />
+      ) : (
+        items.slice(0, 3).map((item) => <Dot key={item.key} item={item} onAccent={onAccent} />)
+      )}
+    </span>
   )
 }
 

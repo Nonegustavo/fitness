@@ -1,5 +1,5 @@
 import { ChevronLeft, type LucideIcon } from 'lucide-react'
-import type { ButtonHTMLAttributes, ComponentProps, ReactNode, SelectHTMLAttributes } from 'react'
+import { createContext, useContext, type ButtonHTMLAttributes, type ComponentProps, type ReactNode, type SelectHTMLAttributes } from 'react'
 import { Link } from 'react-router'
 import { IconTile, toneColor, type Tone } from './tone'
 
@@ -49,6 +49,12 @@ export function Page({
   )
 }
 
+/**
+ * Set by the "Em foco" carousel: a card fills its page's fixed height, and a body longer than that
+ * scrolls inside the card.
+ */
+export const CardFill = createContext(false)
+
 export function Card({
   title,
   action,
@@ -65,10 +71,11 @@ export function Card({
   children: ReactNode
   className?: string
 }) {
+  const fill = useContext(CardFill)
   return (
-    <section className={cx('rounded-2xl border border-line bg-surface p-4', className)}>
+    <section className={cx('rounded-2xl border border-line bg-surface p-4', fill && 'flex h-full flex-col', className)}>
       {(title || action) && (
-        <div className="mb-3 flex min-h-8 items-center justify-between gap-2">
+        <div className="mb-3 flex min-h-8 shrink-0 items-center justify-between gap-2">
           {title && (
             <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink-2">
               {icon && tone && <IconTile icon={icon} tone={tone} />}
@@ -78,7 +85,7 @@ export function Card({
           {action}
         </div>
       )}
-      {children}
+      {fill ? <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">{children}</div> : children}
     </section>
   )
 }
@@ -279,8 +286,13 @@ export function Skeleton({ className }: { className?: string }) {
 
 /** A card-sized placeholder: a title line and a few lines of content. */
 export function SkeletonCard({ lines = 3, className }: { lines?: number; className?: string }) {
+  const fill = useContext(CardFill)
   return (
-    <section aria-busy="true" aria-label="Carregando" className={cx('rounded-2xl border border-line bg-surface p-4', className)}>
+    <section
+      aria-busy="true"
+      aria-label="Carregando"
+      className={cx('rounded-2xl border border-line bg-surface p-4', fill && 'h-full overflow-hidden', className)}
+    >
       <Skeleton className="mb-4 h-4 w-1/3" />
       <div className="space-y-3">
         {Array.from({ length: lines }, (_, i) => (

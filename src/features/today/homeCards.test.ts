@@ -1,39 +1,39 @@
 import { describe, expect, it } from 'vitest'
 import type { HomeCardId } from '../../db/types'
-import { HOME_CARDS, homeLayout, layoutToSave } from './homeCards'
+import { DEFAULT_AREAS, HOME_ELEMENTS, homeAreas, toggleElement } from './homeCards'
 
-const ids = HOME_CARDS.map((card) => card.id)
-
-describe('homeLayout', () => {
-  it('shows every card in the default order when nothing is saved', () => {
-    expect(homeLayout(undefined).map(({ id, visible }) => ({ id, visible }))).toEqual(ids.map((id) => ({ id, visible: true })))
+describe('homeAreas', () => {
+  it('uses the default areas when nothing is saved', () => {
+    expect(homeAreas({})).toEqual(DEFAULT_AREAS)
   })
 
-  it('keeps a saved order and the hidden cards, and drops unknown ids', () => {
-    const order = [...ids].reverse()
-    const layout = homeLayout({ order: [...order, 'gone' as HomeCardId], hidden: ['sleep'] })
-    expect(layout.map((card) => card.id)).toEqual(order)
-    expect(layout.filter((card) => !card.visible).map((card) => card.id)).toEqual(['sleep'])
-    expect(layout.find((card) => card.id === 'sleep')?.zone).toBe('focus')
+  it('leaves out of the default what the older layout had hidden', () => {
+    const areas = homeAreas({ home: { order: [], hidden: ['sleep', 'water', 'insights'] } })
+    expect(areas.focus).not.toContain('sleep')
+    expect(areas.quick).not.toContain('water')
+    expect(areas.focus).toContain('agenda')
   })
 
-  it('puts a card added after the layout was saved next to the card before it by default', () => {
-    const saved = ['workout', ...ids.filter((id) => id !== 'burn' && id !== 'workout')] as HomeCardId[]
-    const layout = homeLayout({ order: saved, hidden: [] }).map((card) => card.id)
-    expect(layout.indexOf('burn')).toBe(layout.indexOf('steps') + 1)
-    expect(layout[0]).toBe('workout')
-    expect(layout).toHaveLength(ids.length)
+  it('keeps the saved areas, without unknown ids or repeats', () => {
+    const areas = homeAreas({
+      homeAreas: { focus: ['records', 'gone' as HomeCardId, 'sleep', 'records'], quick: ['sleep', 'water'] },
+      home: { order: [], hidden: ['sleep'] },
+    })
+    expect(areas).toEqual({ focus: ['records', 'sleep'], quick: ['sleep', 'water'] })
   })
 
-  it('moves a layout saved in an old default order to the new one, keeping what was hidden', () => {
-    const old: HomeCardId[] = ['insights', 'week', 'sleep', 'planned', 'workout', 'food', 'body', 'water', 'habits', 'journal']
-    const layout = homeLayout({ order: old, hidden: ['insights', 'week'] })
-    expect(layout.map((card) => card.id)).toEqual(ids)
-    expect(layout.filter((card) => !card.visible).map((card) => card.id)).toEqual(['insights', 'week'])
+  it('adds an element at the end of an area or takes it out', () => {
+    const areas = { focus: ['agenda', 'sleep'], quick: ['water'] } as const
+    expect(toggleElement({ ...areas, focus: [...areas.focus], quick: [...areas.quick] }, 'focus', 'records', true).focus).toEqual([
+      'agenda',
+      'sleep',
+      'records',
+    ])
+    expect(toggleElement({ focus: ['agenda', 'sleep'], quick: ['water'] }, 'quick', 'water', false).quick).toEqual([])
   })
 
-  it('saves the order and the hidden cards back', () => {
-    const layout = homeLayout({ order: [], hidden: ['steps'] })
-    expect(layoutToSave(layout)).toEqual({ order: ids, hidden: ['steps'] })
+  it('offers every default element', () => {
+    const offered = new Set(HOME_ELEMENTS.map((element) => element.id))
+    expect([...DEFAULT_AREAS.focus, ...DEFAULT_AREAS.quick].every((id) => offered.has(id))).toBe(true)
   })
 })

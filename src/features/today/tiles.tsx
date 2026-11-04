@@ -5,7 +5,7 @@ import { IconTile, type Tone } from '../../components/tone'
 import { cx, IconButton, Skeleton } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import type { DailyHealth } from '../../db/types'
-import { daysBetween, formatDay, formatTime, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
+import { daysBetween, formatTime, parseDay, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatFixed, formatNumber, formatSigned } from '../../lib/format'
 import { changeOver } from '../../lib/stats'
 import { metricSeries, useWeights } from '../body/body'
@@ -14,7 +14,11 @@ import { eventKm, eventTitle, nextRace } from '../calendar/agenda'
 import { hrvStatus, useDailyHealth } from '../garmin/recovery'
 import { usePlannedEvents } from '../garmin/sync'
 
-/** The smaller cards under "Em foco", two per row (three on wider screens). Tiles with nothing to show are left out. */
+const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+/** "dom 8/11". */
+export const shortDate = (date: DayKey) => `${WEEKDAYS[parseDay(date).getDay()]} ${Number(date.slice(8))}/${Number(date.slice(5, 7))}`
+
+/** The smaller cards, two per row (three on wider screens). Cards with nothing to show are left out. */
 export function QuickGrid({ children }: { children: ReactNode }) {
   return (
     <section aria-labelledby="quick-title">
@@ -30,8 +34,11 @@ export function QuickGrid({ children }: { children: ReactNode }) {
   )
 }
 
-/** A small card: the section's icon and name, a big number and a line or two. The whole card opens `to`. */
-function QuickTile({
+/**
+ * A small card, all of the same size: the section's icon and name, a big number and a line or two.
+ * The whole card opens `to`; `action` is a button in the corner, above that link.
+ */
+export function SmallCard({
   icon,
   tone,
   label,
@@ -42,39 +49,59 @@ function QuickTile({
   icon: LucideIcon
   tone: Tone
   label: string
-  to: string
-  /** A button in the corner, above the link (like "+" on the weight). */
+  to?: string
   action?: ReactNode
   children: ReactNode
 }) {
+  const content = (
+    <>
+      <span className={cx('flex items-center gap-2', Boolean(action) && 'pr-8')}>
+        <IconTile icon={icon} tone={tone} />
+        <span className="min-w-0 truncate text-sm font-medium text-ink-2">{label}</span>
+      </span>
+      <span className="mt-2.5 block">{children}</span>
+    </>
+  )
   return (
-    <section className="relative h-full rounded-2xl border border-line bg-surface p-3.5 transition hover:bg-surface-2/60">
-      <Link to={to} className="block after:absolute after:inset-0 after:rounded-2xl">
-        <span className={cx('flex items-center gap-2', Boolean(action) && 'pr-8')}>
-          <IconTile icon={icon} tone={tone} />
-          <span className="min-w-0 truncate text-sm font-medium text-ink-2">{label}</span>
-        </span>
-        <span className="mt-3 block">{children}</span>
-      </Link>
+    <section className="relative h-36 overflow-hidden rounded-2xl border border-line bg-surface p-3.5 transition hover:bg-surface-2/60">
+      {to ? (
+        <Link to={to} className="block after:absolute after:inset-0 after:rounded-2xl">
+          {content}
+        </Link>
+      ) : (
+        <div>{content}</div>
+      )}
       {action && <div className="absolute top-2 right-2 z-10">{action}</div>}
     </section>
   )
 }
 
-const TileSkeleton = () => <Skeleton className="h-28 rounded-2xl" />
+export const TileSkeleton = () => <Skeleton className="h-36 rounded-2xl" />
 
-function Value({ value, unit }: { value: ReactNode; unit?: string }) {
+export function Value({ value, unit }: { value: ReactNode; unit?: string }) {
   return (
-    <span className="block text-2xl leading-tight font-semibold tabular-nums">
+    <span className="block truncate text-2xl leading-tight font-semibold tabular-nums">
       {value}
       {unit && <span className="ml-1 text-sm font-normal text-ink-2">{unit}</span>}
     </span>
   )
 }
 
-const Note = ({ children }: { children: ReactNode }) => <span className="mt-0.5 block text-xs text-muted">{children}</span>
+export const Note = ({ children, clamp = 1 }: { children: ReactNode; clamp?: 1 | 2 }) => (
+  <span className={cx('mt-0.5 block text-xs text-muted', clamp === 1 ? 'truncate' : 'line-clamp-2')}>{children}</span>
+)
 
-export function WeightTile({ today }: { today: DayKey }) {
+/** A thin bar toward a goal, in a section's color. */
+export function ThinBar({ value, max, color }: { value: number; max: number; color: string }) {
+  const share = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0
+  return (
+    <span aria-hidden className="mt-2 block h-1.5 overflow-hidden rounded-full" style={{ background: `color-mix(in oklab, ${color} 22%, var(--surface-2))` }}>
+      <span className="block h-full rounded-full" style={{ width: `${share * 100}%`, background: color }} />
+    </span>
+  )
+}
+
+export function WeightSmall({ today }: { today: DayKey }) {
   const weights = useWeights()
   const settings = useSettings()
   const [adding, setAdding] = useState(false)
@@ -86,7 +113,7 @@ export function WeightTile({ today }: { today: DayKey }) {
   const weighedToday = weights.some((entry) => entry.date === today)
   return (
     <>
-      <QuickTile
+      <SmallCard
         icon={Scale}
         tone="body"
         label="Peso"
@@ -111,40 +138,45 @@ export function WeightTile({ today }: { today: DayKey }) {
         ) : (
           <Note>Nenhuma pesagem ainda.</Note>
         )}
-      </QuickTile>
+      </SmallCard>
       {adding && <WeightModal entry={null} onClose={() => setAdding(false)} />}
     </>
   )
 }
 
 /** The next race in the Garmin calendar, counting down (like SisRUN's "Próximo objetivo"). */
-export function RaceTile({ today }: { today: DayKey }) {
+export function useNextRace(today: DayKey) {
   const events = usePlannedEvents()
-  const race = events ? nextRace(events, today) : undefined
+  return events ? nextRace(events, today) : undefined
+}
+
+export function RaceSmall({ today }: { today: DayKey }) {
+  const race = useNextRace(today)
   if (!race) return null
   const days = daysBetween(today, race.date)
   const km = eventKm(race.title)
   return (
-    <QuickTile icon={Target} tone="analysis" label="Prova" to={`/calendario?dia=${race.date}`}>
+    <SmallCard icon={Target} tone="analysis" label="Prova" to={`/calendario?dia=${race.date}`}>
       <Value value={days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `${days} dias`} />
-      <span className="mt-0.5 line-clamp-2 block text-xs text-ink-2">{eventTitle(race.title)}</span>
+      <span className="mt-0.5 block truncate text-xs text-ink-2">{eventTitle(race.title)}</span>
       <Note>
-        {formatDay(race.date, 'EEE, d/MM')}
-        {race.time !== undefined && ` às ${formatTime(race.time)}`}
+        {shortDate(race.date)}
+        {race.time !== undefined && ` · ${formatTime(race.time)}`}
         {km !== undefined && ` · ${formatNumber(km, 1)} km`}
       </Note>
-    </QuickTile>
+    </SmallCard>
   )
 }
 
-/** The last week of the watch's daily data, newest last; undefined while loading. */
-function useRecentHealth(today: DayKey): DailyHealth[] | undefined {
-  return useDailyHealth(shiftDay(today, -7), today)
+/** The watch's daily data of the last `days` days, newest last; undefined while loading. */
+export function useRecentHealth(today: DayKey, days = 7): DailyHealth[] | undefined {
+  return useDailyHealth(shiftDay(today, -days), today)
 }
 
-const average = (values: number[]) => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : undefined)
+export const average = (values: number[]) =>
+  values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : undefined
 
-export function RestingHrTile({ today }: { today: DayKey }) {
+export function RestingHrSmall({ today }: { today: DayKey }) {
   const days = useRecentHealth(today)
   if (!days) return <TileSkeleton />
   const withHr = days.filter((day) => day.restingHr !== undefined)
@@ -152,81 +184,85 @@ export function RestingHrTile({ today }: { today: DayKey }) {
   if (!latest) return null
   const before = average(withHr.slice(0, -1).map((day) => day.restingHr!))
   return (
-    <QuickTile icon={HeartPulse} tone="recovery" label="FC de repouso" to="/sono">
+    <SmallCard icon={HeartPulse} tone="recovery" label="FC de repouso" to="/sono">
       <Value value={latest.restingHr} unit="bpm" />
       <Note>
         {relativeDay(latest.id, today)}
         {before !== undefined && ` · média ${Math.round(before)}`}
       </Note>
-    </QuickTile>
+    </SmallCard>
   )
 }
 
-export function HrvTile({ today }: { today: DayKey }) {
+export function HrvSmall({ today }: { today: DayKey }) {
   const days = useRecentHealth(today)
   if (!days) return <TileSkeleton />
   const latest = days.filter((day) => day.hrv?.lastNight !== undefined).at(-1)
   if (!latest?.hrv) return null
   const { lastNight, status, weeklyAvg } = latest.hrv
   return (
-    <QuickTile icon={Activity} tone="sleep" label="HRV" to="/sono">
+    <SmallCard icon={Activity} tone="sleep" label="HRV" to="/sono">
       <Value value={lastNight} unit="ms" />
-      <Note>
-        {hrvStatus(status) ?? relativeDay(latest.id, today)}
-        {weeklyAvg !== undefined && ` · semana ${weeklyAvg}`}
-      </Note>
-    </QuickTile>
+      <Note>{hrvStatus(status) ?? relativeDay(latest.id, today)}</Note>
+      {weeklyAvg !== undefined && <Note>média da semana {weeklyAvg}</Note>}
+    </SmallCard>
   )
 }
 
-export function BatteryTile({ today }: { today: DayKey }) {
+export function BatterySmall({ today }: { today: DayKey }) {
   const days = useRecentHealth(today)
   if (!days) return <TileSkeleton />
   const latest = days.filter((day) => day.bodyBattery?.high !== undefined).at(-1)
   if (!latest?.bodyBattery) return null
   const { high, low } = latest.bodyBattery
   return (
-    <QuickTile icon={BatteryMedium} tone="habits" label="Body Battery" to="/sono">
+    <SmallCard icon={BatteryMedium} tone="habits" label="Body Battery" to="/sono">
       <Value value={high} />
-      <Note>
-        máxima {latest.id === today ? 'de hoje' : relativeDay(latest.id, today)}
-        {low !== undefined && ` · mínima ${low}`}
-      </Note>
-    </QuickTile>
+      <Note>máxima {latest.id === today ? 'de hoje' : relativeDay(latest.id, today)}</Note>
+      {low !== undefined && <Note>mínima {low}</Note>}
+    </SmallCard>
   )
 }
 
-export function StepsTile({ today }: { today: DayKey }) {
+export function StepsSmall({ today }: { today: DayKey }) {
   const days = useRecentHealth(today)
   if (!days) return <TileSkeleton />
   const latest = days.filter((day) => day.steps !== undefined).at(-1)
   if (!latest) return null
+  const before = average(days.filter((day) => day.steps !== undefined && day.id !== latest.id).map((day) => day.steps!))
   return (
-    <QuickTile icon={Footprints} tone="today" label="Passos" to="/sono">
+    <SmallCard icon={Footprints} tone="today" label="Passos" to="/sono">
       <Value value={formatNumber(latest.steps!, 0)} />
-      <Note>{relativeDay(latest.id, today)}, até a última sincronização</Note>
-    </QuickTile>
+      <Note>{latest.id === today ? 'hoje, até a sincronização' : relativeDay(latest.id, today)}</Note>
+      {before !== undefined && <Note>média {formatNumber(before, 0)} por dia</Note>}
+    </SmallCard>
   )
 }
 
 /** The day's energy from the watch, active against at rest (like Garmin's "Calorias queimadas"). */
-export function BurnTile({ today }: { today: DayKey }) {
+export function BurnSmall({ today }: { today: DayKey }) {
   const days = useRecentHealth(today)
   if (!days) return <TileSkeleton />
   const latest = days.filter((day) => day.calories?.total !== undefined).at(-1)
   if (!latest?.calories?.total) return null
   const { total, active = 0 } = latest.calories
-  const activeShare = Math.min(1, Math.max(0, active / total))
   return (
-    <QuickTile icon={Flame} tone="training" label="Calorias gastas" to="/alimentacao">
+    <SmallCard icon={Flame} tone="training" label="Calorias gastas" to="/alimentacao">
       <Value value={formatNumber(total, 0)} unit="kcal" />
-      <span aria-hidden className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-series-1">
-        <span className="h-full bg-(--tone-recovery)" style={{ width: `${activeShare * 100}%` }} />
-      </span>
+      <ActiveRestBar total={total} active={active} />
       <Note>
-        {formatNumber(active, 0)} ativas · {formatNumber(total - active, 0)} em repouso
-        {latest.id !== today && ` · ${relativeDay(latest.id, today)}`}
+        {formatNumber(active, 0)} ativas · {formatNumber(total - active, 0)} repouso
       </Note>
-    </QuickTile>
+    </SmallCard>
+  )
+}
+
+/** Active calories (red) against the ones at rest (blue), like Garmin's bar. */
+export function ActiveRestBar({ total, active }: { total: number; active: number }) {
+  const share = Math.min(1, Math.max(0, active / total))
+  return (
+    <span aria-hidden className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-series-1">
+      <span className="h-full bg-(--tone-recovery)" style={{ width: `${share * 100}%` }} />
+    </span>
   )
 }

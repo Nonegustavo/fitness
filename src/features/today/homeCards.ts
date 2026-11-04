@@ -1,71 +1,54 @@
-import type { HomeCardId, HomeLayout } from '../../db/types'
+import type { HomeAreas, HomeCardId, Settings } from '../../db/types'
 
-/**
- * Where a card goes on the Hoje screen: the main list (which also holds the "Em foco" carousel and
- * the "Visualização rápida" grid as entries), a page of the carousel, or a tile of the grid.
- */
-export type HomeZone = 'main' | 'focus' | 'quick'
+/** The two areas of the Hoje screen: big cards side by side, and small cards two per row. */
+export type HomeArea = keyof HomeAreas
 
-/** Every card the Hoje screen can show, in the default order. */
-export const HOME_CARDS: { id: HomeCardId; label: string; detail: string; zone: HomeZone }[] = [
-  { id: 'agenda', label: 'Minha semana', detail: 'Os treinos da semana, de domingo a sábado, e como ela vai', zone: 'main' },
-  { id: 'focus', label: 'Em foco', detail: 'Cartões grandes lado a lado, para deslizar', zone: 'main' },
-  { id: 'quick', label: 'Visualização rápida', detail: 'Os números do dia em cartões menores', zone: 'main' },
-  { id: 'workout', label: 'Musculação', detail: 'Ficha programada para hoje, próxima ficha ou treino em andamento', zone: 'main' },
-  { id: 'planned', label: 'Treino planejado', detail: 'O treino de hoje no calendário do Garmin, com a descrição', zone: 'main' },
-  { id: 'water', label: 'Água', detail: 'Total do dia e botões de 1 toque', zone: 'main' },
-  { id: 'habits', label: 'Hábitos', detail: 'Check do dia', zone: 'main' },
-  { id: 'journal', label: 'Diário', detail: 'Como foi o dia', zone: 'main' },
-  { id: 'sleep', label: 'Sono', detail: 'Nota, horários e as fases da última noite', zone: 'focus' },
-  { id: 'food', label: 'Alimentação', detail: 'Calorias e macros do dia', zone: 'focus' },
-  { id: 'insights', label: 'Análise do dia', detail: 'O que o Claude vê nos seus dados e no diário', zone: 'focus' },
-  { id: 'week', label: 'Semana passada', detail: 'Alimentação, treinos, sono, peso, água e hábitos contra a semana anterior', zone: 'focus' },
-  { id: 'race', label: 'Próxima prova', detail: 'Contagem regressiva para a prova do calendário do Garmin', zone: 'quick' },
-  { id: 'body', label: 'Peso', detail: 'Último peso, meta e variação em 7 dias', zone: 'quick' },
-  { id: 'restingHr', label: 'FC de repouso', detail: 'A última, contra a média da semana', zone: 'quick' },
-  { id: 'hrv', label: 'HRV', detail: 'A da última noite e o estado', zone: 'quick' },
-  { id: 'battery', label: 'Body Battery', detail: 'Máxima e mínima do dia', zone: 'quick' },
-  { id: 'steps', label: 'Passos', detail: 'Do dia, até a última sincronização do Garmin', zone: 'quick' },
-  { id: 'burn', label: 'Calorias gastas', detail: 'Do relógio: ativas e em repouso', zone: 'quick' },
+/** Every element the Hoje screen offers; each one has a big card and a small one. */
+export const HOME_ELEMENTS: { id: HomeCardId; label: string; detail: string }[] = [
+  { id: 'agenda', label: 'Minha semana', detail: 'Os treinos de domingo a sábado e como a semana vai' },
+  { id: 'workout', label: 'Treino', detail: 'A ficha de hoje (programada ou a próxima) ou o treino em andamento' },
+  { id: 'planned', label: 'Treino do Garmin', detail: 'O treino de hoje no calendário do Garmin, com a descrição' },
+  { id: 'sleep', label: 'Sono', detail: 'Nota, horários e as fases da última noite' },
+  { id: 'food', label: 'Alimentação', detail: 'Calorias e macros do dia' },
+  { id: 'water', label: 'Água', detail: 'Total do dia contra a meta, com botões de 1 toque' },
+  { id: 'habits', label: 'Hábitos', detail: 'O check do dia' },
+  { id: 'journal', label: 'Diário', detail: 'Como foi o dia, humor e energia' },
+  { id: 'insights', label: 'Análise do dia', detail: 'O que o Claude vê nos seus dados e no diário' },
+  { id: 'week', label: 'Semana passada', detail: 'A semana passada contra a anterior, área por área' },
+  { id: 'runVolume', label: 'Volume de corrida', detail: 'Km por semana nas últimas semanas, contra o planejado' },
+  { id: 'pace', label: 'Ritmo médio', detail: 'O ritmo das últimas 4 semanas e a evolução semana a semana' },
+  { id: 'records', label: 'Recordes pessoais', detail: 'Melhores tempos em 1, 5, 10, 21 e 42 km e a corrida mais longa' },
+  { id: 'streak', label: 'Constância', detail: 'Semanas seguidas treinando, recorde de dias seguidos e o mapa dos dias' },
+  { id: 'race', label: 'Próxima prova', detail: 'Contagem regressiva para a prova do calendário do Garmin' },
+  { id: 'body', label: 'Peso', detail: 'Último peso, tendência e meta' },
+  { id: 'restingHr', label: 'FC de repouso', detail: 'A última e as 2 últimas semanas' },
+  { id: 'hrv', label: 'HRV', detail: 'A da última noite, o estado e as 2 últimas semanas' },
+  { id: 'battery', label: 'Body Battery', detail: 'Máxima e mínima de cada dia da semana' },
+  { id: 'steps', label: 'Passos', detail: 'Do dia e da semana, até a última sincronização do Garmin' },
+  { id: 'burn', label: 'Calorias gastas', detail: 'Do relógio: ativas e em repouso' },
 ]
 
-export const ZONE_OF = Object.fromEntries(HOME_CARDS.map((card) => [card.id, card.zone])) as Record<HomeCardId, HomeZone>
+const KNOWN = new Set(HOME_ELEMENTS.map((element) => element.id))
 
-/** Orders that were the default once: a layout saved in one of them only hid cards, so it follows today's default. */
-const PAST_DEFAULTS: HomeCardId[][] = [
-  ['insights', 'week', 'sleep', 'planned', 'workout', 'food', 'body', 'water', 'habits', 'journal'],
-  ['insights', 'week', 'sleep', 'planned', 'agenda', 'workout', 'food', 'body', 'water', 'habits', 'journal'],
-]
-
-const same = (a: HomeCardId[], b: HomeCardId[]) => a.length === b.length && a.every((id, i) => id === b[i])
-
-export interface PlacedCard {
-  id: HomeCardId
-  visible: boolean
-  zone: HomeZone
+export const DEFAULT_AREAS: HomeAreas = {
+  focus: ['agenda', 'workout', 'sleep', 'food', 'runVolume', 'habits'],
+  quick: ['water', 'race', 'body', 'restingHr', 'hrv', 'battery', 'steps', 'burn', 'records', 'streak'],
 }
 
-/**
- * The saved arrangement over the known cards: unknown ids dropped, and a card added after the
- * layout was saved placed after the card that comes before it by default. Visible unless hidden.
- */
-export function homeLayout(saved: HomeLayout | undefined): PlacedCard[] {
-  const known = HOME_CARDS.map((card) => card.id)
-  let order = saved?.order.filter((id) => known.includes(id)) ?? []
-  if (PAST_DEFAULTS.some((past) => same(past, order))) order = []
-  known.forEach((id, index) => {
-    if (order.includes(id)) return
-    const before = known
-      .slice(0, index)
-      .reverse()
-      .find((other) => order.includes(other))
-    order.splice(before ? order.indexOf(before) + 1 : 0, 0, id)
-  })
-  return order.map((id) => ({ id, visible: !saved?.hidden.includes(id), zone: ZONE_OF[id] }))
+const clean = (ids: HomeCardId[]) => [...new Set(ids.filter((id) => KNOWN.has(id)))]
+
+/** The areas as saved; or else the default, leaving out what the older layout had hidden. */
+export function homeAreas(settings: Pick<Settings, 'homeAreas' | 'home'>): HomeAreas {
+  if (settings.homeAreas) return { focus: clean(settings.homeAreas.focus), quick: clean(settings.homeAreas.quick) }
+  const hidden = new Set(settings.home?.hidden ?? [])
+  return {
+    focus: DEFAULT_AREAS.focus.filter((id) => !hidden.has(id)),
+    quick: DEFAULT_AREAS.quick.filter((id) => !hidden.has(id)),
+  }
 }
 
-/** The arrangement to save: the zones one after the other, each in its order. */
-export const layoutToSave = (cards: PlacedCard[]): HomeLayout => ({
-  order: cards.map((card) => card.id),
-  hidden: cards.filter((card) => !card.visible).map((card) => card.id),
-})
+/** Puts an element in an area (at the end) or takes it out. */
+export function toggleElement(areas: HomeAreas, area: HomeArea, id: HomeCardId, on: boolean): HomeAreas {
+  const without = areas[area].filter((other) => other !== id)
+  return { ...areas, [area]: on ? [...without, id] : without }
+}
