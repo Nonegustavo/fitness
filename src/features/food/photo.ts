@@ -59,6 +59,8 @@ export function matchItems(analysis: PhotoAnalysis, index: SearchEntry[], prefs:
 
 // Enough detail to tell the foods apart; Opus 5.5 would read up to 2576 px, at about twice the image tokens.
 const MAX_SIDE = 1568
+/** The most the model reads: the small print of a nutrition label needs it. */
+export const LABEL_SIDE = 2576
 
 export interface PreparedPhoto {
   /** Base64 JPEG, without the data: prefix. */
@@ -68,9 +70,9 @@ export interface PreparedPhoto {
   preview: string
 }
 
-export async function preparePhoto(file: Blob): Promise<PreparedPhoto> {
+export async function preparePhoto(file: Blob, maxSide = MAX_SIDE): Promise<PreparedPhoto> {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height))
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height))
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(bitmap.width * scale)
   canvas.height = Math.round(bitmap.height * scale)
@@ -83,17 +85,21 @@ export async function preparePhoto(file: Blob): Promise<PreparedPhoto> {
 /** A meal to analyze: a plate photo, or the user's own description of what they ate. */
 export type MealSource = { kind: 'photo'; file: Blob } | { kind: 'text'; text: string }
 
-/** Calls the analyze-meal function (supabase/functions), which asks Claude. */
-async function requestAnalysis(body: Record<string, string>): Promise<PhotoAnalysis> {
-  if (!supabase) throw new Error('Configure a sincronização para usar a análise da refeição.')
-  const { data, error } = await supabase.functions.invoke('analyze-meal', { body })
+/** Calls one of the project's functions (supabase/functions); the error message comes from the function. */
+export async function callFunction(name: string, body: Record<string, string>): Promise<unknown> {
+  if (!supabase) throw new Error('Configure a sincronização para usar a análise.')
+  const { data, error } = await supabase.functions.invoke(name, { body })
   if (error instanceof FunctionsHttpError) {
     const answer = (await error.context.json().catch(() => null)) as { error?: string } | null
     throw new Error(answer?.error ?? 'A análise falhou.')
   }
   if (error) throw new Error('Não foi possível falar com o servidor. Confira a internet.')
-  return parseAnalysis(data)
+  return data
 }
+
+/** Calls the analyze-meal function, which asks Claude. */
+const requestAnalysis = async (body: Record<string, string>): Promise<PhotoAnalysis> =>
+  parseAnalysis(await callFunction('analyze-meal', body))
 
 export const analyzePhoto = (photo: PreparedPhoto): Promise<PhotoAnalysis> =>
   requestAnalysis({ image: photo.data, mediaType: photo.mediaType })

@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.garmin]
 verify_jwt = false
+
+[functions.read-label]
+verify_jwt = false

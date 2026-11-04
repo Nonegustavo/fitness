@@ -1,11 +1,13 @@
-import { Trash2 } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { LoaderCircle, ScanText, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
 import { Button, DecimalInput, Field, Segmented, TextInput } from '../../components/ui'
 import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Food, FoodUnit, Nutrients, Portion } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
+import { useSyncState } from '../../sync/controller'
+import { fillFromLabel, readLabel } from './label'
 import { MacroBalance } from './MacroViews'
 import { kcalFromMacros, multiply } from './nutrition'
 
@@ -46,11 +48,14 @@ const asText = (value: number | undefined) =>
 export function FoodForm({
   food,
   initial,
+  labelPhoto,
   onClose,
   onSaved,
 }: {
   food?: Food | null
   initial?: FoodDraft
+  /** A photo of the package's nutrition table, read as soon as the form opens. */
+  labelPhoto?: File
   onClose: () => void
   onSaved?: (food: Food) => void
 }) {
@@ -82,6 +87,48 @@ export function FoodForm({
   )
   const [portionLabel, setPortionLabel] = useState(start.portion?.label ?? '')
   const [portionGrams, setPortionGrams] = useState(asText(start.portion?.grams))
+  const sync = useSyncState()
+  const canRead = sync.configured && !!sync.email && !inPortions
+  const labelInput = useRef<HTMLInputElement>(null)
+  const [reading, setReading] = useState(false)
+  const [labelNotes, setLabelNotes] = useState<string[]>([])
+  const [labelError, setLabelError] = useState<string>()
+
+  /** Fills the form from a photo of the nutrition table; nothing is saved until "Salvar". */
+  async function applyLabel(file: File) {
+    setReading(true)
+    setLabelError(undefined)
+    setLabelNotes([])
+    try {
+      const fill = fillFromLabel(await readLabel(file))
+      if (!fill) {
+        setLabelError('Não achei a tabela nutricional na foto. Tente mais perto, reta e com luz.')
+        return
+      }
+      setName((current) => current.trim() || fill.name)
+      setBrand((current) => current.trim() || fill.brand)
+      setBasis(fill.basis)
+      setTexts(Object.fromEntries(FIELDS.map(({ key }) => [key, asText(fill.values[key])])) as Record<NutrientKey, string>)
+      if (fill.portion) {
+        setPortionLabel(fill.portion.label)
+        setPortionGrams(asText(fill.portion.grams))
+      }
+      setLabelNotes(fill.notes)
+    } catch (error) {
+      setLabelError(error instanceof Error ? error.message : 'Não foi possível ler a tabela.')
+    } finally {
+      setReading(false)
+    }
+  }
+
+  // The photo taken before opening the form is read once (StrictMode runs effects twice in development).
+  const readStarted = useRef(false)
+  useEffect(() => {
+    if (!labelPhoto || readStarted.current) return
+    readStarted.current = true
+    void applyLabel(labelPhoto)
+    // Only on open.
+  }, [labelPhoto])
 
   const values = Object.fromEntries(FIELDS.map(({ key }) => [key, parseDecimal(texts[key])])) as Record<
     NutrientKey,
@@ -189,8 +236,41 @@ export function FoodForm({
             Fica no lugar do alimento da TACO nas buscas. Os registros antigos não mudam.
           </p>
         )}
+        {canRead && (
+          <div className="rounded-xl bg-surface-2 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-ink-2">Tem a embalagem aí?</span>
+              <Button size="sm" disabled={reading} onClick={() => labelInput.current?.click()}>
+                {reading ? <LoaderCircle size={16} className="animate-spin" /> : <ScanText size={16} />}
+                {reading ? 'Lendo a tabela…' : 'Ler a tabela por foto'}
+              </Button>
+            </div>
+            <input
+              ref={labelInput}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void applyLabel(file)
+                event.target.value = ''
+              }}
+            />
+            {labelError && <p className="mt-2 text-xs text-critical">{labelError}</p>}
+            {labelNotes.length > 0 && (
+              <ul className="mt-2 space-y-1 text-xs text-ink-2">
+                {labelNotes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            )}
+            {!reading && !labelError && labelNotes.length === 0 && (
+              <p className="mt-1 text-xs text-muted">O Claude lê os valores e preenche o formulário; confira antes de salvar.</p>
+            )}
+          </div>
+        )}
         <Field label="Nome">
-          <TextInput autoFocus={!start.name} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Pão de forma integral" />
+          <TextInput autoFocus={!start.name && !labelPhoto} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Pão de forma integral" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Marca">

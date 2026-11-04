@@ -57,6 +57,14 @@ A foto (ou a descrição em texto, como "2 ovos mexidos e 1 pão francês") é a
    O `--use-api` empacota a função nos servidores do Supabase, sem precisar do Docker. O `--no-verify-jwt` deixa a checagem de login com a própria função, que confere o usuário no Supabase Auth. Com o MCP do Supabase conectado ao Claude, dá para publicar pela ferramenta `deploy_edge_function`, com `verify_jwt` desligado.
 4. Para guardar as fotos junto das refeições, rode no **SQL Editor** o conteúdo de [`supabase/migrations/20261103230000_food_photos.sql`](supabase/migrations/20261103230000_food_photos.sql). Ele cria um espaço privado no Storage, com uma pasta por usuário que só o dono lê.
 
+### Ler a tabela nutricional por foto
+
+Ao criar um alimento (ou em **Adicionar alimento → Ler tabela nutricional**), uma foto da tabela da embalagem é lida pelo Claude na função [`supabase/functions/read-label`](supabase/functions/read-label/index.ts), que preenche o formulário por porção para você conferir. Usa a mesma `ANTHROPIC_API_KEY`; cada leitura custa uns 5 centavos de dólar, e só é preciso uma vez por produto.
+
+```bash
+npx supabase functions deploy read-label --remote=xxxx --no-verify-jwt --use-api
+```
+
 ### Análise do dia
 
 Uma vez por dia, ao abrir o app, o Claude lê um resumo dos seus dados e do diário e escreve o que vê e o que fazer. O resumo é montado no aparelho ([`src/features/analysis/context.ts`](src/features/analysis/context.ts)) e enviado à função [`supabase/functions/daily-insights`](supabase/functions/daily-insights/index.ts), que usa a mesma `ANTHROPIC_API_KEY`. Cada análise custa uns 15 centavos de dólar; dá para desligar a automática na tela **Análise do dia**.

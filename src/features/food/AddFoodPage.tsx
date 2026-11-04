@@ -1,4 +1,4 @@
-import { Camera, CookingPot, MessageSquareText, Plus, ScanBarcode, Star, Trash2 } from 'lucide-react'
+import { Camera, CookingPot, MessageSquareText, Plus, ScanBarcode, ScanText, Star, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Modal } from '../../components/Modal'
@@ -47,6 +47,8 @@ export default function AddFoodPage() {
   const [analysisHelp, setAnalysisHelp] = useState(false)
   const search = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
+  const labelInput = useRef<HTMLInputElement>(null)
+  const [labelFile, setLabelFile] = useState<File | null>(null)
   const sync = useSyncState()
   // The analysis runs in a Supabase function, so it needs the sync set up and a login.
   const canAnalyze = sync.configured && !!sync.email
@@ -255,6 +257,25 @@ export default function AddFoodPage() {
             <Button size="sm" variant="ghost" onClick={() => setCreatingRecipe(true)}>
               <CookingPot size={16} /> Criar receita
             </Button>
+            {canAnalyze && (
+              <Button size="sm" variant="ghost" onClick={() => labelInput.current?.click()}>
+                <ScanText size={16} /> Ler tabela nutricional
+              </Button>
+            )}
+            <input
+              ref={labelInput}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) {
+                  setLabelFile(file)
+                  setDraft({})
+                }
+                event.target.value = ''
+              }}
+            />
           </div>
         </Card>
       )}
@@ -291,7 +312,15 @@ export default function AddFoodPage() {
         />
       )}
       {draft && (
-        <FoodForm initial={draft} onClose={() => setDraft(null)} onSaved={(food) => setSelected(fromCustom(food))} />
+        <FoodForm
+          initial={draft}
+          labelPhoto={labelFile ?? undefined}
+          onClose={() => {
+            setDraft(null)
+            setLabelFile(null)
+          }}
+          onSaved={(food) => setSelected(fromCustom(food))}
+        />
       )}
       {scanning && <BarcodeScanner onClose={() => setScanning(false)} onDetected={onBarcode} />}
       {review && (

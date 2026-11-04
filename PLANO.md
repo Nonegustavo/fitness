@@ -71,6 +71,7 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] "Para fechar o dia": quando faltam até 900 kcal, combinações de 1 ou 2 alimentos seus que mais se aproximam do que falta
 - [x] Refeições vazias numa linha só, com "Repetir ontem"
 - [x] Hora da refeição: escolhida ao adicionar, editável no item e na refeição inteira; a hora da última refeição entra nas correlações e na análise
+- [x] Ler a tabela nutricional por foto: o Claude lê o rótulo (função `read-label`) e preenche o cadastro por porção, avisando quando algo ficou ilegível ou as colunas não batem
 - [x] Treino: mapa do corpo (frente e costas) com as séries da semana por músculo contra a faixa de 10–20
 - [x] Treino: exercícios sem evoluir (3 treinos sem bater o melhor 1RM estimado) e aviso de deload
 - [x] Treino: esforço (RPE 1–10) e dor ou desconforto por região em cada sessão; o esforço entra nas correlações
