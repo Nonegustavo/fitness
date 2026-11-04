@@ -193,3 +193,52 @@ export function MacroGrams({ nutrients, goals }: { nutrients: Nutrients; goals?:
     </dl>
   )
 }
+
+/**
+ * Reference amounts for a day: at least 25 g of fiber, and at most 50 g of sugars, 2000 mg of sodium
+ * (WHO) and 10% of the calories as saturated fat.
+ */
+export const DAILY_REFERENCE = { fiber: 25, sugar: 50, sodium: 2000, saturatedFatShare: 0.1 }
+
+const OTHER = [
+  { key: 'fiber', label: 'Fibras', unit: 'g', kind: 'min' },
+  { key: 'sugar', label: 'Açúcares', unit: 'g', kind: 'max' },
+  { key: 'saturatedFat', label: 'Saturadas', unit: 'g', kind: 'max' },
+  { key: 'sodium', label: 'Sódio', unit: 'mg', kind: 'max' },
+] as const
+
+/**
+ * Fiber, sugars, saturated fat and sodium, when known. With `day`, each comes with its daily
+ * reference: fiber is good to reach, the others are limits.
+ */
+export function OtherNutrients({ nutrients, day, kcalGoal }: { nutrients: Nutrients; day?: boolean; kcalGoal?: number }) {
+  const known = OTHER.filter(({ key }) => nutrients[key] !== undefined && (key !== 'fiber' || nutrients[key]! > 0 || !day))
+  if (known.length === 0) return null
+  const reference = (key: (typeof OTHER)[number]['key']) =>
+    key === 'saturatedFat'
+      ? kcalGoal && (kcalGoal * DAILY_REFERENCE.saturatedFatShare) / 9
+      : DAILY_REFERENCE[key]
+  return (
+    <dl className="grid grid-cols-4 gap-2 text-center">
+      {known.map(({ key, label, unit, kind }) => {
+        const value = nutrients[key]!
+        const ref = day ? reference(key) : undefined
+        const over = ref !== undefined && kind === 'max' && value > ref
+        return (
+          <div key={key} className="min-w-0">
+            <dd className={cx('text-sm font-semibold tabular-nums', over && 'text-critical')}>
+              {formatNumber(value, unit === 'mg' ? 0 : 1)}
+              <span className="font-normal text-muted"> {unit}</span>
+            </dd>
+            <dt className="truncate text-xs text-ink-2">{label}</dt>
+            {ref !== undefined && (
+              <dd className="text-xs text-muted tabular-nums">
+                {kind === 'min' ? 'meta' : 'limite'} {formatNumber(ref, 0)}
+              </dd>
+            )}
+          </div>
+        )
+      })}
+    </dl>
+  )
+}

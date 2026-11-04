@@ -30,6 +30,9 @@ const FIELDS = [
   { key: 'protein', label: 'Proteína (g)' },
   { key: 'fat', label: 'Gorduras (g)' },
   { key: 'fiber', label: 'Fibras (g)' },
+  { key: 'sugar', label: 'Açúcares (g)' },
+  { key: 'saturatedFat', label: 'Gord. saturadas (g)' },
+  { key: 'sodium', label: 'Sódio (mg)' },
 ] as const
 
 /** What the typed values refer to: 100 g, or a portion as the label puts it ("1 fatia", 25 g). */
@@ -139,6 +142,9 @@ export function FoodForm({
       carbs: values.carbs!,
       fat: values.fat!,
       fiber: values.fiber,
+      sugar: values.sugar,
+      saturatedFat: values.saturatedFat,
+      sodium: values.sodium,
     }
     const label = portionLabel.trim() || (perPortion ? '1 porção' : '')
     const saved = await save(db.foods, {

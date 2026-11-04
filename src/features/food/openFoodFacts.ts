@@ -14,6 +14,8 @@ const toNumber = (value: unknown): number | undefined => {
   return typeof n === 'number' && Number.isFinite(n) ? n : undefined
 }
 
+const sodiumMg = (grams?: number) => (grams === undefined ? undefined : grams * 1000)
+
 /** Turns an Open Food Facts product into what the food form needs; null without usable nutrition. */
 export function parseProduct(product: Record<string, unknown>): ScannedProduct | null {
   const n = (product.nutriments ?? {}) as Record<string, unknown>
@@ -31,7 +33,17 @@ export function parseProduct(product: Record<string, unknown>): ScannedProduct |
   return {
     name: name || 'Produto sem nome',
     brand: brand || undefined,
-    per100: { kcal, protein, carbs, fat, fiber: toNumber(n['fiber_100g']) },
+    per100: {
+      kcal,
+      protein,
+      carbs,
+      fat,
+      fiber: toNumber(n['fiber_100g']),
+      sugar: toNumber(n['sugars_100g']),
+      saturatedFat: toNumber(n['saturated-fat_100g']),
+      // Open Food Facts gives sodium in grams.
+      sodium: sodiumMg(toNumber(n['sodium_100g'])),
+    },
     portion: servingGrams ? { label: servingLabel ? `1 porção (${servingLabel})` : '1 porção', grams: servingGrams } : undefined,
   }
 }

@@ -13,6 +13,7 @@ import { metricSeries, useMeasurements, useWeights, type MetricSeries } from './
 import { MeasurementModal } from './MeasurementModal'
 import { LineOverTime, TrendChart } from '../../components/TimeCharts'
 import { describeExtras, WeightModal } from './WeightModal'
+import { WeightGoalCard } from './WeightGoalCard'
 
 type Tab = 'peso' | 'medidas'
 type Range = '30' | '90' | '365' | 'all'
@@ -89,6 +90,7 @@ export default function BodyPage() {
 
 function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => void }) {
   const today = useToday()
+  const settings = useSettings()
   const weights = useWeights()
   const removeWithUndo = useRemoveWithUndo()
   const [range, setRange] = useState<Range>('90')
@@ -143,10 +145,18 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
         </div>
       </Card>
 
+      <WeightGoalCard trend={weight.trend} today={today} />
+
       <Segmented label="Período dos gráficos" value={range} onChange={setRange} options={RANGES} />
 
       <Card title="Peso (kg)">
-        <TrendChart {...weightInRange} unit="kg" digits={1} label="Peso de cada dia e tendência" />
+        <TrendChart
+          {...weightInRange}
+          unit="kg"
+          digits={1}
+          label="Peso de cada dia e tendência"
+          goal={settings.weightGoal?.targetKg}
+        />
       </Card>
 
       {fat.readings.length > 0 && (

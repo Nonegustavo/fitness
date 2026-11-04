@@ -8,7 +8,7 @@ import type { DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { FoodForm } from './FoodForm'
 import { fromCustom, logFood, toggleFavorite, type FoodItem } from './foods'
-import { MacroBalance, MacroGrams, MacroLine } from './MacroViews'
+import { MacroBalance, MacroGrams, MacroLine, OtherNutrients } from './MacroViews'
 import { amountLabel, MEALS, nutrientsFor, portionCount, useDayGoals } from './nutrition'
 import { RecipeForm } from './RecipeForm'
 
@@ -150,6 +150,7 @@ export function PortionModal({
 
       <div className="mt-4 space-y-3">
         <MacroGrams nutrients={amount} goals={goals} />
+        <OtherNutrients nutrients={amount} />
         {valid && <MacroBalance nutrients={amount} goals={goals} />}
       </div>
 

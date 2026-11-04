@@ -59,6 +59,10 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Alimentos cadastrados pela porção da embalagem (“2 fatias”, 50 g) e registrados contando porções ou em gramas
 - [x] Macros sempre na mesma ordem e cor: carboidratos (azul), proteína (roxo), gorduras (amarelo); anéis do dia contra a meta
 - [x] Equilíbrio de alimentos e refeições: proporção das calorias de cada macro ao lado da proporção da meta, e quanto do dia cada um representa
+- [x] Gasto real estimado pelas últimas 4 semanas (consumo médio + variação da tendência do peso, 7700 kcal/kg) e meta de calorias sugerida pelo ritmo da meta de peso
+- [x] Meta de peso com ritmo planejado, ritmo atual, previsão de chegada e linha da meta no gráfico
+- [x] Calorias do Garmin (total e ativas) na tela de alimentação
+- [x] Fibras, açúcares, gorduras saturadas e sódio: no cadastro, no Open Food Facts e no total do dia contra as referências (OMS)
 
 Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
 

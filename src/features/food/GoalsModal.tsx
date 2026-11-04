@@ -1,14 +1,17 @@
 import { useState, type FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
 import { Button, DecimalInput, Field } from '../../components/ui'
-import { useSettings } from '../../db/hooks'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { useToday } from '../../db/hooks'
 import { patch } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
-import type { MacroGoals } from '../../db/types'
-import { formatNumber, parseDecimal } from '../../lib/format'
+import type { MacroGoals, Settings } from '../../db/types'
+import { formatNumber, formatSigned, parseDecimal } from '../../lib/format'
 import { useWeights } from '../body/body'
 import { MacroBalance } from './MacroViews'
+import { kcalForRate, type Expenditure } from './energy'
 import { kcalFromMacros } from './nutrition'
+import { useExpenditure } from './useExpenditure'
 
 type GoalTexts = Record<keyof MacroGoals, string>
 
@@ -26,6 +29,14 @@ const toTexts = (goals?: MacroGoals): GoalTexts => ({
   fat: goals ? String(Math.round(goals.fat)) : '',
 })
 
+/** Other calories, with the difference in carbs (4 kcal/g), protein and fat as they were. */
+function withCalories(texts: GoalTexts, kcal: number): GoalTexts {
+  const goals = parseGoals(texts)
+  const rounded = String(Math.round(kcal))
+  if (!goals) return { ...texts, kcal: rounded }
+  return { ...texts, kcal: rounded, carbs: String(Math.round(Math.max(0, goals.carbs + (kcal - goals.kcal) / 4))) }
+}
+
 function parseGoals(texts: GoalTexts): MacroGoals | undefined {
   const values = FIELDS.map(({ key }) => parseDecimal(texts[key]))
   if (values.some((value) => value === undefined || value < 0) || !values[0]) return undefined
@@ -34,7 +45,12 @@ function parseGoals(texts: GoalTexts): MacroGoals | undefined {
 }
 
 export function GoalsModal({ onClose }: { onClose: () => void }) {
-  const settings = useSettings()
+  // The form starts from the saved goals, so it waits for them to load instead of starting empty.
+  const settings = useLiveQuery(() => db.settings.get(SETTINGS_ID))
+  return settings ? <GoalsForm settings={settings} onClose={onClose} /> : null
+}
+
+function GoalsForm({ settings, onClose }: { settings: Settings; onClose: () => void }) {
   const weightKg = useWeights()?.at(-1)?.weightKg
   const [normal, setNormal] = useState(() => toTexts(settings.nutrition?.normal))
   const [hasTraining, setHasTraining] = useState(!!settings.nutrition?.training)
@@ -42,6 +58,18 @@ export function GoalsModal({ onClose }: { onClose: () => void }) {
   const normalGoals = parseGoals(normal)
   const trainingGoals = parseGoals(training)
   const valid = !!normalGoals && (!hasTraining || !!trainingGoals)
+  const expenditure = useExpenditure(useToday())
+
+  /** Takes the suggested calories, keeping protein and fat and moving the difference into carbs. */
+  function applySuggestion(kcal: number) {
+    const before = parseGoals(normal)
+    setNormal(withCalories(normal, kcal))
+    // Training days keep their extra calories over the normal ones.
+    const trainingGoalsNow = parseGoals(training)
+    if (hasTraining && before && trainingGoalsNow) {
+      setTraining(withCalories(training, kcal + trainingGoalsNow.kcal - before.kcal))
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -55,6 +83,7 @@ export function GoalsModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal open title="Metas de alimentação" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
+        <ExpenditureBox expenditure={expenditure} kgPerWeek={settings.weightGoal?.kgPerWeek} onApply={applySuggestion} />
         <GoalFields title={hasTraining ? 'Dias sem treino' : 'Meta diária'} texts={normal} onChange={setNormal} weightKg={weightKg} />
         <label className="flex items-center gap-3 text-sm">
           <input
@@ -111,5 +140,51 @@ function GoalFields({
         </div>
       )}
     </fieldset>
+  )
+}
+
+/** The spending estimated from logs and weigh-ins, and the calories for the weight goal's pace. */
+function ExpenditureBox({
+  expenditure,
+  kgPerWeek,
+  onApply,
+}: {
+  expenditure?: Expenditure
+  kgPerWeek?: number
+  onApply: (kcal: number) => void
+}) {
+  if (!expenditure) {
+    return (
+      <p className="rounded-xl bg-surface-2 p-3 text-xs text-ink-2">
+        Com umas duas semanas de alimentação registrada e pesagens frequentes, o app estima quanto você gasta de verdade e
+        sugere a meta de calorias.
+      </p>
+    )
+  }
+  const rate = kgPerWeek ?? 0
+  const suggested = kcalForRate(expenditure.kcal, rate)
+  return (
+    <div className="rounded-xl bg-surface-2 p-3 text-sm">
+      <p>
+        Gasto estimado: <span className="font-semibold tabular-nums">{formatNumber(expenditure.kcal, 0)} kcal/dia</span>
+        {expenditure.confidence === 'low' && <span className="text-muted"> (estimativa inicial)</span>}
+      </p>
+      <p className="mt-1 text-xs text-ink-2">
+        Nas últimas 4 semanas você comeu em média {formatNumber(expenditure.intake, 0)} kcal e o peso variou{' '}
+        {formatSigned(expenditure.kgPerWeek, 2)} kg por semana ({expenditure.loggedDays} dias com registro,{' '}
+        {expenditure.weighIns} pesagens).
+      </p>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-ink-2">
+          {rate === 0
+            ? 'Para manter o peso:'
+            : `Para ${formatSigned(rate, 2)} kg/semana (sua meta de peso):`}{' '}
+          <span className="font-semibold text-ink tabular-nums">{formatNumber(suggested, 0)} kcal</span>
+        </p>
+        <Button size="sm" onClick={() => onApply(suggested)}>
+          Usar
+        </Button>
+      </div>
+    </div>
   )
 }

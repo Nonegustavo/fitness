@@ -64,12 +64,15 @@ export function TrendChart({
   unit,
   digits,
   label,
+  goal,
 }: {
   readings: DayValue[]
   trend: DayValue[]
   unit: string
   digits: number
   label: string
+  /** A target drawn as a dashed line (the weight goal). */
+  goal?: number
 }) {
   const t = useChartTokens()
   const option = useMemo<ChartOption>(
@@ -90,6 +93,11 @@ export function TrendChart({
         scale: true,
         ...axisStyle(t),
         axisLabel: { color: t.muted, fontSize: 11, formatter: (value: number) => formatNumber(value, digits) },
+        // Keep the goal in view even when it's far from the readings.
+        ...(goal !== undefined && {
+          min: (extent: { min: number }) => Math.floor(Math.min(extent.min, goal) - 0.5),
+          max: (extent: { max: number }) => Math.ceil(Math.max(extent.max, goal) + 0.5),
+        }),
       },
       series: [
         {
@@ -112,10 +120,19 @@ export function TrendChart({
           itemStyle: { color: t.series1 },
           emphasis: { disabled: true },
           z: 3,
+          ...(goal !== undefined && {
+            markLine: {
+              silent: true,
+              symbol: 'none',
+              lineStyle: { color: t.ink2, type: 'dashed', width: 1 },
+              label: { color: t.ink2, fontSize: 11, position: 'insideStartTop', formatter: `meta ${formatNumber(goal, digits)}` },
+              data: [{ yAxis: goal }],
+            },
+          }),
         },
       ],
     }),
-    [t, readings, trend, unit, digits],
+    [t, readings, trend, unit, digits, goal],
   )
 
   return (
@@ -124,6 +141,7 @@ export function TrendChart({
         items={[
           { label: 'Registros', color: t.muted, kind: 'dot' },
           { label: 'Tendência', color: t.series1, kind: 'line' },
+          ...(goal !== undefined ? [{ label: 'Meta', color: t.ink2, kind: 'line' as const }] : []),
         ]}
       />
       <Chart option={option} height={220} label={label} />

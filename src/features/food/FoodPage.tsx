@@ -1,4 +1,4 @@
-import { Bookmark, ChevronRight, Dumbbell, Plus, Repeat, Target, Trash2, Utensils } from 'lucide-react'
+import { Bookmark, ChevronRight, Dumbbell, Flame, Plus, Repeat, Target, Trash2, Utensils } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { DailyBars } from '../../components/DailyBars'
@@ -13,9 +13,11 @@ import { db } from '../../db/schema'
 import type { FoodLog, MacroGoals, MealKey, Nutrients } from '../../db/types'
 import { dayRange, formatDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
+import { useDailyHealth } from '../garmin/recovery'
 import { GoalsModal } from './GoalsModal'
-import { amountLabel, goalsFor, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
-import { MacroBalance, MacroGrams, MacroLine, SplitBar } from './MacroViews'
+import { useExpenditure } from './useExpenditure'
+import { amountLabel, goalsFor, OPTIONAL_NUTRIENTS, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
+import { MacroBalance, MacroGrams, MacroLine, OtherNutrients, SplitBar } from './MacroViews'
 import { NutritionSummary } from './NutritionSummary'
 import { PhotoThumb } from './PhotoThumb'
 
@@ -56,6 +58,12 @@ export default function FoodPage() {
           </p>
         )}
         <NutritionSummary totals={totals} goals={goals} />
+        {dayLogs.length > 0 && (
+          <div className="mt-3 border-t border-line pt-3">
+            <OtherNutrients nutrients={totals} day kcalGoal={goals?.kcal} />
+          </div>
+        )}
+        <EnergyLine date={date} today={today} />
       </Card>
 
       {MEALS.map(({ key }) => (
@@ -76,6 +84,31 @@ export default function FoodPage() {
 
       {goalsOpen && <GoalsModal onClose={() => setGoalsOpen(false)} />}
     </Page>
+  )
+}
+
+/** What the body spent: the watch's count for the day, and the estimate from logs and weight. */
+function EnergyLine({ date, today }: { date: DayKey; today: DayKey }) {
+  const health = useDailyHealth(date, date)?.[0]
+  const expenditure = useExpenditure(today)
+  const calories = health?.calories
+  if (!calories?.total && !expenditure) return null
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-3 text-xs text-ink-2">
+      <Flame size={14} className="text-(--tone-training)" aria-hidden />
+      {calories?.total ? (
+        <span>
+          Garmin: <span className="font-medium text-ink tabular-nums">{formatNumber(calories.total, 0)}</span> kcal gastas
+          {calories.active ? ` (${formatNumber(calories.active, 0)} ativas)` : ''}
+        </span>
+      ) : null}
+      {expenditure && (
+        <span>
+          Gasto real estimado: <span className="font-medium text-ink tabular-nums">{formatNumber(expenditure.kcal, 0)}</span>{' '}
+          kcal/dia
+        </span>
+      )}
+    </p>
   )
 }
 
@@ -205,6 +238,7 @@ function MealModal({
       <div className="space-y-4">
         <MacroBalance nutrients={total} goals={goals} />
         <MacroGrams nutrients={total} goals={goals} />
+        <OtherNutrients nutrients={total} />
         <ul className="divide-y divide-line">
           {entries.map((entry) => (
             <li key={entry.id}>
@@ -296,7 +330,11 @@ function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGo
       protein: perGram.protein * grams,
       carbs: perGram.carbs * grams,
       fat: perGram.fat * grams,
-      fiber: entry.nutrients.fiber === undefined ? undefined : (entry.nutrients.fiber / entry.grams) * grams,
+    }
+    // The values not on the form follow the new amount.
+    for (const key of OPTIONAL_NUTRIENTS) {
+      const value = entry.nutrients[key]
+      if (value !== undefined) nutrients[key] = (value / entry.grams) * grams
     }
     await save(db.foodLogs, { id, date, time, foodId, photoId, name: name.trim(), meal, grams, unit, portion: loggedBy, nutrients })
     onClose()

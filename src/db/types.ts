@@ -146,6 +146,15 @@ export interface Settings extends Synced {
   home?: HomeLayout
   /** The daily analysis by Claude, made once a day on the first opening. On unless set to false. */
   insightsAuto?: boolean
+  /** Where the weight is headed, and how fast (kg a week, negative to lose). */
+  weightGoal?: WeightGoal
+}
+
+export interface WeightGoal {
+  targetKg: number
+  kgPerWeek: number
+  /** The weight trend when the target was set, for the progress bar. */
+  startKg?: number
 }
 
 /** Grams, except kcal. */
@@ -155,6 +164,10 @@ export interface Nutrients {
   carbs: number
   fat: number
   fiber?: number
+  /** Milligrams. */
+  sodium?: number
+  sugar?: number
+  saturatedFat?: number
 }
 
 export interface Portion {

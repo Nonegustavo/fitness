@@ -29,14 +29,18 @@ export function mealAt(date: Date): MealKey {
 
 export const ZERO: Nutrients = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
 
+/** The nutrients a table may not have; they stay undefined when unknown instead of counting as zero. */
+export const OPTIONAL_NUTRIENTS = ['fiber', 'sodium', 'sugar', 'saturatedFat'] as const
+
 export function multiply(nutrients: Nutrients, factor: number): Nutrients {
-  return {
+  const result: Nutrients = {
     kcal: nutrients.kcal * factor,
     protein: nutrients.protein * factor,
     carbs: nutrients.carbs * factor,
     fat: nutrients.fat * factor,
-    fiber: nutrients.fiber === undefined ? undefined : nutrients.fiber * factor,
   }
+  for (const key of OPTIONAL_NUTRIENTS) if (nutrients[key] !== undefined) result[key] = nutrients[key] * factor
+  return result
 }
 
 /** Nutrients of `grams` of a food given per 100 g. */
@@ -62,17 +66,19 @@ export function amountLabel(amount: number, unit?: FoodUnit, portion?: Portion):
   return `${formatNumber(amount)} ${amount < 2 ? 'porção' : 'porções'}`
 }
 
+/** Adds up; an optional nutrient is summed over the items that have it, and stays undefined when none do. */
 export function sumNutrients(list: Nutrients[]): Nutrients {
-  return list.reduce<Nutrients>(
-    (total, n) => ({
-      kcal: total.kcal + n.kcal,
-      protein: total.protein + n.protein,
-      carbs: total.carbs + n.carbs,
-      fat: total.fat + n.fat,
-      fiber: (total.fiber ?? 0) + (n.fiber ?? 0),
-    }),
-    { ...ZERO },
-  )
+  const total: Nutrients = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
+  for (const n of list) {
+    total.kcal += n.kcal
+    total.protein += n.protein
+    total.carbs += n.carbs
+    total.fat += n.fat
+    for (const key of OPTIONAL_NUTRIENTS) {
+      if (n[key] !== undefined) total[key] = (total[key] ?? 0) + n[key]
+    }
+  }
+  return total
 }
 
 /** Energy implied by the macros (4/4/9 kcal per gram). */
