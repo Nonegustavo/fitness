@@ -83,6 +83,8 @@ const BASE_METRICS: Metric[] = [
     phrase: 'dias de musculação',
     cause: true,
   },
+  // Only on days with a rated session: how hard it felt, against the night after and the next days.
+  { key: 'effort', label: 'Esforço do treino', group: 'Treino', unit: '', digits: 1, timing: 'day', cause: true, effect: true },
   { key: 'kcal', label: 'Calorias consumidas', group: 'Alimentação', unit: 'kcal', digits: 0, timing: 'day', cause: true, effect: true },
   { key: 'protein', label: 'Proteína', group: 'Alimentação', unit: 'g', digits: 0, timing: 'day', cause: true },
   { key: 'carbs', label: 'Carboidratos', group: 'Alimentação', unit: 'g', digits: 0, timing: 'day', cause: true },
@@ -188,6 +190,7 @@ export function buildDailyData(sources: Sources, from: DayKey, to: DayKey): Dail
 
   // Training: zero on days without one, from the first day the app knows about any.
   const finished = sources.sessions.filter((session) => session.endedAt)
+  for (const session of finished) if (session.effort !== undefined) add(rows, session.date, 'effort', session.effort)
   const knownSince = [...sources.activities.map((a) => a.date), ...finished.map((s) => s.date)].sort()[0]
   if (knownSince) {
     const minutes = sumBy(sources.activities, (a) => a.date, (a) => a.timerSec / 60)

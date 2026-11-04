@@ -67,6 +67,9 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Atalhos de 1 toque (suplementos, o café de todo dia) com a quantidade fixa, na tela de alimentação
 - [x] Copiar um item, uma refeição ou o dia inteiro para hoje; duplicar um item
 - [x] Editar as quantidades de todos os itens de uma refeição de uma vez
+- [x] Treino: mapa do corpo (frente e costas) com as séries da semana por músculo contra a faixa de 10–20
+- [x] Treino: exercícios sem evoluir (3 treinos sem bater o melhor 1RM estimado) e aviso de deload
+- [x] Treino: esforço (RPE 1–10) e dor ou desconforto por região em cada sessão; o esforço entra nas correlações
 
 Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
 

@@ -125,3 +125,36 @@ describe('personalRecords', () => {
     expect(personalRecords(today, [earlier, today])).toEqual(new Set(['bench']))
   })
 })
+
+describe('stalledExercises', () => {
+  const meta = { updatedAt: 0, deleted: 0 as const, dirty: 0 as const }
+  const session = (day: number, weightKg: number) => ({
+    ...meta,
+    id: `s${day}`,
+    name: 'A',
+    date: `2026-10-${String(day).padStart(2, '0')}`,
+    startedAt: day * 86_400_000,
+    endedAt: day * 86_400_000 + 3_600_000,
+    exercises: [
+      {
+        key: 'k',
+        exerciseId: 'bench',
+        restSec: 90,
+        sets: [{ kind: 'normal' as const, done: true, weightKg, reps: 8 }],
+      },
+    ],
+  })
+
+  it('flags an exercise whose last 3 sessions did not beat the earlier best', async () => {
+    const { stalledExercises, needsDeload } = await import('./stats')
+    const stalls = stalledExercises([session(1, 60), session(5, 62.5), session(9, 62.5), session(13, 62.5), session(17, 62.5)], '2026-10-20')
+    expect(stalls.map((s) => s.exerciseId)).toEqual(['bench'])
+    expect(needsDeload(stalls)).toBe(false)
+    expect(needsDeload(stalls.concat(stalls, stalls))).toBe(true)
+  })
+
+  it('leaves a progressing exercise alone', async () => {
+    const { stalledExercises } = await import('./stats')
+    expect(stalledExercises([session(1, 60), session(5, 62.5), session(9, 65), session(13, 67.5)], '2026-10-20')).toEqual([])
+  })
+})

@@ -7,7 +7,7 @@ import type {
   WorkoutSession,
   WorkoutTemplate,
 } from '../../db/types'
-import type { DayKey } from '../../lib/dates'
+import { shiftDay, type DayKey } from '../../lib/dates'
 
 /** Estimated one-rep max (Epley). Only meaningful up to ~12 reps. */
 export const epley = (weightKg: number, reps: number): number => (reps <= 1 ? weightKg : weightKg * (1 + reps / 30))
@@ -139,3 +139,61 @@ export function personalRecords(session: WorkoutSession, sessions: WorkoutSessio
   }
   return records
 }
+
+export interface Stall {
+  exerciseId: string
+  /** Sessions in a row without beating the earlier best. */
+  sessions: number
+  bestKg: number
+}
+
+/**
+ * Exercises that stopped progressing: done lately (last 3 weeks), with at least 4 sessions, and whose
+ * best estimated 1RM of the last 3 sessions doesn't beat the best before them.
+ */
+export function stalledExercises(sessions: WorkoutSession[], today: DayKey, recentDays = 21): Stall[] {
+  const byExercise = new Map<string, { date: DayKey; best: number }[]>()
+  const finished = sessions.filter((s) => s.endedAt).sort((a, b) => a.startedAt - b.startedAt)
+  for (const session of finished) {
+    for (const exercise of session.exercises) {
+      const best = bestE1rm(workingSets(exercise))
+      if (best === undefined) continue
+      byExercise.set(exercise.exerciseId, [...(byExercise.get(exercise.exerciseId) ?? []), { date: session.date, best }])
+    }
+  }
+  const cutoff = shiftDay(today, -recentDays)
+  const stalls: Stall[] = []
+  for (const [exerciseId, history] of byExercise) {
+    if (history.length < 4 || history.at(-1)!.date < cutoff) continue
+    const before = Math.max(...history.slice(0, -3).map((h) => h.best))
+    const last = history.slice(-3)
+    // Half a percent of slack: the same load for one more rep isn't a stall.
+    if (Math.max(...last.map((h) => h.best)) <= before * 1.005) {
+      // Count how far back the stall goes.
+      let count = 3
+      for (let i = history.length - 4; i > 0; i--) {
+        if (history[i].best > Math.max(...history.slice(0, i).map((h) => h.best)) * 1.005) break
+        count++
+      }
+      stalls.push({ exerciseId, sessions: count, bestKg: before })
+    }
+  }
+  return stalls.sort((a, b) => b.sessions - a.sessions)
+}
+
+/** Average effort (RPE) of the last sessions that have one, when at least 2 do. */
+export function recentEffort(sessions: WorkoutSession[], count = 3): number | undefined {
+  const rated = sessions
+    .filter((s) => s.endedAt && s.effort !== undefined)
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .slice(0, count)
+  if (rated.length < 2) return undefined
+  return rated.reduce((total, s) => total + s.effort!, 0) / rated.length
+}
+
+/**
+ * Time for a lighter week: progress stalled in 3 or more exercises, or in 2 while the sessions feel
+ * very hard (RPE 9+).
+ */
+export const needsDeload = (stalls: Stall[], effort?: number): boolean =>
+  stalls.length >= 3 || (stalls.length >= 2 && effort !== undefined && effort >= 9)

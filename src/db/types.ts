@@ -362,6 +362,10 @@ export interface WorkoutSession extends Synced {
   endedAt?: number
   exercises: SessionExercise[]
   notes?: string
+  /** How hard the whole session felt, 1–10 (RPE). */
+  effort?: number
+  /** Where it hurt or felt off (keys of DISCOMFORT_AREAS). */
+  discomfort?: string[]
 }
 
 /** One lap as the watch recorded it. Speeds in m/s, distances in meters. */

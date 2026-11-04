@@ -28,6 +28,7 @@ import {
   useSessions,
 } from './training'
 import { useWakeLock } from './wakeLock'
+import { SessionFeedback } from './SessionFeedback'
 
 const asText = (value?: number) => (value === undefined ? '' : String(value).replace('.', ','))
 const parseCount = (value: string) => (/^\d+$/.test(value.trim()) ? Number(value.trim()) : undefined)
@@ -108,6 +109,8 @@ export default function SessionPage() {
           )}
         </Card>
       )}
+
+      {!active && <SessionFeedback session={session} />}
 
       {!active && watchActivity && (
         <WorkoutWatchCard session={session} activity={watchActivity} stream={watchStream} exercises={exercises} />

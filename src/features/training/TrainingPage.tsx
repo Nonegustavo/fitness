@@ -1,5 +1,5 @@
 import { startOfWeek } from 'date-fns'
-import { Archive, ArchiveRestore, Dumbbell, Play, Plus } from 'lucide-react'
+import { Archive, ArchiveRestore, Dumbbell, Play, Plus, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { SortableList } from '../../components/Sortable'
@@ -7,15 +7,17 @@ import { Button, Card, cx, Empty, IconButton, Page, Stat } from '../../component
 import { useToday } from '../../db/hooks'
 import { patch, saveOrder } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { MuscleGroup, WorkoutSession } from '../../db/types'
-import { dayKey, parseDay, relativeDay } from '../../lib/dates'
+import type { Exercise, MuscleGroup, WorkoutSession } from '../../db/types'
+import { dayKey, parseDay, relativeDay, shiftDay } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 import { useActivities } from '../activities/activities'
 import { ActivityRow, FitHowTo, ImportFitButton } from '../activities/components'
 import { UpcomingWorkoutsCard } from '../garmin/UpcomingWorkouts'
 import { MUSCLES } from './catalog'
+import { MuscleMap } from './MuscleMap'
 import { Elapsed, useStartWorkout } from './components'
-import { nextTemplate, setsByMuscle, summarize } from './stats'
+import { needsDeload, nextTemplate, recentEffort, setsByMuscle, stalledExercises, summarize } from './stats'
+import { DISCOMFORT_AREAS } from './SessionFeedback'
 import { findActive, useExerciseMap, useSessions, useTemplates } from './training'
 
 const HISTORY_LIMIT = 10
@@ -173,8 +175,10 @@ export default function TrainingPage() {
           <Stat label="Séries" value={weekTotals.sets} />
           <Stat label="Volume" value={`${formatNumber(weekTotals.volumeKg, 0)} kg`} />
         </div>
-        <MuscleBars counts={setsByMuscle(finished, exercises, weekStart, today)} />
+        <MuscleMap counts={setsByMuscle(finished, exercises, weekStart, today)} />
       </Card>
+
+      <ProgressCard sessions={finished} exercises={exercises} today={today} />
 
       <ActivitiesCard today={today} />
 
@@ -256,27 +260,71 @@ function HistoryRow({ session, today }: { session: WorkoutSession; today: string
 }
 
 /** Working sets per muscle this week, as a bar list: one series, value at the bar's tip. */
-function MuscleBars({ counts }: { counts: Map<MuscleGroup, number> }) {
-  const rows = [...counts].sort((a, b) => b[1] - a[1])
-  if (rows.length === 0) return <p className="mt-3 text-sm text-muted">Nenhuma série nesta semana ainda.</p>
-  const max = Math.max(...rows.map(([, sets]) => sets))
+
+/**
+ * Exercises that stopped progressing, the advice of a lighter week when it's time, and the
+ * discomforts noted in the last two weeks.
+ */
+function ProgressCard({
+  sessions,
+  exercises,
+  today,
+}: {
+  sessions: WorkoutSession[]
+  exercises: Map<string, Exercise>
+  today: string
+}) {
+  const stalls = stalledExercises(sessions, today)
+  const effort = recentEffort(sessions)
+  const deload = needsDeload(stalls, effort)
+  const since = shiftDay(today, -14)
+  const pains = new Map<string, number>()
+  for (const session of sessions) {
+    if (session.date < since) continue
+    for (const area of session.discomfort ?? []) pains.set(area, (pains.get(area) ?? 0) + 1)
+  }
+  if (stalls.length === 0 && pains.size === 0 && effort === undefined) return null
   return (
-    <div className="mt-4">
-      <p className="mb-2 text-xs text-ink-2">Séries por grupo muscular</p>
-      <ul className="space-y-1.5">
-        {rows.map(([muscle, sets]) => (
-          <li key={muscle} className="grid grid-cols-[8.5rem_1fr] items-center gap-2 text-sm">
-            <span className="truncate text-ink-2">{MUSCLES[muscle]}</span>
-            <span className="flex items-center gap-2">
-              <span
-                className="block h-3 rounded-r-[4px] bg-series-1"
-                style={{ width: `calc((100% - 2rem) * ${sets / max})` }}
-              />
-              <span className="tabular-nums">{sets}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <Card title="Progresso" icon={TrendingUp} tone="training">
+      {deload && (
+        <div className="mb-3 rounded-xl bg-(--tone-training)/12 p-3 text-sm">
+          <p className="font-medium">Hora de uma semana mais leve (deload)</p>
+          <p className="mt-1 text-xs text-ink-2">
+            {stalls.length} exercícios sem evoluir
+            {effort !== undefined && effort >= 9 ? ' e treinos perto do limite' : ''}. Uma semana com as mesmas fichas,
+            metade das séries e uns 10% menos de carga costuma destravar a progressão.
+          </p>
+        </div>
+      )}
+      {stalls.length > 0 ? (
+        <>
+          <p className="mb-1 text-xs text-ink-2">Sem bater o melhor 1RM estimado</p>
+          <ul className="divide-y divide-line">
+            {stalls.map((stall) => (
+              <li key={stall.exerciseId}>
+                <Link to={`/treinos/exercicios/${stall.exerciseId}`} className="flex items-center gap-3 py-1.5 text-sm hover:text-accent-ink">
+                  <span className="min-w-0 flex-1 truncate">{exercises.get(stall.exerciseId)?.name ?? 'Exercício'}</span>
+                  <span className="shrink-0 text-xs text-muted">
+                    {stall.sessions} treinos · melhor {formatNumber(stall.bestKg, 0)} kg
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="text-sm text-ink-2">Todos os exercícios recentes estão evoluindo.</p>
+      )}
+      {(effort !== undefined || pains.size > 0) && (
+        <p className="mt-3 text-xs text-ink-2">
+          {effort !== undefined && `Esforço médio dos últimos treinos: ${formatNumber(effort)}/10. `}
+          {pains.size > 0 &&
+            `Desconforto em 14 dias: ${[...pains]
+              .sort((a, b) => b[1] - a[1])
+              .map(([area, n]) => `${DISCOMFORT_AREAS[area] ?? area}${n > 1 ? ` (${n}×)` : ''}`)
+              .join(', ')}.`}
+        </p>
+      )}
+    </Card>
   )
 }
