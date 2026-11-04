@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FoodPref, Settings } from '../../db/types'
-import { buildIndex, searchFoods, TACO_FOODS } from './foods'
-import { goalsFor, kcalFromMacros, mealAt, scale, sumNutrients } from './nutrition'
+import { buildIndex, searchFoods, TACO_FOODS, weighed } from './foods'
+import { amountLabel, goalsFor, kcalFromMacros, mealAt, nutrientsFor, scale, sumNutrients } from './nutrition'
 import { parseProduct } from './openFoodFacts'
 import { matchItems, parseAnalysis } from './photo'
 
@@ -44,6 +44,21 @@ describe('nutrition', () => {
     const rice = scale({ kcal: 128, protein: 2.5, carbs: 28.1, fat: 0.2 }, 150)
     expect(rice.kcal).toBeCloseTo(192)
     expect(sumNutrients([rice, rice]).carbs).toBeCloseTo(84.3)
+  })
+
+  it('counts foods without a weight in portions', () => {
+    const whey = { kcal: 124, protein: 23, carbs: 3.5, fat: 0 }
+    expect(nutrientsFor(whey, 1.5, 'portion').protein).toBeCloseTo(34.5)
+    expect(nutrientsFor(whey, 150).protein).toBeCloseTo(34.5)
+    expect(amountLabel(150)).toBe('150 g')
+    expect(amountLabel(1, 'portion')).toBe('1 porção')
+    expect(amountLabel(1.5, 'portion')).toBe('1,5 porção')
+    expect(amountLabel(2, 'portion')).toBe('2 porções')
+  })
+
+  it('keeps foods measured in portions out of what works in grams', () => {
+    const item = (id: string, unit?: 'portion') => ({ id, name: id, detail: '', per100: TACO_FOODS[0].per100, portions: [], unit, source: 'custom' as const })
+    expect(weighed([item('a'), item('b', 'portion')]).map((i) => i.id)).toEqual(['a'])
   })
 
   it('guesses the meal from the time of day', () => {

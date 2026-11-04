@@ -109,9 +109,9 @@ export function suggestNextWeight(last: PerformedSet[], equipment: Equipment): n
   return reachedTop && heaviest > 0 ? heaviest + step : undefined
 }
 
-/** The template after the one used last, wrapping around (A → B → C → A). */
+/** The template after the one used last, wrapping around (A → B → C → A); archived ones are out. */
 export function nextTemplate(templates: WorkoutTemplate[], sessions: WorkoutSession[]): WorkoutTemplate | undefined {
-  const ordered = [...templates].sort((a, b) => a.order - b.order)
+  const ordered = templates.filter((template) => !template.archived).sort((a, b) => a.order - b.order)
   let last: WorkoutSession | undefined
   for (const session of sessions) {
     if (!session.endedAt || !ordered.some((t) => t.id === session.templateId)) continue

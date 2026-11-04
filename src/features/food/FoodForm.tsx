@@ -4,7 +4,7 @@ import { Modal } from '../../components/Modal'
 import { Button, DecimalInput, Field, TextInput } from '../../components/ui'
 import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { Food, Nutrients, Portion } from '../../db/types'
+import type { Food, FoodUnit, Nutrients, Portion } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { kcalFromMacros } from './nutrition'
 
@@ -15,6 +15,7 @@ export interface FoodDraft {
   barcode?: string
   per100?: Nutrients
   portion?: Portion
+  unit?: FoodUnit
   source?: Food['source']
   /** A TACO food being replaced by the user's own version of it. */
   basedOn?: string
@@ -51,10 +52,12 @@ export function FoodForm({
         barcode: food.barcode,
         per100: food.per100,
         portion: food.portions?.[0],
+        unit: food.unit,
         source: food.source,
         basedOn: food.basedOn,
       }
     : (initial ?? {})
+  const inPortions = start.unit === 'portion'
   const [name, setName] = useState(start.name ?? '')
   const [brand, setBrand] = useState(start.brand ?? '')
   const [barcode, setBarcode] = useState(start.barcode ?? '')
@@ -93,6 +96,7 @@ export function FoodForm({
         fiber: values.fiber,
       },
       portions: portionLabel.trim() && grams ? [{ label: portionLabel.trim(), grams }] : undefined,
+      unit: start.unit,
       source: start.source ?? 'custom',
       basedOn: start.basedOn,
     })
@@ -138,7 +142,9 @@ export function FoodForm({
         </div>
 
         <fieldset>
-          <legend className="mb-1 text-sm font-medium text-ink-2">Valores por 100 g (ou 100 ml)</legend>
+          <legend className="mb-1 text-sm font-medium text-ink-2">
+            {inPortions ? 'Valores por porção' : 'Valores por 100 g (ou 100 ml)'}
+          </legend>
           <div className="grid grid-cols-2 gap-3">
             {FIELDS.map(({ key, label }) => (
               <Field key={key} label={label}>
@@ -151,18 +157,27 @@ export function FoodForm({
           )}
         </fieldset>
 
-        <fieldset>
-          <legend className="mb-1 text-sm font-medium text-ink-2">Porção (opcional)</legend>
-          <div className="grid grid-cols-[1fr_6rem] gap-3">
-            <TextInput
-              aria-label="Nome da porção"
-              value={portionLabel}
-              onChange={(e) => setPortionLabel(e.target.value)}
-              placeholder="Ex.: 1 fatia"
-            />
-            <DecimalInput aria-label="Gramas da porção" value={portionGrams} onChange={(e) => setPortionGrams(e.target.value)} placeholder="g" />
-          </div>
-        </fieldset>
+        {inPortions ? (
+          <p className="text-xs text-muted">Veio sem o peso, então é medido em porções.</p>
+        ) : (
+          <fieldset>
+            <legend className="mb-1 text-sm font-medium text-ink-2">Porção (opcional)</legend>
+            <div className="grid grid-cols-[1fr_6rem] gap-3">
+              <TextInput
+                aria-label="Nome da porção"
+                value={portionLabel}
+                onChange={(e) => setPortionLabel(e.target.value)}
+                placeholder="Ex.: 1 fatia"
+              />
+              <DecimalInput
+                aria-label="Gramas da porção"
+                value={portionGrams}
+                onChange={(e) => setPortionGrams(e.target.value)}
+                placeholder="g"
+              />
+            </div>
+          </fieldset>
+        )}
 
         <div className="flex gap-2">
           {food && (

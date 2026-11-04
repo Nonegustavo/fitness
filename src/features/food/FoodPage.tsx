@@ -14,7 +14,7 @@ import type { FoodLog, MealKey, Nutrients } from '../../db/types'
 import { dayRange, formatDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { GoalsModal } from './GoalsModal'
-import { goalsFor, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
+import { amountLabel, goalsFor, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
 import { NutritionSummary } from './NutritionSummary'
 import { PhotoThumb } from './PhotoThumb'
 
@@ -140,7 +140,7 @@ function MealCard({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">{entry.name}</p>
                     <p className="text-xs text-muted">
-                      {formatNumber(entry.grams, 0)} g · P {formatNumber(entry.nutrients.protein, 0)} · C{' '}
+                      {amountLabel(entry.grams, entry.unit)} · P {formatNumber(entry.nutrients.protein, 0)} · C{' '}
                       {formatNumber(entry.nutrients.carbs, 0)} · G {formatNumber(entry.nutrients.fat, 0)}
                     </p>
                   </div>
@@ -210,7 +210,7 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!valid) return
-    const { id, date, time, foodId, photoId } = entry
+    const { id, date, time, foodId, photoId, unit } = entry
     const nutrients: Nutrients = {
       kcal: perGram.kcal * grams,
       protein: perGram.protein * grams,
@@ -218,7 +218,7 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
       fat: perGram.fat * grams,
       fiber: entry.nutrients.fiber === undefined ? undefined : (entry.nutrients.fiber / entry.grams) * grams,
     }
-    await save(db.foodLogs, { id, date, time, foodId, photoId, name: name.trim(), meal, grams, nutrients })
+    await save(db.foodLogs, { id, date, time, foodId, photoId, name: name.trim(), meal, grams, unit, nutrients })
     onClose()
   }
 
@@ -230,7 +230,7 @@ function EntryModal({ entry, onClose }: { entry: FoodLog; onClose: () => void })
           <TextInput value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Quantidade (g)">
+          <Field label={entry.unit === 'portion' ? 'Porções' : 'Quantidade (g)'}>
             <DecimalInput value={gramsText} onChange={(e) => changeGrams(e.target.value)} />
           </Field>
           <Field label="Refeição">
@@ -292,7 +292,7 @@ function SaveMealModal({ meal, date, entries, onClose }: { meal: MealKey; date: 
     if (!name.trim()) return
     await save(db.savedMeals, {
       name: name.trim(),
-      items: entries.map(({ foodId, name: food, grams, nutrients }) => ({ foodId, name: food, grams, nutrients })),
+      items: entries.map(({ foodId, name: food, grams, unit, nutrients }) => ({ foodId, name: food, grams, unit, nutrients })),
     })
     toast({ message: 'Refeição salva: ela aparece em Adicionar' })
     onClose()

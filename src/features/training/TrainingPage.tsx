@@ -1,11 +1,11 @@
 import { startOfWeek } from 'date-fns'
-import { Dumbbell, Play, Plus } from 'lucide-react'
+import { Archive, ArchiveRestore, Dumbbell, Play, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { SortableList } from '../../components/Sortable'
-import { Button, Card, Empty, Page, Stat } from '../../components/ui'
+import { Button, Card, cx, Empty, IconButton, Page, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
-import { saveOrder } from '../../db/repo'
+import { patch, saveOrder } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { MuscleGroup, WorkoutSession } from '../../db/types'
 import { dayKey, parseDay, relativeDay } from '../../lib/dates'
@@ -28,8 +28,11 @@ export default function TrainingPage() {
   const exercises = useExerciseMap()
   const start = useStartWorkout()
   const [showAll, setShowAll] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
   if (!templates || !sessions) return null
 
+  const rotation = templates.filter((template) => !template.archived)
+  const archived = templates.filter((template) => template.archived)
   const active = findActive(sessions)
   const finished = sessions.filter((session) => session.endedAt)
   const next = nextTemplate(templates, finished)
@@ -88,9 +91,9 @@ export default function TrainingPage() {
           <SortableList
             className="divide-y divide-line"
             itemClassName="flex items-center gap-2 bg-surface py-2"
-            items={templates}
+            items={rotation}
             getId={(template) => template.id}
-            onReorder={(list) => void saveOrder(db.workoutTemplates, list)}
+            onReorder={(list) => void saveOrder(db.workoutTemplates, [...list, ...archived])}
           >
             {(template, handle) => {
               const isNext = !active && next?.id === template.id
@@ -126,6 +129,39 @@ export default function TrainingPage() {
               )
             }}
           </SortableList>
+        )}
+        {archived.length > 0 && (
+          <div className={cx(rotation.length > 0 && 'mt-1 border-t border-line pt-1')}>
+            <Button size="sm" variant="ghost" className="w-full" onClick={() => setShowArchived(!showArchived)}>
+              <Archive size={16} />
+              {showArchived ? 'Ocultar' : 'Mostrar'} {archived.length === 1 ? '1 arquivada' : `${archived.length} arquivadas`}
+            </Button>
+            {showArchived && (
+              <ul className="divide-y divide-line">
+                {archived.map((template) => (
+                  <li key={template.id} className="flex items-center gap-2 py-1.5">
+                    <Link
+                      to={`/treinos/ficha/${template.id}`}
+                      aria-label={`Editar ${template.name}`}
+                      className="min-w-0 flex-1 hover:text-accent-ink"
+                    >
+                      <p className="truncate text-sm font-medium text-ink-2">{template.name}</p>
+                      <p className="truncate text-xs text-muted">{template.exercises.length} exercícios</p>
+                    </Link>
+                    <IconButton
+                      label={`Voltar ${template.name} para o rodízio`}
+                      onClick={() => void patch(db.workoutTemplates, template.id, { archived: 0 })}
+                    >
+                      <ArchiveRestore size={16} />
+                    </IconButton>
+                    <IconButton label={`Iniciar ${template.name}`} onClick={() => void start(template)}>
+                      <Play size={16} />
+                    </IconButton>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </Card>
 

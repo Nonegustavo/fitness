@@ -1,11 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Trash2, X } from 'lucide-react'
+import { Archive, ArchiveRestore, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Confirm } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
 import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, TextInput } from '../../components/ui'
-import { remove, save } from '../../db/repo'
+import { patch, remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Exercise, ExerciseType, PlannedSet, SetKind, WorkoutTemplate } from '../../db/types'
 import { formatClock, parseClock, parseDecimal } from '../../lib/format'
@@ -134,6 +134,7 @@ export default function TemplateEditor() {
       name: draft.name.trim(),
       notes: draft.notes.trim() || undefined,
       order: template?.order ?? nextOrder,
+      archived: template?.archived,
       exercises: draft.exercises.map((exercise) => {
         const type = exercises.get(exercise.exerciseId)?.type ?? 'weight_reps'
         return {
@@ -213,7 +214,25 @@ export default function TemplateEditor() {
       <div className="flex gap-2">
         {!isNew && (
           <Button variant="ghost" className="text-critical" onClick={() => setConfirmDelete(true)}>
-            <Trash2 size={16} /> Excluir ficha
+            <Trash2 size={16} /> Excluir
+          </Button>
+        )}
+        {template && (
+          // Changes still unsaved in the form stay there; only the archive flag is written.
+          <Button
+            variant="ghost"
+            title={template.archived ? 'Volta para o rodízio de fichas' : 'Sai do rodízio, mas continua guardada'}
+            onClick={() => void patch(db.workoutTemplates, template.id, { archived: template.archived ? 0 : 1 })}
+          >
+            {template.archived ? (
+              <>
+                <ArchiveRestore size={16} /> Desarquivar
+              </>
+            ) : (
+              <>
+                <Archive size={16} /> Arquivar
+              </>
+            )}
           </Button>
         )}
         <Button variant="primary" className="ml-auto" disabled={!draft.name.trim()} onClick={() => void onSave()}>

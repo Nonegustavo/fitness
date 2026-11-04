@@ -2,9 +2,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo } from 'react'
 import { alive, save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { Food, FoodLog, FoodPref, MealKey, Nutrients, Portion } from '../../db/types'
+import type { Food, FoodLog, FoodPref, FoodUnit, MealKey, Nutrients, Portion } from '../../db/types'
 import { dayTime, formatTime, type DayKey } from '../../lib/dates'
-import { scale } from './nutrition'
+import { nutrientsFor } from './nutrition'
 import tacoData from './taco.json'
 
 export const TACO_SOURCE = 'TACO 4ª edição, NEPA/UNICAMP, 2011'
@@ -16,8 +16,10 @@ export interface FoodItem {
   name: string
   /** TACO category, brand, or where it came from. */
   detail: string
+  /** Per portion when `unit` is "portion". */
   per100: Nutrients
   portions: Portion[]
+  unit?: FoodUnit
   source: 'taco' | Food['source']
 }
 
@@ -37,6 +39,7 @@ const DETAIL: Record<Food['source'], string> = {
   custom: 'Meu alimento',
   openfoodfacts: 'Open Food Facts',
   recipe: 'Receita',
+  'health-connect': 'Do Health Connect',
 }
 
 export function fromCustom(food: Food): FoodItem {
@@ -46,9 +49,13 @@ export function fromCustom(food: Food): FoodItem {
     detail: food.brand ?? (food.basedOn ? 'Minha versão da TACO' : DETAIL[food.source]),
     per100: food.per100,
     portions: food.portions ?? [],
+    unit: food.unit,
     source: food.source,
   }
 }
+
+/** Foods with a weight: what the plate analysis and recipes can use, as both work in grams. */
+export const weighed = (items: FoodItem[]): FoodItem[] => items.filter((item) => item.unit !== 'portion')
 
 /** The user's foods plus TACO, without the TACO foods the user replaced with their own version. */
 export function catalogOf(custom: Food[]): FoodItem[] {
@@ -107,7 +114,7 @@ export function searchFoods(index: SearchEntry[], query: string, prefs: Map<stri
     .map(([, item]) => item)
 }
 
-/** Logs a food and remembers the amount for next time. */
+/** Logs a food (grams, or portions for a food measured in portions) and remembers the amount for next time. */
 export async function logFood(
   item: FoodItem,
   grams: number,
@@ -123,7 +130,8 @@ export async function logFood(
     foodId: item.id,
     name: item.name,
     grams,
-    nutrients: scale(item.per100, grams),
+    unit: item.unit,
+    nutrients: nutrientsFor(item.per100, grams, item.unit),
     photoId,
   })
   const pref = await db.foodPrefs.get(item.id)

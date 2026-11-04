@@ -94,6 +94,8 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Cores por seção, ícones em pastilhas coloridas, animações leves e comemoração ao bater a meta de água, completar os hábitos e terminar o treino
 - [x] Ícone próprio no app Android (também na tela de abertura e nas notificações)
 - [x] Correção: na montagem de fichas no computador, a página ficava sem rolar depois de criar um exercício no seletor
+- [x] Fichas arquivadas: saem da rotação e da lista principal, mas continuam guardadas para voltar quando quiser
+- [x] Alimentos medidos em porções: os que vieram sem peso (Health Connect) são registrados em porções, não em gramas; ficam fora da foto do prato e das receitas, que trabalham com gramas
 
 ## Observações
 

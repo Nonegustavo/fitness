@@ -2,8 +2,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo } from 'react'
 import { alive, save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { FoodLog, MacroGoals, MealKey, Nutrients, SavedMeal, SavedMealItem, Settings } from '../../db/types'
+import type { FoodLog, FoodUnit, MacroGoals, MealKey, Nutrients, SavedMeal, SavedMealItem, Settings } from '../../db/types'
 import { dayTime, formatTime, type DayKey } from '../../lib/dates'
+import { formatNumber } from '../../lib/format'
 
 export const MEALS: { key: MealKey; label: string }[] = [
   { key: 'breakfast', label: 'Café da manhã' },
@@ -39,6 +40,16 @@ export function multiply(nutrients: Nutrients, factor: number): Nutrients {
 
 /** Nutrients of `grams` of a food given per 100 g. */
 export const scale = (per100: Nutrients, grams: number): Nutrients => multiply(per100, grams / 100)
+
+/** Nutrients of an amount of a food: grams, or portions for a food measured in portions. */
+export const nutrientsFor = (per100: Nutrients, amount: number, unit?: FoodUnit): Nutrients =>
+  unit === 'portion' ? multiply(per100, amount) : scale(per100, amount)
+
+/** "150 g", "1 porção", "1,5 porção", "2 porções". */
+export function amountLabel(amount: number, unit?: FoodUnit): string {
+  if (unit !== 'portion') return `${formatNumber(amount, 0)} g`
+  return `${formatNumber(amount)} ${amount < 2 ? 'porção' : 'porções'}`
+}
 
 export function sumNutrients(list: Nutrients[]): Nutrients {
   return list.reduce<Nutrients>(
@@ -92,7 +103,7 @@ export function useSavedMeals(): SavedMeal[] | undefined {
 /** Logs a list of items (a saved meal, or yesterday's lunch) into a meal of a day. */
 export async function logItems(items: SavedMealItem[], meal: MealKey, date: DayKey): Promise<void> {
   const time = dayTime(date, formatTime(Date.now()))
-  for (const { foodId, name, grams, nutrients } of items) {
-    await save(db.foodLogs, { date, meal, time, foodId, name, grams, nutrients })
+  for (const { foodId, name, grams, unit, nutrients } of items) {
+    await save(db.foodLogs, { date, meal, time, foodId, name, grams, unit, nutrients })
   }
 }

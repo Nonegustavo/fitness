@@ -7,7 +7,7 @@ import { db } from '../../db/schema'
 import type { Food, Nutrients, RecipeIngredient } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { newId } from '../../lib/ids'
-import { buildIndex, searchFoods, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
+import { buildIndex, searchFoods, useFoodCatalog, useFoodPrefs, weighed, type FoodItem } from './foods'
 import { multiply } from './nutrition'
 import { ingredientsWeight, recipePer100, recipeTotal } from './recipes'
 
@@ -37,7 +37,8 @@ export function RecipeForm({
   const catalog = useFoodCatalog()
   const prefs = useFoodPrefs()
   // A recipe can't go inside itself.
-  const index = useMemo(() => buildIndex(catalog.filter((item) => item.id !== recipe?.id)), [catalog, recipe?.id])
+  // Ingredients go in by weight, so foods measured in portions stay out.
+  const index = useMemo(() => buildIndex(weighed(catalog).filter((item) => item.id !== recipe?.id)), [catalog, recipe?.id])
   const [name, setName] = useState(recipe?.name ?? '')
   const [rows, setRows] = useState<Row[]>(() => (recipe?.ingredients ?? []).map(toRow))
   const [readyText, setReadyText] = useState(recipe?.yieldGrams ? asText(recipe.yieldGrams) : '')

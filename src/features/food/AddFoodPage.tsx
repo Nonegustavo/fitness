@@ -13,7 +13,7 @@ import { formatNumber } from '../../lib/format'
 import { useSyncState } from '../../sync/controller'
 import { BarcodeScanner } from './BarcodeScanner'
 import { FoodForm, type FoodDraft } from './FoodForm'
-import { buildIndex, fromCustom, searchFoods, TACO_SOURCE, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
+import { buildIndex, fromCustom, searchFoods, TACO_SOURCE, useFoodCatalog, useFoodPrefs, weighed, type FoodItem } from './foods'
 import { logItems, MEAL_LABEL, mealAt, MEALS, sumNutrients, useSavedMeals } from './nutrition'
 import { fetchProduct } from './openFoodFacts'
 import type { MealSource } from './photo'
@@ -52,6 +52,8 @@ export default function AddFoodPage() {
   const prefs = useFoodPrefs()
   const savedMeals = useSavedMeals()
   const index = useMemo(() => buildIndex(catalog), [catalog])
+  // The plate analysis estimates grams, so it only matches foods that have a weight.
+  const weighedIndex = useMemo(() => buildIndex(weighed(catalog)), [catalog])
   const byId = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog])
   const results = useMemo(() => searchFoods(index, query, prefs), [index, query, prefs])
 
@@ -260,7 +262,7 @@ export default function AddFoodPage() {
           source={review}
           initialMeal={meal}
           date={date}
-          index={index}
+          index={weighedIndex}
           prefs={prefs}
           onClose={() => setReview(null)}
           onDone={(count, logged) =>
@@ -335,7 +337,9 @@ function FoodList({
               <p className="truncate text-xs text-muted">{item.detail}</p>
             </div>
             {prefs.get(item.id)?.favorite === 1 && <Star size={14} className="shrink-0 fill-current text-accent-ink" />}
-            <span className="shrink-0 text-xs text-ink-2 tabular-nums">{formatNumber(item.per100.kcal, 0)} kcal/100 g</span>
+            <span className="shrink-0 text-xs text-ink-2 tabular-nums">
+              {formatNumber(item.per100.kcal, 0)} kcal/{item.unit === 'portion' ? 'porção' : '100 g'}
+            </span>
           </button>
         </li>
       ))}

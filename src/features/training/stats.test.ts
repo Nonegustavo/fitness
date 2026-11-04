@@ -108,6 +108,14 @@ describe('nextTemplate', () => {
     expect(nextTemplate(templates, [session('s', 1, {}, { templateId: 'A' })])?.id).toBe('B')
     expect(nextTemplate(templates, [session('s', 1, {}, { templateId: 'C' })])?.id).toBe('A')
   })
+
+  it('leaves archived templates out of the rotation', () => {
+    const withOld = [...templates, { ...template('Old', 3), archived: 1 as const }]
+    expect(nextTemplate(withOld, [session('s', 1, {}, { templateId: 'C' })])?.id).toBe('A')
+    // A workout from an archived template doesn't move the rotation.
+    const sessions = [session('s1', 1, {}, { templateId: 'A' }), session('s2', 2, {}, { templateId: 'Old' })]
+    expect(nextTemplate(withOld, sessions)?.id).toBe('B')
+  })
 })
 
 describe('personalRecords', () => {

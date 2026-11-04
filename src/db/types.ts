@@ -162,15 +162,25 @@ export interface Portion {
   grams: number
 }
 
-/** A food the user created, imported by barcode or put together as a recipe. TACO foods ship with the app instead. */
+/**
+ * How a food is measured when it has no weight: in portions, as the foods that came from Health Connect
+ * (it keeps what was eaten, never how much it weighed).
+ */
+export type FoodUnit = 'portion'
+
+/**
+ * A food the user created, imported by barcode or from Health Connect, or put together as a recipe. TACO
+ * foods ship with the app instead.
+ */
 export interface Food extends Synced {
   name: string
   brand?: string
   barcode?: string
-  /** Per 100 g (or 100 ml). */
+  /** Per 100 g (or 100 ml); per portion when `unit` is "portion". */
   per100: Nutrients
   portions?: Portion[]
-  source: 'custom' | 'openfoodfacts' | 'recipe'
+  unit?: FoodUnit
+  source: 'custom' | 'openfoodfacts' | 'recipe' | 'health-connect'
   /** The TACO food this one replaces in searches: the user's own version of it. */
   basedOn?: string
   /** For recipes: what went in, with each food's values as they were when added. */
@@ -196,7 +206,9 @@ export interface FoodLog extends Synced {
   foodId: string
   /** Copied when logged, so the entry survives later edits of the food. */
   name: string
+  /** The amount: grams, or portions when `unit` is "portion". */
   grams: number
+  unit?: FoodUnit
   /** For this amount, not per 100 g. */
   nutrients: Nutrients
   /** The plate photo it was logged from, shared by the items of that photo. */
@@ -216,6 +228,7 @@ export interface SavedMealItem {
   foodId: string
   name: string
   grams: number
+  unit?: FoodUnit
   nutrients: Nutrients
 }
 
@@ -288,6 +301,8 @@ export interface WorkoutTemplate extends Synced {
   notes?: string
   exercises: TemplateExercise[]
   order: number
+  /** Kept for later but out of the rotation, like an old program. */
+  archived?: 0 | 1
 }
 
 export interface PerformedSet {
