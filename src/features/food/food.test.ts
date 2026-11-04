@@ -63,6 +63,7 @@ describe('nutrition', () => {
 
   it('guesses the meal from the time of day', () => {
     expect(mealAt(new Date(2026, 10, 2, 7, 30))).toBe('breakfast')
+    expect(mealAt(new Date(2026, 10, 2, 10, 15))).toBe('morningSnack')
     expect(mealAt(new Date(2026, 10, 2, 12, 30))).toBe('lunch')
     expect(mealAt(new Date(2026, 10, 2, 16, 0))).toBe('snack')
     expect(mealAt(new Date(2026, 10, 2, 20, 0))).toBe('dinner')

@@ -233,7 +233,8 @@ export interface RecipeIngredient {
   per100: Nutrients
 }
 
-export type MealKey = 'breakfast' | 'lunch' | 'snack' | 'dinner' | 'supper'
+/** `snack` is the afternoon snack (it was the only one before the morning snack existed). */
+export type MealKey = 'breakfast' | 'morningSnack' | 'lunch' | 'snack' | 'dinner' | 'supper'
 
 export interface FoodLog extends Synced {
   date: DayKey

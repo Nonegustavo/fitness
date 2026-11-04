@@ -9,8 +9,9 @@ import { formatNumber } from '../../lib/format'
 
 export const MEALS: { key: MealKey; label: string }[] = [
   { key: 'breakfast', label: 'Café da manhã' },
+  { key: 'morningSnack', label: 'Lanche da manhã' },
   { key: 'lunch', label: 'Almoço' },
-  { key: 'snack', label: 'Lanches' },
+  { key: 'snack', label: 'Lanche da tarde' },
   { key: 'dinner', label: 'Jantar' },
   { key: 'supper', label: 'Ceia' },
 ]
@@ -20,7 +21,8 @@ export const MEAL_LABEL = Object.fromEntries(MEALS.map((meal) => [meal.key, meal
 /** The meal that usually happens at this time of day. */
 export function mealAt(date: Date): MealKey {
   const minutes = date.getHours() * 60 + date.getMinutes()
-  if (minutes < 10 * 60 + 30) return 'breakfast'
+  if (minutes < 9 * 60 + 30) return 'breakfast'
+  if (minutes < 11 * 60 + 30) return 'morningSnack'
   if (minutes < 15 * 60) return 'lunch'
   if (minutes < 18 * 60 + 30) return 'snack'
   if (minutes < 22 * 60) return 'dinner'
