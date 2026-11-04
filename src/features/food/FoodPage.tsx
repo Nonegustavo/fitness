@@ -1,4 +1,4 @@
-import { Bookmark, ChevronRight, Dumbbell, Flame, Plus, Repeat, Target, Trash2, Utensils } from 'lucide-react'
+import { Bookmark, ChevronRight, Copy, Dumbbell, Flame, Pencil, Plus, Repeat, Target, Trash2, Utensils, Zap } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { DailyBars } from '../../components/DailyBars'
@@ -8,15 +8,16 @@ import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete
 import { useToast } from '../../components/Toast'
 import { Button, Card, DecimalInput, Field, Page, Select, TextInput } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
-import { save } from '../../db/repo'
+import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { FoodLog, MacroGoals, MealKey, Nutrients } from '../../db/types'
+import type { FoodLog, MacroGoals, MealKey, Nutrients, QuickAmount } from '../../db/types'
 import { dayRange, formatDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { useDailyHealth } from '../garmin/recovery'
+import { logFood, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
 import { GoalsModal } from './GoalsModal'
 import { useExpenditure } from './useExpenditure'
-import { amountLabel, goalsFor, OPTIONAL_NUTRIENTS, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
+import { amountLabel, goalsFor, mealAt, multiply, OPTIONAL_NUTRIENTS, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
 import { MacroBalance, MacroGrams, MacroLine, OtherNutrients, SplitBar } from './MacroViews'
 import { NutritionSummary } from './NutritionSummary'
 import { PhotoThumb } from './PhotoThumb'
@@ -25,6 +26,7 @@ const kcal = (value: number) => `${formatNumber(value, 0)} kcal`
 
 export default function FoodPage() {
   const today = useToday()
+  const toast = useToast()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const date = params.get('data') ?? today
@@ -37,6 +39,10 @@ export default function FoodPage() {
   const yesterday = (logs ?? []).filter((log) => log.date !== date)
   const totals = sumNutrients(dayLogs.map((log) => log.nutrients))
   const goals = goalsFor(settings, trainingDay)
+  async function copyDay() {
+    for (const { key } of MEALS) await logItems(dayLogs.filter((log) => log.meal === key), key, today)
+    toast({ message: `${dayLogs.length} ${dayLogs.length === 1 ? 'item copiado' : 'itens copiados'} para hoje` })
+  }
   const setDate = (next: DayKey) => setParams(next === today ? {} : { data: next }, { replace: true })
 
   return (
@@ -64,7 +70,14 @@ export default function FoodPage() {
           </div>
         )}
         <EnergyLine date={date} today={today} />
+        {date !== today && dayLogs.length > 0 && (
+          <Button size="sm" variant="ghost" className="mt-2" onClick={() => void copyDay()}>
+            <Copy size={16} /> Copiar o dia todo para hoje
+          </Button>
+        )}
       </Card>
+
+      <QuickBar date={date} />
 
       {MEALS.map(({ key }) => (
         <MealCard
@@ -84,6 +97,43 @@ export default function FoodPage() {
 
       {goalsOpen && <GoalsModal onClose={() => setGoalsOpen(false)} />}
     </Page>
+  )
+}
+
+/** The 1-tap shortcuts: each logs its food and amount in the meal of this time of day. */
+function QuickBar({ date }: { date: DayKey }) {
+  const toast = useToast()
+  const prefs = useFoodPrefs()
+  const catalog = useFoodCatalog()
+  const quick = useMemo(() => {
+    const byId = new Map(catalog.map((item) => [item.id, item]))
+    return [...prefs.values()]
+      .flatMap((pref) => {
+        const item = pref.quick && byId.get(pref.id)
+        return item && pref.quick ? [{ item, quick: pref.quick }] : []
+      })
+      .sort((a, b) => a.item.name.localeCompare(b.item.name, 'pt-BR'))
+  }, [prefs, catalog])
+  if (quick.length === 0) return null
+
+  async function add(item: FoodItem, quick: QuickAmount) {
+    const log = await logFood(item, quick.grams, mealAt(new Date()), date, undefined, quick.portion)
+    toast({
+      message: `${item.name} · ${MEAL_LABEL[log.meal]}`,
+      action: { label: 'Desfazer', onClick: () => void remove(db.foodLogs, log.id) },
+    })
+  }
+
+  return (
+    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:px-0" aria-label="Atalhos de 1 toque">
+      {quick.map(({ item, quick }) => (
+        <Button key={item.id} size="sm" className="shrink-0" onClick={() => void add(item, quick)}>
+          <Zap size={14} className="text-accent-ink" aria-hidden />
+          <span className="max-w-40 truncate">{item.name.split(',')[0]}</span>
+          <span className="text-muted">{amountLabel(quick.grams, item.unit, quick.portion).split(' · ')[0]}</span>
+        </Button>
+      ))}
+    </div>
   )
 }
 
@@ -128,12 +178,18 @@ function MealCard({
   onAdd: () => void
 }) {
   const toast = useToast()
+  const today = useToday()
   const removeWithUndo = useRemoveWithUndo()
   const [editing, setEditing] = useState<FoodLog | null>(null)
   const [saving, setSaving] = useState(false)
   const [viewing, setViewing] = useState(false)
   const total = sumNutrients(entries.map((entry) => entry.nutrients))
   const photoIds = [...new Set(entries.flatMap((entry) => (entry.photoId ? [entry.photoId] : [])))]
+
+  async function copyToToday() {
+    await logItems(entries, meal, today)
+    toast({ message: `${MEAL_LABEL[meal]} copiado para hoje` })
+  }
 
   async function repeatYesterday() {
     await logItems(yesterday, meal, date)
@@ -195,9 +251,16 @@ function MealCard({
               </SwipeToDelete>
             ))}
           </ul>
-          <Button size="sm" variant="ghost" className="mt-1" onClick={() => setSaving(true)}>
-            <Bookmark size={16} /> Salvar como refeição
-          </Button>
+          <div className="mt-1 flex flex-wrap gap-1">
+            <Button size="sm" variant="ghost" onClick={() => setSaving(true)}>
+              <Bookmark size={16} /> Salvar como refeição
+            </Button>
+            {date !== today && (
+              <Button size="sm" variant="ghost" onClick={() => void copyToToday()}>
+                <Copy size={16} /> Copiar para hoje
+              </Button>
+            )}
+          </div>
         </>
       )}
       {editing && <EntryModal entry={editing} goals={goals} onClose={() => setEditing(null)} />}
@@ -232,7 +295,23 @@ function MealModal({
   onClose: () => void
   onEdit: (entry: FoodLog) => void
 }) {
-  const total = sumNutrients(entries.map((entry) => entry.nutrients))
+  const [amounts, setAmounts] = useState<Record<string, string> | null>(null)
+  // While editing, the totals follow the amounts as they're typed.
+  const shown = entries.map((entry) => {
+    const grams = amounts ? gramsFromText(entry, amounts[entry.id]) : undefined
+    return grams && grams !== entry.grams ? rescaled(entry, grams) : entry
+  })
+  const total = sumNutrients(shown.map((entry) => entry.nutrients))
+  const valid = !amounts || entries.every((entry) => (gramsFromText(entry, amounts[entry.id]) ?? 0) > 0)
+
+  async function saveAll() {
+    if (!amounts || !valid) return
+    for (const [i, entry] of entries.entries()) {
+      if (shown[i] !== entry) await save(db.foodLogs, shown[i])
+    }
+    setAmounts(null)
+  }
+
   return (
     <Modal open title={`${MEAL_LABEL[meal]} · ${kcal(total.kcal)}`} onClose={onClose}>
       <div className="space-y-4">
@@ -240,26 +319,82 @@ function MealModal({
         <MacroGrams nutrients={total} goals={goals} />
         <OtherNutrients nutrients={total} />
         <ul className="divide-y divide-line">
-          {entries.map((entry) => (
+          {shown.map((entry, i) => (
             <li key={entry.id}>
-              <button type="button" onClick={() => onEdit(entry)} className="w-full py-2 text-left">
-                <div className="flex items-center gap-3">
-                  <p className="min-w-0 flex-1 truncate text-sm">{entry.name}</p>
-                  <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
+              {amounts ? (
+                <div className="flex items-center gap-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm">{entry.name}</p>
+                    <p className="text-xs text-muted tabular-nums">
+                      {kcal(entry.nutrients.kcal)} · {amountUnit(entries[i])}
+                    </p>
+                  </div>
+                  <div className="w-24 shrink-0">
+                    <DecimalInput
+                      aria-label={`Quantidade de ${entry.name}`}
+                      className="text-right"
+                      value={amounts[entry.id]}
+                      onChange={(e) => setAmounts({ ...amounts, [entry.id]: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <p className="flex flex-wrap gap-x-2 text-xs text-muted">
-                  <span>{amountLabel(entry.grams, entry.unit, entry.portion)}</span>
-                  <MacroLine nutrients={entry.nutrients} />
-                </p>
-                <SplitBar nutrients={entry.nutrients} className="mt-1.5 h-1" />
-              </button>
+              ) : (
+                <button type="button" onClick={() => onEdit(entries[i])} className="w-full py-2 text-left">
+                  <div className="flex items-center gap-3">
+                    <p className="min-w-0 flex-1 truncate text-sm">{entry.name}</p>
+                    <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
+                  </div>
+                  <p className="flex flex-wrap gap-x-2 text-xs text-muted">
+                    <span>{amountLabel(entry.grams, entry.unit, entry.portion)}</span>
+                    <MacroLine nutrients={entry.nutrients} />
+                  </p>
+                  <SplitBar nutrients={entry.nutrients} className="mt-1.5 h-1" />
+                </button>
+              )}
             </li>
           ))}
         </ul>
+        {amounts ? (
+          <div className="flex gap-2">
+            <Button onClick={() => setAmounts(null)}>Cancelar</Button>
+            <Button variant="primary" className="flex-1" disabled={!valid} onClick={() => void saveAll()}>
+              Salvar quantidades
+            </Button>
+          </div>
+        ) : (
+          <Button
+            className="w-full"
+            onClick={() => setAmounts(Object.fromEntries(entries.map((entry) => [entry.id, amountText(entry)])))}
+          >
+            <Pencil size={16} /> Editar quantidades
+          </Button>
+        )}
       </div>
     </Modal>
   )
 }
+
+/** The portion an entry is counted by, when it was logged by one. */
+const countedBy = (entry: FoodLog) =>
+  entry.unit !== 'portion' && entry.portion && entry.portion.grams > 0 ? entry.portion : undefined
+
+/** What the amount field holds: grams, portions, or a count of the logged portion. */
+const amountUnit = (entry: FoodLog) =>
+  entry.unit === 'portion' ? 'porções' : countedBy(entry) ? `× ${countedBy(entry)!.label}` : 'g'
+
+const amountText = (entry: FoodLog) => asText(entry.grams / (countedBy(entry)?.grams ?? 1))
+
+function gramsFromText(entry: FoodLog, text: string | undefined): number | undefined {
+  const value = text === undefined ? undefined : parseDecimal(text)
+  return value === undefined ? undefined : value * (countedBy(entry)?.grams ?? 1)
+}
+
+/** The entry in another amount, every value scaled with it. */
+const rescaled = (entry: FoodLog, grams: number): FoodLog => ({
+  ...entry,
+  grams,
+  nutrients: multiply(entry.nutrients, grams / entry.grams),
+})
 
 const VALUE_FIELDS = [
   { key: 'kcal', label: 'Calorias (kcal)' },
@@ -278,6 +413,8 @@ const asText = (value: number) => String(Math.round(value * 10) / 10).replace('.
  */
 function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGoals; onClose: () => void }) {
   const removeWithUndo = useRemoveWithUndo()
+  const toast = useToast()
+  const today = useToday()
   const [name, setName] = useState(entry.name)
   // Logged by a portion: the amount is typed as a count of it.
   const portion = entry.unit !== 'portion' && entry.portion && entry.portion.grams > 0 ? entry.portion : undefined
@@ -393,6 +530,16 @@ function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGo
             }}
           >
             <Trash2 size={16} /> Remover
+          </Button>
+          <Button
+            title={entry.date === today ? 'Adicionar de novo' : 'Adicionar hoje, na mesma refeição'}
+            onClick={async () => {
+              await logItems([entry], entry.meal, today)
+              toast({ message: entry.date === today ? `${entry.name} duplicado` : `${entry.name} copiado para hoje` })
+              onClose()
+            }}
+          >
+            <Copy size={16} /> {entry.date === today ? 'Duplicar' : 'Hoje'}
           </Button>
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>
             Salvar

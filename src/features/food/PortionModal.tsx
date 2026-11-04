@@ -1,13 +1,13 @@
-import { Pencil, Star } from 'lucide-react'
+import { Pencil, Star, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { Modal } from '../../components/Modal'
-import { Button, cx, DecimalInput, Field, Segmented, Select } from '../../components/ui'
+import { Button, cx, DecimalInput, Field, Segmented, Select, Switch } from '../../components/ui'
 import { db } from '../../db/schema'
-import type { Food, FoodLog, MealKey } from '../../db/types'
+import type { Food, FoodLog, MealKey, QuickAmount } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { FoodForm } from './FoodForm'
-import { fromCustom, logFood, toggleFavorite, type FoodItem } from './foods'
+import { fromCustom, logFood, setQuick, toggleFavorite, type FoodItem } from './foods'
 import { MacroBalance, MacroGrams, MacroLine, OtherNutrients } from './MacroViews'
 import { amountLabel, MEALS, nutrientsFor, portionCount, useDayGoals } from './nutrition'
 import { RecipeForm } from './RecipeForm'
@@ -31,6 +31,7 @@ export function PortionModal({
   date,
   lastGrams,
   favorite,
+  quick,
   onClose,
   onLogged,
   onEdited,
@@ -40,6 +41,8 @@ export function PortionModal({
   date: DayKey
   lastGrams?: number
   favorite: boolean
+  /** The 1-tap shortcut's amount, when the food is one. */
+  quick?: QuickAmount
   onClose: () => void
   onLogged: (log: FoodLog) => void
   /** The food as saved after an edit (or the user's new version of a TACO food). */
@@ -165,6 +168,28 @@ export function PortionModal({
           </Select>
         </Field>
       </div>
+
+      <label className="mt-4 flex items-center justify-between gap-3 text-sm">
+        <span className="flex items-center gap-2">
+          <Zap size={16} className="text-accent-ink" aria-hidden />
+          <span>
+            Atalho de 1 toque
+            <span className="block text-xs text-muted">
+              {quick
+                ? `Na tela de alimentação, com ${amountLabel(quick.grams, item.unit, quick.portion)}`
+                : 'Para suplementos e o que se repete todo dia, com esta quantidade'}
+            </span>
+          </span>
+        </span>
+        <Switch
+          label="Atalho de 1 toque"
+          checked={!!quick}
+          disabled={!quick && !valid}
+          onChange={(on) =>
+            void setQuick(item.id, on && valid ? { grams, portion: byPortion ? portion : undefined } : undefined)
+          }
+        />
+      </label>
 
       <div className="mt-4 flex gap-2">
         <Button onClick={() => void editFood()} title={item.source === 'taco' ? 'Criar sua versão deste alimento' : undefined}>

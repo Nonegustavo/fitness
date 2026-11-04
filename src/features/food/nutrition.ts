@@ -68,7 +68,7 @@ export function amountLabel(amount: number, unit?: FoodUnit, portion?: Portion):
 
 /** Adds up; an optional nutrient is summed over the items that have it, and stays undefined when none do. */
 export function sumNutrients(list: Nutrients[]): Nutrients {
-  const total: Nutrients = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
+  const total: Nutrients = { kcal: 0, protein: 0, carbs: 0, fat: 0 }
   for (const n of list) {
     total.kcal += n.kcal
     total.protein += n.protein

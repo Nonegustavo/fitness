@@ -63,6 +63,10 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Meta de peso com ritmo planejado, ritmo atual, previsão de chegada e linha da meta no gráfico
 - [x] Calorias do Garmin (total e ativas) na tela de alimentação
 - [x] Fibras, açúcares, gorduras saturadas e sódio: no cadastro, no Open Food Facts e no total do dia contra as referências (OMS)
+- [x] Recentes pela refeição: o que costuma ser comido naquela refeição aparece primeiro
+- [x] Atalhos de 1 toque (suplementos, o café de todo dia) com a quantidade fixa, na tela de alimentação
+- [x] Copiar um item, uma refeição ou o dia inteiro para hoje; duplicar um item
+- [x] Editar as quantidades de todos os itens de uma refeição de uma vez
 
 Itens que a TACO não analisou (como o leite fluido) ficam de fora da tabela; dá para cadastrá-los pelo código de barras.
 

@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo } from 'react'
 import { alive, save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { Food, FoodLog, FoodPref, FoodUnit, MealKey, Nutrients, Portion } from '../../db/types'
+import type { Food, FoodLog, FoodPref, FoodUnit, MealKey, Nutrients, Portion, QuickAmount } from '../../db/types'
 import { dayTime, formatTime, type DayKey } from '../../lib/dates'
 import { nutrientsFor } from './nutrition'
 import tacoData from './taco.json'
@@ -139,17 +139,48 @@ export async function logFood(
     nutrients: nutrientsFor(item.per100, grams, item.unit),
     photoId,
   })
-  const pref = await db.foodPrefs.get(item.id)
-  await save(db.foodPrefs, { id: item.id, favorite: pref?.favorite ?? 0, lastGrams: grams, lastUsedAt: now })
+  await updatePref(item.id, { lastGrams: grams, lastUsedAt: now })
   return log
+}
+
+/** Changes some of a food's preferences, keeping the rest. */
+async function updatePref(foodId: string, change: Partial<Omit<FoodPref, 'id'>>): Promise<void> {
+  const pref = await db.foodPrefs.get(foodId)
+  const current = pref && !pref.deleted ? pref : undefined
+  await save(db.foodPrefs, {
+    id: foodId,
+    favorite: current?.favorite ?? 0,
+    lastGrams: current?.lastGrams,
+    lastUsedAt: current?.lastUsedAt,
+    quick: current?.quick,
+    ...change,
+  })
 }
 
 export async function toggleFavorite(foodId: string): Promise<void> {
   const pref = await db.foodPrefs.get(foodId)
-  await save(db.foodPrefs, {
-    id: foodId,
-    favorite: pref?.favorite ? 0 : 1,
-    lastGrams: pref?.lastGrams,
-    lastUsedAt: pref?.lastUsedAt,
-  })
+  await updatePref(foodId, { favorite: pref?.favorite && !pref.deleted ? 0 : 1 })
+}
+
+/** Makes a food a 1-tap shortcut with this amount, or removes the shortcut. */
+export const setQuick = (foodId: string, quick: QuickAmount | undefined): Promise<void> => updatePref(foodId, { quick })
+
+/**
+ * Foods for a meal: the ones eaten most often in that meal lately first (breakfast foods in the
+ * morning), then the rest of the recent ones.
+ */
+export function recentForMeal(
+  logs: Pick<FoodLog, 'foodId' | 'meal' | 'time'>[],
+  meal: MealKey,
+  byRecency: string[],
+): string[] {
+  const counts = new Map<string, { n: number; last: number }>()
+  for (const log of logs) {
+    if (log.meal !== meal) continue
+    const c = counts.get(log.foodId) ?? { n: 0, last: 0 }
+    counts.set(log.foodId, { n: c.n + 1, last: Math.max(c.last, log.time) })
+  }
+  const inMeal = [...counts.entries()].sort((a, b) => b[1].n - a[1].n || b[1].last - a[1].last).map(([id]) => id)
+  const seen = new Set(inMeal)
+  return [...inMeal, ...byRecency.filter((id) => !seen.has(id))]
 }

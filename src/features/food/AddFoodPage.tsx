@@ -9,12 +9,13 @@ import { useToday } from '../../db/hooks'
 import { remove } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { FoodLog, FoodPref, MealKey, SavedMeal } from '../../db/types'
+import { shiftDay } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import { useSyncState } from '../../sync/controller'
 import { BarcodeScanner } from './BarcodeScanner'
 import { FoodForm, type FoodDraft } from './FoodForm'
-import { buildIndex, fromCustom, searchFoods, TACO_SOURCE, useFoodCatalog, useFoodPrefs, weighed, type FoodItem } from './foods'
-import { logItems, MEAL_LABEL, mealAt, MEALS, sumNutrients, useSavedMeals } from './nutrition'
+import { buildIndex, fromCustom, recentForMeal, searchFoods, TACO_SOURCE, useFoodCatalog, useFoodPrefs, weighed, type FoodItem } from './foods'
+import { logItems, MEAL_LABEL, mealAt, MEALS, sumNutrients, useFoodLogs, useSavedMeals } from './nutrition'
 import { fetchProduct } from './openFoodFacts'
 import type { MealSource } from './photo'
 import { PhotoReview } from './PhotoReview'
@@ -51,6 +52,7 @@ export default function AddFoodPage() {
   const catalog = useFoodCatalog()
   const prefs = useFoodPrefs()
   const savedMeals = useSavedMeals()
+  const lastMonth = useFoodLogs(shiftDay(today, -30), today)
   const index = useMemo(() => buildIndex(catalog), [catalog])
   // The plate analysis estimates grams, so it only matches foods that have a weight.
   const weighedIndex = useMemo(() => buildIndex(weighed(catalog)), [catalog])
@@ -62,7 +64,11 @@ export default function AddFoodPage() {
       .filter(keep)
       .sort(order)
       .flatMap((pref) => byId.get(pref.id) ?? [])
-  const recent = fromPrefs((p) => !!p.lastUsedAt, (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0)).slice(0, 30)
+  const byRecency = fromPrefs((p) => !!p.lastUsedAt, (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0)).map((item) => item.id)
+  // What's usually eaten in this meal comes first: bread in the morning, rice at lunch.
+  const recent = recentForMeal(lastMonth ?? [], meal, byRecency)
+    .flatMap((id) => byId.get(id) ?? [])
+    .slice(0, 30)
   const favorites = fromPrefs((p) => p.favorite === 1, (a, b) => (byId.get(a.id)?.name ?? '').localeCompare(byId.get(b.id)?.name ?? ''))
   const recipes = catalog.filter((item) => item.source === 'recipe').sort((a, b) => a.name.localeCompare(b.name))
 
@@ -179,7 +185,14 @@ export default function AddFoodPage() {
             ]}
           />
           <div className="mt-3">
-            {tab === 'recent' && list(recent, 'Os alimentos que você registrar aparecem aqui.')}
+            {tab === 'recent' && (
+              <>
+                {recent.length > 0 && (
+                  <p className="mb-1 text-xs text-muted">Os mais comuns no {MEAL_LABEL[meal].toLowerCase()} primeiro.</p>
+                )}
+                {list(recent, 'Os alimentos que você registrar aparecem aqui.')}
+              </>
+            )}
             {tab === 'favorites' && list(favorites, 'Toque na estrela de um alimento para favoritá-lo.')}
             {tab === 'meals' && (
               <>
@@ -236,6 +249,7 @@ export default function AddFoodPage() {
           date={date}
           lastGrams={prefs.get(selected.id)?.lastGrams}
           favorite={prefs.get(selected.id)?.favorite === 1}
+          quick={prefs.get(selected.id)?.quick}
           onClose={() => setSelected(null)}
           onLogged={onLogged}
           onEdited={setSelected}

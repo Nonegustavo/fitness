@@ -239,6 +239,15 @@ export interface FoodPref extends Synced {
   favorite: 0 | 1
   lastGrams?: number
   lastUsedAt?: number
+  /** A 1-tap shortcut on the food screen (supplements, the daily coffee), with its amount. */
+  quick?: QuickAmount
+}
+
+export interface QuickAmount {
+  /** Grams, or portions for a food measured in portions. */
+  grams: number
+  /** Counted by the food's portion. */
+  portion?: Portion
 }
 
 export interface SavedMealItem {

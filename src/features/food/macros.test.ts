@@ -45,3 +45,16 @@ describe('portions', () => {
     expect(amountLabel(150)).toBe('150 g')
   })
 })
+
+describe('recentForMeal', () => {
+  it('puts what is usually eaten in the meal first, then the other recents', async () => {
+    const { recentForMeal } = await import('./foods')
+    const logs = [
+      { foodId: 'bread', meal: 'breakfast' as const, time: 1 },
+      { foodId: 'bread', meal: 'breakfast' as const, time: 2 },
+      { foodId: 'coffee', meal: 'breakfast' as const, time: 3 },
+      { foodId: 'rice', meal: 'lunch' as const, time: 4 },
+    ]
+    expect(recentForMeal(logs, 'breakfast', ['rice', 'coffee', 'bread'])).toEqual(['bread', 'coffee', 'rice'])
+  })
+})
