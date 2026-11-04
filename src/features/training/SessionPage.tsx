@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { celebrate } from '../../components/celebrate'
 import { Confirm } from '../../components/Modal'
-import { Button, Card, cx, DecimalInput, Empty, IconButton, Page, Stat, TextInput } from '../../components/ui'
+import { Button, Card, cx, DecimalInput, Empty, IconButton, Page, SkeletonCard, Stat, TextInput } from '../../components/ui'
 import { db } from '../../db/schema'
 import type { Exercise, ExerciseType, PerformedSet, SessionExercise, WorkoutSession } from '../../db/types'
 import { formatDay } from '../../lib/dates'
@@ -59,7 +59,14 @@ export default function SessionPage() {
   )
 
   const back = { to: '/treinos', label: 'Treinos' }
-  if (session === undefined) return null
+  if (session === undefined) {
+    return (
+      <Page title="Treino" back={back}>
+        <SkeletonCard lines={2} />
+        <SkeletonCard lines={5} />
+      </Page>
+    )
+  }
   if (session === null || session.deleted) {
     return (
       <Page title="Treino" back={back}>

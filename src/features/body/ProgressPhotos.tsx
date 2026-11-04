@@ -3,7 +3,7 @@ import { Camera, ImageIcon, Trash2 } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
-import { Button, Card, cx, Empty, Field, Segmented, Select } from '../../components/ui'
+import { Button, Card, cx, Empty, Field, Segmented, Select, SkeletonCard } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { alive, remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -56,7 +56,7 @@ export function ProgressPhotos() {
     toast({ message: `Foto de ${POSE_LABEL[pose].toLowerCase()} guardada` })
   }
 
-  if (!photos) return null
+  if (!photos) return <SkeletonCard lines={3} />
   return (
     <>
       <Card>

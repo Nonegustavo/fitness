@@ -1,7 +1,7 @@
 import { startOfWeek } from 'date-fns'
 import { CalendarRange } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
-import { Card } from '../../components/ui'
+import { Card, SkeletonCard } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { dayKey, formatDay, parseDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber, formatSigned } from '../../lib/format'
@@ -48,7 +48,7 @@ export function WeeklyCard({ today }: { today: DayKey }) {
     // The week bounds derive from `today`.
   }, [foodLogs, sessions, activities, health, weights, water, habits, habitLogs, settings, trainingDays, today])
 
-  if (!stats) return null
+  if (!stats) return <SkeletonCard lines={4} />
   const rows = rowsOf(stats.last, stats.before)
   return (
     <Card

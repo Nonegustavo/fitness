@@ -27,7 +27,7 @@ export function Page({
   children: ReactNode
 }) {
   return (
-    <div className="mx-auto w-full max-w-3xl animate-enter px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-28 lg:px-8 lg:pt-8 lg:pb-12">
+    <div className="mx-auto w-full max-w-3xl animate-enter px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-36 lg:px-8 lg:pt-8 lg:pb-12">
       {back && (
         <Link to={back.to} className="mb-1 inline-flex items-center gap-0.5 text-sm text-ink-2 hover:text-ink">
           <ChevronLeft size={16} />
@@ -268,6 +268,36 @@ export function Stat({ label, value, note }: { label: string; value: ReactNode; 
       <p className="text-xs text-ink-2">{label}</p>
       <p className="text-xl font-semibold">{value}</p>
       {note && <p className="truncate text-xs text-muted">{note}</p>}
+    </div>
+  )
+}
+
+/** A gray shape where content is still loading, so the screen neither flashes empty nor jumps. */
+export function Skeleton({ className }: { className?: string }) {
+  return <div aria-hidden className={cx('animate-pulse rounded-lg bg-surface-2', className)} />
+}
+
+/** A card-sized placeholder: a title line and a few lines of content. */
+export function SkeletonCard({ lines = 3, className }: { lines?: number; className?: string }) {
+  return (
+    <section aria-busy="true" aria-label="Carregando" className={cx('rounded-2xl border border-line bg-surface p-4', className)}>
+      <Skeleton className="mb-4 h-4 w-1/3" />
+      <div className="space-y-3">
+        {Array.from({ length: lines }, (_, i) => (
+          <Skeleton key={i} className={cx('h-4', i % 3 === 2 ? 'w-2/3' : 'w-full')} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** Lines of placeholder inside a card that is already showing (its title loaded). */
+export function SkeletonLines({ lines = 3 }: { lines?: number }) {
+  return (
+    <div aria-busy="true" aria-label="Carregando" className="space-y-3">
+      {Array.from({ length: lines }, (_, i) => (
+        <Skeleton key={i} className={cx('h-4', i % 3 === 2 ? 'w-2/3' : 'w-full')} />
+      ))}
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { DailyBars } from '../../components/DailyBars'
 import { LineOverTime } from '../../components/TimeCharts'
-import { Card, cx, Empty, Page, Stat } from '../../components/ui'
+import { Card, cx, Empty, Page, SkeletonCard, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import type { DailyHealth } from '../../db/types'
 import { dayRange, formatTime, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
@@ -17,7 +17,14 @@ export default function SleepPage() {
   const today = useToday()
   const from = shiftDay(today, -(TREND_DAYS - 1))
   const days = useDailyHealth(from, today)
-  if (!days) return null
+  if (!days) {
+    return (
+      <Page title="Sono e recuperação" icon={Moon} tone="sleep">
+        <SkeletonCard lines={4} />
+        <SkeletonCard lines={5} />
+      </Page>
+    )
+  }
   const latest = latestNight(days)
 
   return (

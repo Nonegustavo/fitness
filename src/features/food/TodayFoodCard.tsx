@@ -1,6 +1,6 @@
 import { Plus, Utensils } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
-import { Button, Card } from '../../components/ui'
+import { Button, Card, SkeletonLines } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import type { DayKey } from '../../lib/dates'
 import { goalsFor, mealAt, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
@@ -24,7 +24,7 @@ export function TodayFoodCard({ today }: { today: DayKey }) {
         </Link>
       }
     >
-      <NutritionSummary totals={totals} goals={goalsFor(settings, trainingDay)} />
+      {logs ? <NutritionSummary totals={totals} goals={goalsFor(settings, trainingDay)} /> : <SkeletonLines lines={5} />}
       <Button
         variant="primary"
         className="mt-3 w-full"

@@ -2,7 +2,7 @@ import { ChevronRight, Plus, Scale } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
-import { Button, Card, Empty, Page, Segmented, Select, Stat } from '../../components/ui'
+import { Button, Card, Empty, Page, Segmented, Select, SkeletonCard, Stat } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import { db } from '../../db/schema'
 import type { MeasurementEntry, WeightEntry } from '../../db/types'
@@ -106,7 +106,7 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
   const weightInRange = useMemo(() => sliceSeries(weight, from), [weight, from])
   const fatInRange = useMemo(() => sliceSeries(fat, from), [fat, from])
 
-  if (!weights) return null
+  if (!weights) return <SkeletonCard lines={4} />
   if (weights.length === 0) {
     return (
       <Card>
@@ -248,7 +248,7 @@ function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'n
     [measurements, selected],
   )
 
-  if (!measurements) return null
+  if (!measurements) return <SkeletonCard lines={4} />
   if (measurements.length === 0) {
     return (
       <Card>

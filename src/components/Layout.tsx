@@ -16,6 +16,7 @@ import { Suspense } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { SyncStatus } from '../features/settings/SyncStatus'
 import { RestTimerBar } from '../features/training/RestTimerBar'
+import { QuickLogButton } from './QuickLog'
 import { toneColor, toneStyle, type Tone } from './tone'
 import { cx } from './ui'
 
@@ -52,6 +53,7 @@ export function Layout() {
           <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" className="size-7" />
           Fitness
         </div>
+        <QuickLogButton variant="sidebar" />
         <nav className="space-y-1">
           {SECTIONS.map(({ to, label, icon: Icon, tone }) => (
             <NavLink
@@ -83,6 +85,7 @@ export function Layout() {
       </main>
 
       <RestTimerBar />
+      <QuickLogButton variant="floating" />
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5">

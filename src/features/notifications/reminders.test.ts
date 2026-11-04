@@ -73,3 +73,37 @@ describe('describeReminder', () => {
     expect(describeReminder({ time: '18:00', days: [4, 2] })).toBe('Ter, qui às 18:00')
   })
 })
+
+describe('plannedSmartReminders', () => {
+  // Tuesday, 07:00.
+  const morning = new Date(2026, 10, 3, 7, 0)
+  const settings = { weighIn: '08:30', lunch: '14:00', dinner: '21:30', water: true }
+  const empty = new Map()
+
+  it('only reminds of what is missing that day', async () => {
+    const { plannedSmartReminders } = await import('./reminders')
+    const status = new Map([['2026-11-03', { weighed: true, meals: new Set(['lunch' as const]), waterMl: 0 }]])
+    const today = plannedSmartReminders(settings, status, 3000, morning).filter((r) => r.date === '2026-11-03')
+    expect(today.map((r) => `${r.kind} ${r.at.getHours()}`)).toEqual(['dinner 21', 'water 11', 'water 15', 'water 19'])
+  })
+
+  it('checks water against the pace of the day, with a glass of room', async () => {
+    const { plannedSmartReminders, waterExpectedBy } = await import('./reminders')
+    expect(waterExpectedBy(11, 3000)).toBe(800)
+    const status = new Map([['2026-11-03', { weighed: false, meals: new Set<never>(), waterMl: 1400 }]])
+    const water = plannedSmartReminders({ water: true }, status, 3000, morning).filter((r) => r.date === '2026-11-03')
+    // 11h expects 800 ml and 15h 1600 ml (1400 is within a glass); only 19h (2400 ml) is still behind.
+    expect(water.map((r) => r.at.getHours())).toEqual([19])
+    expect(water[0].body).toContain('1,4 L de 3 L')
+  })
+
+  it('skips times already past, covers the next days, and does nothing when off', async () => {
+    const { plannedSmartReminders, SMART_DAYS } = await import('./reminders')
+    const noon = new Date(2026, 10, 3, 12, 0)
+    const weighIns = plannedSmartReminders({ weighIn: '08:30' }, empty, 3000, noon)
+    expect(weighIns[0].date).toBe('2026-11-04')
+    expect(weighIns).toHaveLength(SMART_DAYS - 1)
+    expect(weighIns[0].route).toBe('/corpo?novo=peso')
+    expect(plannedSmartReminders(undefined, empty, 3000, noon)).toEqual([])
+  })
+})

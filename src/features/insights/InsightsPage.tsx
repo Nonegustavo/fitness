@@ -2,7 +2,7 @@ import { ArrowDown, ChartScatter } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { LineOverTime } from '../../components/TimeCharts'
-import { Card, Empty, Field, Page, Segmented, Select } from '../../components/ui'
+import { Card, Empty, Field, Page, Segmented, Select, SkeletonCard } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { shiftDay } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
@@ -50,7 +50,13 @@ export default function InsightsPage() {
   const [pick, setPick] = useState<{ x: string; y: string }>()
   const explorer = useRef<HTMLDivElement>(null)
 
-  if (!data || !found) return null
+  if (!data || !found) {
+    return (
+      <Page title="Correlações" icon={ChartScatter} tone="insights">
+        <SkeletonCard lines={5} />
+      </Page>
+    )
+  }
   const metrics = availableMetrics(data)
   const byKey = new Map(metrics.map((metric) => [metric.key, metric]))
   const start =

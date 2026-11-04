@@ -1,13 +1,13 @@
 import { LocalNotifications, type ActionPerformed } from '@capacitor/local-notifications'
 import { liveQuery } from 'dexie'
 import { alive } from '../../db/repo'
-import { db } from '../../db/schema'
+import { db, SETTINGS_ID } from '../../db/schema'
 import type { Habit, HabitLog } from '../../db/types'
 import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
 import { setHabitValue } from '../habits/habits'
 import { isAndroidApp } from '../healthconnect/plugin'
 import { getRestTimer, subscribeRestTimer, type RestTimer } from '../training/restTimer'
-import { HORIZON_DAYS, plannedReminders } from './reminders'
+import { HORIZON_DAYS, plannedReminders, plannedSmartReminders, SMART_DAYS, type DayStatus, type SmartReminder } from './reminders'
 
 const REST_ID = 1001
 
@@ -15,6 +15,13 @@ interface HabitExtra {
   kind: 'habit'
   habitId: string
   date: DayKey
+}
+
+interface SmartExtra {
+  kind: 'smart'
+  reminder: SmartReminder['kind']
+  date: DayKey
+  route: string
 }
 
 /** Habit reminders and the end of the rest timer as Android notifications. Does nothing elsewhere. */
@@ -46,10 +53,83 @@ async function setUp() {
     importance: 5,
     vibration: true,
   })
+  await LocalNotifications.createChannel({
+    id: 'inteligentes',
+    name: 'Lembretes do dia',
+    description: 'Pesagem, refeições e água, só quando falta registrar',
+    importance: 4,
+    vibration: true,
+  })
   await LocalNotifications.registerActionTypes({ types: [{ id: 'habit', actions: [{ id: 'done', title: 'Feito' }] }] })
   await LocalNotifications.addListener('localNotificationActionPerformed', (action) => void onAction(action))
   watchReminders()
+  watchSmartReminders()
   watchRest()
+}
+
+/** The smart reminders follow the day's logs: weighing in, logging lunch or drinking takes them away. */
+function watchSmartReminders() {
+  let pending: ReturnType<typeof setTimeout> | undefined
+  liveQuery(async () => {
+    const today = dayKey()
+    const last = shiftDay(today, SMART_DAYS)
+    const [settings, weights, foodLogs, waterLogs] = await Promise.all([
+      db.settings.get(SETTINGS_ID),
+      db.weights.where('date').between(today, last, true, true).toArray(),
+      db.foodLogs.where('date').between(today, last, true, true).toArray(),
+      db.waterLogs.where('date').between(today, last, true, true).toArray(),
+    ])
+    const status = new Map<DayKey, DayStatus>()
+    const dayOf = (date: DayKey) => {
+      const day = status.get(date) ?? { weighed: false, meals: new Set(), waterMl: 0 }
+      status.set(date, day)
+      return day
+    }
+    for (const weight of alive(weights)) dayOf(weight.date).weighed = true
+    for (const log of alive(foodLogs)) dayOf(log.date).meals.add(log.meal)
+    for (const log of alive(waterLogs)) dayOf(log.date).waterMl += log.ml
+    return { smart: settings?.smartReminders, goal: settings?.waterGoalMl ?? 0, status }
+  }).subscribe({
+    next: ({ smart, goal, status }) => {
+      clearTimeout(pending)
+      pending = setTimeout(() => {
+        const planned = plannedSmartReminders(smart, status, goal, new Date())
+        void rescheduleSmart(planned, status).catch((error: unknown) => console.warn(error))
+      }, 1000)
+    },
+  })
+}
+
+async function rescheduleSmart(planned: SmartReminder[], status: Map<DayKey, DayStatus>) {
+  if (!(await allowed())) return
+  const { notifications: scheduled } = await LocalNotifications.getPending()
+  const old = scheduled.filter((notification) => (notification.extra as SmartExtra | undefined)?.kind === 'smart')
+  if (old.length > 0) await LocalNotifications.cancel({ notifications: old.map(({ id }) => ({ id })) })
+
+  // One already showing goes away once it's been taken care of (weighed in, meal logged).
+  const { notifications: shown } = await LocalNotifications.getDeliveredNotifications()
+  const done = shown.filter((notification) => {
+    const extra = notification.extra as SmartExtra | undefined
+    const day = extra?.kind === 'smart' ? status.get(extra.date) : undefined
+    if (!extra || !day) return false
+    if (extra.reminder === 'weighIn') return day.weighed
+    if (extra.reminder === 'lunch' || extra.reminder === 'dinner') return day.meals.has(extra.reminder)
+    return false
+  })
+  if (done.length > 0) await LocalNotifications.removeDeliveredNotifications({ notifications: done })
+
+  if (planned.length === 0) return
+  await LocalNotifications.schedule({
+    notifications: planned.map((reminder) => ({
+      id: reminder.id,
+      title: reminder.title,
+      body: reminder.body,
+      channelId: 'inteligentes',
+      schedule: { at: reminder.at, allowWhileIdle: true },
+      autoCancel: true,
+      extra: { kind: 'smart', reminder: reminder.kind, date: reminder.date, route: reminder.route } satisfies SmartExtra,
+    })),
+  })
 }
 
 /** Reminders follow the habits and their logs: checking a habit takes today's reminder away. */
@@ -102,7 +182,11 @@ async function reschedule(habits: Habit[], logs: HabitLog[]) {
 }
 
 async function onAction({ actionId, notification }: ActionPerformed) {
-  const extra = notification.extra as HabitExtra | undefined
+  const extra = notification.extra as HabitExtra | SmartExtra | undefined
+  if (extra?.kind === 'smart') {
+    location.hash = `#${extra.route}`
+    return
+  }
   if (extra?.kind !== 'habit') return
   if (actionId === 'done') {
     const habit = await db.habits.get(extra.habitId)

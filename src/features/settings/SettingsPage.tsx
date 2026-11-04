@@ -1,7 +1,7 @@
 import { Download, LogOut, RefreshCw, Settings, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useToast } from '../../components/Toast'
-import { Button, Card, Field, IconButton, Page, TextInput } from '../../components/ui'
+import { Button, Card, Field, IconButton, Page, Switch, TextInput } from '../../components/ui'
 import { exportBackup, importBackup } from '../../db/backup'
 import { useSettings } from '../../db/hooks'
 import { patch } from '../../db/repo'
@@ -12,6 +12,9 @@ import { GarminCard } from '../garmin/GarminCard'
 import { HealthConnectCard } from '../healthconnect/HealthConnectCard'
 import { SyncStatus } from './SyncStatus'
 import { PROFILE_CHARS } from '../analysis/context'
+import { isAndroidApp } from '../healthconnect/plugin'
+import { requestNotificationPermission } from '../notifications/native'
+import type { SmartReminders } from '../../db/types'
 import { useSearchParams } from 'react-router'
 
 export default function SettingsPage() {
@@ -19,6 +22,7 @@ export default function SettingsPage() {
     <Page title="Ajustes" icon={Settings} tone="settings">
       <SyncCard />
       <ProfileCard />
+      {isAndroidApp() && <SmartRemindersCard />}
       <GarminCard />
       <HealthConnectCard />
       <SitesCard />
@@ -290,5 +294,64 @@ function ProfileCard() {
         </form>
       </Card>
     </section>
+  )
+}
+
+const SMART_DEFAULTS = { weighIn: '08:30', lunch: '14:00', dinner: '21:30' } as const
+
+/** Reminders that only come when something is missing that day (Android app). */
+function SmartRemindersCard() {
+  const settings = useSettings()
+  const smart = settings.smartReminders ?? {}
+  const change = (next: SmartReminders) => void patch(db.settings, SETTINGS_ID, { smartReminders: next })
+  const turnOn = (next: SmartReminders) => {
+    void requestNotificationPermission()
+    change(next)
+  }
+  const timed = [
+    { key: 'weighIn', label: 'Pesagem', detail: 'se ainda não houver pesagem no dia' },
+    { key: 'lunch', label: 'Almoço', detail: 'se nada foi registrado no almoço' },
+    { key: 'dinner', label: 'Jantar', detail: 'se nada foi registrado no jantar' },
+  ] as const
+  return (
+    <Card title="Lembretes do dia">
+      <p className="mb-3 text-sm text-ink-2">Só aparecem quando falta registrar; registrar antes cancela o lembrete.</p>
+      <ul className="divide-y divide-line">
+        {timed.map(({ key, label, detail }) => (
+          <li key={key} className="flex items-center gap-3 py-2">
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm">{label}</span>
+              <span className="block text-xs text-muted">{detail}</span>
+            </span>
+            {smart[key] && (
+              <span className="w-28 shrink-0">
+                <TextInput
+                  type="time"
+                  aria-label={`Horário do lembrete de ${label.toLowerCase()}`}
+                  value={smart[key]}
+                  onChange={(e) => e.target.value && change({ ...smart, [key]: e.target.value })}
+                />
+              </span>
+            )}
+            <Switch
+              label={`Lembrete de ${label.toLowerCase()}`}
+              checked={!!smart[key]}
+              onChange={(on) => (on ? turnOn({ ...smart, [key]: SMART_DEFAULTS[key] }) : change({ ...smart, [key]: undefined }))}
+            />
+          </li>
+        ))}
+        <li className="flex items-center gap-3 py-2">
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm">Água no ritmo</span>
+            <span className="block text-xs text-muted">às 11h, 15h e 19h, se estiver atrás do ritmo da meta</span>
+          </span>
+          <Switch
+            label="Lembrete de água"
+            checked={!!smart.water}
+            onChange={(on) => (on ? turnOn({ ...smart, water: true }) : change({ ...smart, water: undefined }))}
+          />
+        </li>
+      </ul>
+    </Card>
   )
 }

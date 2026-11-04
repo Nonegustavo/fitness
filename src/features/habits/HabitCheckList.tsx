@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 import { celebrate } from '../../components/celebrate'
 import { useToast } from '../../components/Toast'
-import { cx, Empty, IconButton } from '../../components/ui'
+import { cx, Empty, IconButton, SkeletonLines } from '../../components/ui'
 import type { Habit } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { describeHabit, isSuccess, setHabitValue, useHabitLogs, useHabits } from './habits'
@@ -28,7 +28,7 @@ export function HabitCheckList({ date }: { date: DayKey }) {
     seen.current = { date, allDone }
   }, [habits, logs, date, allDone, toast])
 
-  if (!habits) return null
+  if (!habits) return <SkeletonLines lines={3} />
 
   const active = habits.filter((habit) => habit.archived === 0)
   if (active.length === 0) {

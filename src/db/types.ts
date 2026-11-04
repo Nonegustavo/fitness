@@ -170,6 +170,20 @@ export interface Settings extends Synced {
   weightGoal?: WeightGoal
   /** The user describing themselves (routine, history, goals) for the analyses by Claude. */
   profile?: string
+  /** Android reminders that only come when something is missing. */
+  smartReminders?: SmartReminders
+}
+
+/** Each one is on when set: a time ("08:30") for the weigh-in and the meals, true for water. */
+export interface SmartReminders {
+  /** No weigh-in yet today by then. */
+  weighIn?: string
+  /** Nothing logged at lunch by then. */
+  lunch?: string
+  /** Nothing logged at dinner by then. */
+  dinner?: string
+  /** Behind the day's water pace at 11h, 15h and 19h. */
+  water?: boolean
 }
 
 export interface WeightGoal {

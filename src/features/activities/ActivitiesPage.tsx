@@ -1,4 +1,4 @@
-import { Card, Empty, Page } from '../../components/ui'
+import { Card, Empty, Page, SkeletonCard } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { formatDay } from '../../lib/dates'
 import { useActivities } from './activities'
@@ -9,7 +9,13 @@ const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1
 export default function ActivitiesPage() {
   const activities = useActivities()
   const today = useToday()
-  if (!activities) return null
+  if (!activities) {
+    return (
+      <Page title="Atividades" back={{ to: '/treinos', label: 'Treinos' }}>
+        <SkeletonCard lines={6} />
+      </Page>
+    )
+  }
 
   // One card per month, newest first.
   const months = new Map<string, typeof activities>()

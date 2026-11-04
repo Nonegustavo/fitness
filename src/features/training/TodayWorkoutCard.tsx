@@ -1,7 +1,7 @@
 import { CircleCheck, Dumbbell, Play } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { Button, Card } from '../../components/ui'
+import { Button, Card, SkeletonCard } from '../../components/ui'
 import type { DayKey } from '../../lib/dates'
 import { formatDuration } from '../../lib/format'
 import { Elapsed, useStartWorkout } from './components'
@@ -14,7 +14,7 @@ export function TodayWorkoutCard({ today }: { today: DayKey }) {
   const templates = useTemplates()
   const sessions = useSessions()
   const start = useStartWorkout()
-  if (!templates || !sessions) return null
+  if (!templates || !sessions) return <SkeletonCard lines={2} />
 
   const active = findActive(sessions)
   const finished = sessions.filter((session) => session.endedAt)

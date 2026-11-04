@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Button, Card, Empty, Page, TextInput } from '../../components/ui'
+import { Button, Card, Empty, Page, SkeletonCard, TextInput } from '../../components/ui'
 import type { MuscleGroup } from '../../db/types'
 import { EQUIPMENT, MUSCLES } from './catalog'
 import { ExerciseForm } from './ExerciseForm'
@@ -13,7 +13,13 @@ export default function ExercisesPage() {
   const [query, setQuery] = useState('')
   const [muscle, setMuscle] = useState<MuscleFilter>('all')
   const [creating, setCreating] = useState(false)
-  if (!exercises) return null
+  if (!exercises) {
+    return (
+      <Page title="Exercícios" back={{ to: '/treinos', label: 'Treinos' }}>
+        <SkeletonCard lines={8} />
+      </Page>
+    )
+  }
 
   const filtered = filterExercises(exercises, query, muscle)
   const groups = (Object.keys(MUSCLES) as MuscleGroup[])

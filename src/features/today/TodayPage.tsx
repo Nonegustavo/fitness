@@ -2,7 +2,7 @@ import { GlassWater, House, ListChecks, Scale, Settings, SlidersHorizontal } fro
 import { WeeklyCard } from './WeeklyCard'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { Button, Card, IconButton, Page, Stat } from '../../components/ui'
+import { Button, Card, IconButton, Page, SkeletonLines, Stat } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import type { HomeCardId } from '../../db/types'
 import { formatDay, relativeDay, type DayKey } from '../../lib/dates'
@@ -147,7 +147,7 @@ function WaterCard({ today }: { today: DayKey }) {
         </Link>
       }
     >
-      <WaterSummary totalMl={sumMl(waterLogs ?? [])} goalMl={settings.waterGoalMl} />
+      {waterLogs ? <WaterSummary totalMl={sumMl(waterLogs)} goalMl={settings.waterGoalMl} /> : <SkeletonLines lines={2} />}
       <div className="mt-4">
         <WaterQuickAdd />
       </div>

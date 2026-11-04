@@ -72,6 +72,9 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Refeições vazias numa linha só, com "Repetir ontem"
 - [x] Hora da refeição: escolhida ao adicionar, editável no item e na refeição inteira; a hora da última refeição entra nas correlações e na análise
 - [x] Ler a tabela nutricional por foto: o Claude lê o rótulo (função `read-label`) e preenche o cadastro por porção, avisando quando algo ficou ilegível ou as colunas não batem
+- [x] Botão "+" em qualquer tela (no computador, "Registrar" na barra lateral): alimento, pesagem, próximo treino, diário e água em 1 toque
+- [x] Lembretes do dia no app Android (Ajustes): pesagem, almoço e jantar nos horários escolhidos e água no ritmo às 11h, 15h e 19h, só quando falta registrar
+- [x] Telas e cartões mostram o formato do conteúdo enquanto carregam, em vez de ficar em branco ou mostrar zeros
 - [x] Treino: mapa do corpo (frente e costas) com as séries da semana por músculo contra a faixa de 10–20
 - [x] Treino: exercícios sem evoluir (3 treinos sem bater o melhor 1RM estimado) e aviso de deload
 - [x] Treino: esforço (RPE 1–10) e dor ou desconforto por região em cada sessão; o esforço entra nas correlações

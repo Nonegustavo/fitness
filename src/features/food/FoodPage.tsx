@@ -6,7 +6,7 @@ import { DayNav } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
 import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { useToast } from '../../components/Toast'
-import { Button, Card, DecimalInput, Field, Page, Select, TextInput } from '../../components/ui'
+import { Button, Card, DecimalInput, Field, Page, Select, SkeletonCard, SkeletonLines, TextInput } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -64,7 +64,7 @@ export default function FoodPage() {
             <Dumbbell size={14} /> Dia de treino{settings.nutrition?.training ? ': metas de treino' : ''}
           </p>
         )}
-        <NutritionSummary totals={totals} goals={goals} />
+        {logs ? <NutritionSummary totals={totals} goals={goals} /> : <SkeletonLines lines={5} />}
         {dayLogs.length > 0 && (
           <div className="mt-3 border-t border-line pt-3">
             <OtherNutrients nutrients={totals} day kcalGoal={goals?.kcal} />
@@ -80,9 +80,10 @@ export default function FoodPage() {
 
       <QuickBar date={date} />
 
-      {date === today && goals && <CloseDayCard date={date} eaten={totals} goals={goals} />}
+      {logs && date === today && goals && <CloseDayCard date={date} eaten={totals} goals={goals} />}
 
-      {groupMeals(dayLogs).map((group) =>
+      {!logs && <SkeletonCard lines={3} />}
+      {logs && groupMeals(dayLogs).map((group) =>
         group.entries.length > 0 ? (
           <MealCard
             key={group.meals[0]}

@@ -1,6 +1,6 @@
 import { Moon } from 'lucide-react'
 import { Link } from 'react-router'
-import { Card, Stat } from '../../components/ui'
+import { Card, SkeletonCard, Stat } from '../../components/ui'
 import { relativeDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatDuration } from '../../lib/format'
 import { hrvStatus, latestNight, useDailyHealth } from './recovery'
@@ -9,6 +9,8 @@ import { hrvStatus, latestNight, useDailyHealth } from './recovery'
 export function TodaySleepCard({ today }: { today: DayKey }) {
   const days = useDailyHealth(shiftDay(today, -1), today)
   const night = days && latestNight(days)
+  // While loading, a placeholder of the card's size; with no night, nothing.
+  if (!days) return <SkeletonCard lines={2} />
   if (!night) return null
   const { sleep, hrv, restingHr } = night
   return (

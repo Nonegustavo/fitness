@@ -1,5 +1,5 @@
-import type { Habit, HabitLog } from '../../db/types'
-import { dayKey, type DayKey } from '../../lib/dates'
+import type { Habit, HabitLog, MealKey, SmartReminders } from '../../db/types'
+import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
 import { habitLogId, isSuccess } from '../habits/habits'
 
 /** Reminders go this far ahead, so they keep coming even if the app isn't opened for a while. */
@@ -74,4 +74,103 @@ export function describeReminder(reminder: { time: string; days: number[] }): st
           ? 'Fim de semana'
           : days.map((day) => WEEKDAY_NAMES[day].slice(0, 3)).join(', ')
   return `${when.charAt(0).toUpperCase()}${when.slice(1)} às ${reminder.time}`
+}
+
+/** Smart reminders cover the next days too, in case the app isn't opened (a weigh-in still syncs on opening). */
+export const SMART_DAYS = 7
+
+/** When the water pace is checked, and the day it is spread over (07:00 to 22:00). */
+export const WATER_CHECKS = [11, 15, 19]
+const WATER_DAY = { from: 7, to: 22 }
+/** Some room before calling it behind: one glass. */
+const WATER_SLACK_ML = 250
+
+/** What a day already has, as far as the smart reminders care. */
+export interface DayStatus {
+  weighed: boolean
+  meals: Set<MealKey>
+  waterMl: number
+}
+
+export interface SmartReminder {
+  id: number
+  at: Date
+  date: DayKey
+  kind: 'weighIn' | 'lunch' | 'dinner' | 'water'
+  title: string
+  body: string
+  /** The screen the notification opens. */
+  route: string
+}
+
+/** The water the day should have by an hour, spread evenly over the waking hours. */
+export const waterExpectedBy = (hour: number, goalMl: number): number =>
+  goalMl * Math.min(1, Math.max(0, (hour - WATER_DAY.from) / (WATER_DAY.to - WATER_DAY.from)))
+
+const liters = (ml: number) => `${(Math.round(ml / 100) / 10).toString().replace('.', ',')} L`
+
+/**
+ * The reminders still worth sending, from `now` over the next days: only where the thing is
+ * missing (no weigh-in, nothing at lunch, water behind pace). Days not opened yet count as empty.
+ */
+export function plannedSmartReminders(
+  settings: SmartReminders | undefined,
+  status: Map<DayKey, DayStatus>,
+  waterGoalMl: number,
+  now: Date,
+): SmartReminder[] {
+  if (!settings) return []
+  const planned: SmartReminder[] = []
+  const at = (offset: number, clock: string) => {
+    const [hour, minute] = clock.split(':').map(Number)
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, hour || 0, minute || 0)
+  }
+  const add = (reminder: Omit<SmartReminder, 'id'>) => {
+    if (reminder.at > now) planned.push({ ...reminder, id: notificationId(`smart:${reminder.kind}:${reminder.at.getTime()}`) })
+  }
+  for (let offset = 0; offset < SMART_DAYS; offset++) {
+    const date = shiftDay(dayKey(now), offset)
+    const day = status.get(date) ?? { weighed: false, meals: new Set<MealKey>(), waterMl: 0 }
+    if (settings.weighIn && !day.weighed) {
+      add({
+        at: at(offset, settings.weighIn),
+        date,
+        kind: 'weighIn',
+        title: 'Pesagem de hoje',
+        body: 'Ainda não há pesagem hoje. Abra para sincronizar com a balança ou registrar.',
+        route: '/corpo?novo=peso',
+      })
+    }
+    for (const meal of ['lunch', 'dinner'] as const) {
+      const clock = settings[meal]
+      if (!clock || day.meals.has(meal)) continue
+      const label = meal === 'lunch' ? 'almoço' : 'jantar'
+      add({
+        at: at(offset, clock),
+        date,
+        kind: meal,
+        title: `Registrar o ${label}`,
+        body: `Nada registrado no ${label} ainda. Toque para adicionar.`,
+        route: `/alimentacao/adicionar?refeicao=${meal}&data=${date}`,
+      })
+    }
+    if (settings.water && waterGoalMl > 0) {
+      for (const hour of WATER_CHECKS) {
+        const expected = waterExpectedBy(hour, waterGoalMl)
+        if (day.waterMl >= expected - WATER_SLACK_ML) continue
+        add({
+          at: at(offset, `${hour}:00`),
+          date,
+          kind: 'water',
+          title: 'Água',
+          body:
+            offset === 0
+              ? `Até agora ${liters(day.waterMl)} de ${liters(waterGoalMl)}. No ritmo do dia, já seriam ${liters(expected)}.`
+              : `No ritmo do dia, já seriam ${liters(expected)} de ${liters(waterGoalMl)}.`,
+          route: '/agua',
+        })
+      }
+    }
+  }
+  return planned
 }

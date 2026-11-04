@@ -3,7 +3,7 @@ import { Archive, ArchiveRestore, Dumbbell, Play, Plus, TrendingUp } from 'lucid
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { SortableList } from '../../components/Sortable'
-import { Button, Card, cx, Empty, IconButton, Page, Stat } from '../../components/ui'
+import { Button, Card, cx, Empty, IconButton, Page, SkeletonCard, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { patch, saveOrder } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -31,7 +31,14 @@ export default function TrainingPage() {
   const start = useStartWorkout()
   const [showAll, setShowAll] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
-  if (!templates || !sessions) return null
+  if (!templates || !sessions) {
+    return (
+      <Page title="Treinos" icon={Dumbbell} tone="training">
+        <SkeletonCard lines={3} />
+        <SkeletonCard lines={6} />
+      </Page>
+    )
+  }
 
   const rotation = templates.filter((template) => !template.archived)
   const archived = templates.filter((template) => template.archived)
