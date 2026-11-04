@@ -26,6 +26,16 @@ export interface WeightEntry extends Synced {
   note?: string
 }
 
+export type Pose = 'front' | 'side' | 'back'
+
+/** A body photo for comparing over time; the image lives in the photo store, like the plate photos. */
+export interface ProgressPhoto extends Synced {
+  date: DayKey
+  time: number
+  pose: Pose
+  photoId: string
+}
+
 export interface MeasurementEntry extends Synced {
   date: DayKey
   /** Centimeters by measurement site key. */
@@ -130,7 +140,17 @@ export interface PhotoBlob {
   pending: 0 | 1
 }
 
-export type HomeCardId = 'insights' | 'sleep' | 'planned' | 'workout' | 'food' | 'body' | 'water' | 'habits' | 'journal'
+export type HomeCardId =
+  | 'insights'
+  | 'week'
+  | 'sleep'
+  | 'planned'
+  | 'workout'
+  | 'food'
+  | 'body'
+  | 'water'
+  | 'habits'
+  | 'journal'
 
 /** The cards of the Hoje screen, as the user arranged them. Cards missing from `order` go last. */
 export interface HomeLayout {

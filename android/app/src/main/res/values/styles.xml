@@ -20,4 +20,16 @@
         <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@color/splash_background</item>
     </style>
+    <!-- A button of the home-screen widget: the four share the width. -->
+    <style name="QuickWidgetButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_margin">3dp</item>
+        <item name="android:background">@drawable/widget_button</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">#FFF0EFEC</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:maxLines">1</item>
+    </style>
 </resources>

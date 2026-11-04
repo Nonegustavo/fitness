@@ -22,6 +22,7 @@ import type {
   WaterLog,
   WeightEntry,
   WorkoutSession,
+  ProgressPhoto,
   WorkoutTemplate,
 } from './types'
 
@@ -46,6 +47,7 @@ export const SYNCED_TABLES = [
   'dailyHealth',
   'journal',
   'insights',
+  'progressPhotos',
 ] as const
 
 export type SyncedTableName = (typeof SYNCED_TABLES)[number]
@@ -114,6 +116,7 @@ export class FitnessDB extends Dexie {
   journal!: Table<JournalEntry, string>
   insights!: Table<DailyInsight, string>
   photos!: Table<PhotoBlob, string>
+  progressPhotos!: Table<ProgressPhoto, string>
   meta!: Table<MetaRow, string>
 
   constructor(name = 'fitness') {
@@ -166,6 +169,11 @@ export class FitnessDB extends Dexie {
     // `photos` stays on the device: the images go to the server's storage, not to the records table.
     this.version(6)
       .stores({ journal: 'id, dirty', insights: 'id, dirty', photos: 'id, pending' })
+      .upgrade(async (tx) => {
+        await tx.table('meta').delete(PULL_CURSOR)
+      })
+    this.version(7)
+      .stores({ progressPhotos: 'id, date, dirty' })
       .upgrade(async (tx) => {
         await tx.table('meta').delete(PULL_CURSOR)
       })

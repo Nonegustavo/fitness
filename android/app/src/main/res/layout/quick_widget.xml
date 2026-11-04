@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="horizontal"
+    android:padding="4dp">
+
+    <TextView
+        android:id="@+id/widget_food"
+        style="@style/QuickWidgetButton"
+        android:text="@string/shortcut_food" />
+
+    <TextView
+        android:id="@+id/widget_water"
+        style="@style/QuickWidgetButton"
+        android:text="@string/shortcut_water" />
+
+    <TextView
+        android:id="@+id/widget_workout"
+        style="@style/QuickWidgetButton"
+        android:text="@string/shortcut_workout" />
+
+    <TextView
+        android:id="@+id/widget_weight"
+        style="@style/QuickWidgetButton"
+        android:text="@string/shortcut_weight" />
+</LinearLayout>

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the app icon: straight to the screens used every day. Each opens a route of the app
+     (MainActivity reads the fitness:// link). -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="food"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_food"
+        android:shortcutLongLabel="@string/shortcut_food_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.nonegustavo.fitness"
+            android:targetClass="io.github.nonegustavo.fitness.MainActivity"
+            android:data="fitness://app/alimentacao/adicionar" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="water"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_water"
+        android:shortcutLongLabel="@string/shortcut_water">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.nonegustavo.fitness"
+            android:targetClass="io.github.nonegustavo.fitness.MainActivity"
+            android:data="fitness://app/agua" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="workout"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_workout"
+        android:shortcutLongLabel="@string/shortcut_workout">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.nonegustavo.fitness"
+            android:targetClass="io.github.nonegustavo.fitness.MainActivity"
+            android:data="fitness://app/treinos" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="weight"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_weight"
+        android:shortcutLongLabel="@string/shortcut_weight_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.nonegustavo.fitness"
+            android:targetClass="io.github.nonegustavo.fitness.MainActivity"
+            android:data="fitness://app/corpo?novo=peso" />
+    </shortcut>
+</shortcuts>

@@ -14,8 +14,9 @@ import { MeasurementModal } from './MeasurementModal'
 import { LineOverTime, TrendChart } from '../../components/TimeCharts'
 import { describeExtras, WeightModal } from './WeightModal'
 import { WeightGoalCard } from './WeightGoalCard'
+import { ProgressPhotos } from './ProgressPhotos'
 
-type Tab = 'peso' | 'medidas'
+type Tab = 'peso' | 'medidas' | 'fotos'
 type Range = '30' | '90' | '365' | 'all'
 
 const RANGES: { value: Range; label: string }[] = [
@@ -30,7 +31,10 @@ const LIST_LIMIT = 15
 export default function BodyPage() {
   const [params, setParams] = useSearchParams()
   const settings = useSettings()
-  const [tab, setTab] = useState<Tab>(params.get('aba') === 'medidas' ? 'medidas' : 'peso')
+  const [tab, setTab] = useState<Tab>(() => {
+    const aba = params.get('aba')
+    return aba === 'medidas' || aba === 'fotos' ? aba : 'peso'
+  })
   const [weightEditing, setWeightEditing] = useState<WeightEntry | 'new' | null>(
     params.get('novo') === 'peso' ? 'new' : null,
   )
@@ -47,7 +51,7 @@ export default function BodyPage() {
       icon={Scale}
       tone="body"
       actions={
-        tab === 'peso' ? (
+        tab === 'fotos' ? undefined : tab === 'peso' ? (
           <Button size="sm" variant="primary" onClick={() => setWeightEditing('new')}>
             <Plus size={16} /> Pesagem
           </Button>
@@ -65,14 +69,13 @@ export default function BodyPage() {
         options={[
           { value: 'peso', label: 'Peso e gordura' },
           { value: 'medidas', label: 'Medidas' },
+          { value: 'fotos', label: 'Fotos' },
         ]}
       />
 
-      {tab === 'peso' ? (
-        <WeightSection onEdit={setWeightEditing} />
-      ) : (
-        <MeasurementsSection onEdit={setMeasurementEditing} />
-      )}
+      {tab === 'peso' && <WeightSection onEdit={setWeightEditing} />}
+      {tab === 'medidas' && <MeasurementsSection onEdit={setMeasurementEditing} />}
+      {tab === 'fotos' && <ProgressPhotos />}
 
       {weightEditing && (
         <WeightModal entry={weightEditing === 'new' ? null : weightEditing} onClose={() => setWeightEditing(null)} />

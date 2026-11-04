@@ -140,7 +140,7 @@ describe('stalledExercises', () => {
         key: 'k',
         exerciseId: 'bench',
         restSec: 90,
-        sets: [{ kind: 'normal' as const, done: true, weightKg, reps: 8 }],
+        sets: [{ key: 'set', kind: 'normal' as const, done: true, weightKg, reps: 8 }],
       },
     ],
   })

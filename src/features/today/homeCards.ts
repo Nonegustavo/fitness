@@ -3,6 +3,7 @@ import type { HomeCardId, HomeLayout } from '../../db/types'
 /** Every card the Hoje screen can show, in the default order. */
 export const HOME_CARDS: { id: HomeCardId; label: string; detail: string }[] = [
   { id: 'insights', label: 'Análise do dia', detail: 'O que o Claude vê nos seus dados e no diário' },
+  { id: 'week', label: 'Semana passada', detail: 'Alimentação, treinos, sono, peso, água e hábitos contra a semana anterior' },
   { id: 'sleep', label: 'Última noite', detail: 'Sono, HRV e Body Battery' },
   { id: 'planned', label: 'Treino planejado', detail: 'O treino de hoje no calendário do Garmin' },
   { id: 'workout', label: 'Musculação', detail: 'Próxima ficha ou treino em andamento' },

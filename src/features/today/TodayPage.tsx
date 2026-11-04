@@ -1,4 +1,5 @@
 import { GlassWater, House, ListChecks, Scale, Settings, SlidersHorizontal } from 'lucide-react'
+import { WeeklyCard } from './WeeklyCard'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { Button, Card, IconButton, Page, Stat } from '../../components/ui'
@@ -88,6 +89,8 @@ function HomeCard({ id, today }: { id: HomeCardId; today: DayKey }) {
       return <TodayJournalCard today={today} />
     case 'insights':
       return <TodayInsightCard today={today} />
+    case 'week':
+      return <WeeklyCard today={today} />
   }
 }
 
