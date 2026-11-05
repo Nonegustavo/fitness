@@ -80,6 +80,11 @@ export interface Habit extends Synced {
   color?: string
   /** A key of the habit icons. */
   icon?: string
+  /**
+   * Done some days of the week instead of every day: at least `times` a week for a good habit, at
+   * most `times` for one to avoid. Unset means every day.
+   */
+  frequency?: { times: number; per: 'week' }
 }
 
 export interface HabitReminder {
@@ -231,6 +236,20 @@ export interface Settings extends Synced {
   quickLog?: string[]
   /** Walks scheduled every week on these days, as plans the app makes for each date. */
   walkRoutine?: WalkRoutine
+  /** The last weekly check-in of the nutrition targets: accepted or set aside for that week. */
+  goalCheckIn?: GoalCheckIn
+}
+
+/** A weekly check-in of the calorie and macro targets, from the expenditure estimate and the weight goal. */
+export interface GoalCheckIn {
+  /** The week it was for (its Sunday). */
+  week: DayKey
+  status: 'accepted' | 'dismissed'
+  /** The targets before and the ones proposed. */
+  before?: MacroGoals
+  proposed?: MacroGoals
+  /** The expenditure estimate (TDEE) it used, kcal a day. */
+  expenditure?: number
 }
 
 /** A walk planned every week: on which weekdays, when, and how long or how far. */
@@ -425,6 +444,8 @@ export interface Exercise extends Synced {
   equipment: Equipment
   type: ExerciseType
   notes?: string
+  /** The matching exercise of the free-exercise-db dataset (its id), for the pictures and the steps. */
+  mediaId?: string
 }
 
 /** Warm-up sets don't count toward volume, weekly sets or records. */
@@ -471,6 +492,8 @@ export interface PerformedSet {
   done: boolean
   /** When the set was checked off; lines it up with the watch's heart rate later. */
   completedAt?: number
+  /** Reps in reserve: how many more the set had in it (0 = to failure), when told. */
+  rir?: number
 }
 
 export interface SessionExercise {
@@ -627,6 +650,39 @@ export interface Activity extends Synced {
   discomfort?: string[]
   /** The user's comment on the workout: what they tell their coach. */
   notes?: string
+  /** The shoes (a gear id) worn, for their distance. */
+  gearId?: string
+  /** The weather where and when it happened (outdoor activities with a route). */
+  weather?: ActivityWeather
+}
+
+/** The weather at an activity's middle point in time, from Open-Meteo. */
+export interface ActivityWeather {
+  tempC: number
+  /** Apparent ("feels like") temperature. */
+  feelsC?: number
+  /** Relative humidity, %. */
+  humidity?: number
+  windKmh?: number
+  /** mm in that hour. */
+  precipitationMm?: number
+  /** WMO weather code (0 clear … 95 thunderstorm). */
+  code?: number
+}
+
+/** A pair of shoes (or other gear) whose distance adds up from the activities that used it. */
+export interface Gear extends Synced {
+  name: string
+  kind: 'shoe'
+  /** Kilometers it already had when added. */
+  startKm?: number
+  /** When to replace it, km (700 when unset). */
+  limitKm?: number
+  /** The default for new activities of these kinds ("run", "walk"). */
+  defaultFor?: string[]
+  retired?: 0 | 1
+  /** When it started being used. */
+  since?: DayKey
 }
 
 /**
