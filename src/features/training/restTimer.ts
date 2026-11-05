@@ -55,6 +55,24 @@ export function addRest(deltaSec: number): void {
 
 export const stopRest = (): void => setTimer(null)
 
+/**
+ * The rest as the Android notification started, lengthened or skipped it. No sound unlock: it doesn't
+ * come from a tap in the app. A rest already over leaves no timer.
+ */
+export function setRest(rest: RestTimer | null): void {
+  const next = rest && rest.endsAt > Date.now() ? { endsAt: rest.endsAt, totalSec: rest.totalSec, label: rest.label } : null
+  if (next?.endsAt === timer?.endsAt && next?.totalSec === timer?.totalSec && next?.label === timer?.label) return
+  setTimer(next)
+}
+
+// Whether the bar rings for a rest that ended at a given time. The Android app answers no when it was
+// off screen then, as a notification already rang (training/workoutNotification.ts).
+let ringsInApp: (endsAt: number) => boolean = () => true
+
+export function setRestAlertGate(gate: (endsAt: number) => boolean): void {
+  ringsInApp = gate
+}
+
 let audio: AudioContext | undefined
 
 function unlockAudio() {
@@ -68,6 +86,7 @@ function unlockAudio() {
 
 /** Two short beeps and a vibration. */
 export function alertRestOver(): void {
+  if (timer && !ringsInApp(timer.endsAt)) return
   navigator.vibrate?.([200, 100, 200])
   if (!audio) return
   for (const [offset, frequency] of [

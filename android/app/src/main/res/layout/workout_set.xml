@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Workout notification, collapsed: the current set and the button that checks it, within the 48 dp
+     Android 12+ may give a collapsed custom notification. WorkoutNotification fills it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/workout_title"
+            style="@style/WorkoutTitle" />
+
+        <TextView
+            android:id="@+id/workout_text"
+            style="@style/WorkoutText" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/workout_complete"
+        style="@style/WorkoutRoundButton"
+        android:layout_marginStart="8dp"
+        android:contentDescription="Concluir a série"
+        android:src="@drawable/workout_ic_check" />
+</LinearLayout>

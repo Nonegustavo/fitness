@@ -9,6 +9,7 @@ import { plannedEvents } from '../garmin/sync'
 import { setHabitValue } from '../habits/habits'
 import { isAndroidApp } from '../healthconnect/plugin'
 import { getRestTimer, subscribeRestTimer, type RestTimer } from '../training/restTimer'
+import { restRingsNatively, startWorkoutNotification } from '../training/workoutNotification'
 import {
   HORIZON_DAYS,
   nextWeeklyAt,
@@ -105,6 +106,7 @@ async function setUp() {
   watchWorkoutReminders()
   watchWeekly()
   watchRest()
+  startWorkoutNotification()
 }
 
 /** The smart reminders follow the day's logs: weighing in, logging lunch or drinking takes them away. */
@@ -334,7 +336,8 @@ async function onAction({ actionId, notification }: ActionPerformed) {
 
 /**
  * While the app is open, the rest bar beeps at the end. Once it goes to the background, a
- * notification takes over, and coming back cancels it.
+ * notification takes over, and coming back cancels it. While the workout notification shows, it
+ * rings at the end itself (training/workoutNotification.ts), so this one stays out.
  */
 function watchRest() {
   let background = false
@@ -346,7 +349,7 @@ function watchRest() {
     // The first rest of a workout is a good moment to ask, while the user is looking at the app.
     if (timer && !previous) void askOnce()
     previous = timer
-    if (!background) {
+    if (!background || restRingsNatively()) {
       if (scheduledFor !== undefined) void cancelRest()
       scheduledFor = undefined
     } else if (timer && timer.endsAt > Date.now()) {

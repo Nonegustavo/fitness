@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A round button of the workout notification (−, +, check): the app's teal, with a ripple. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#40FFFFFF">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#FF0F766E" />
+        </shape>
+    </item>
+</ripple>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The workout notification (layout/workout_*.xml). Text in the system's notification styles, so it
+         reads on light and dark shades; buttons in the app's teal with white icons, readable on both. -->
+    <style name="WorkoutTitle" parent="TextAppearance.Compat.Notification.Title">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <style name="WorkoutText" parent="TextAppearance.Compat.Notification">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <!-- The countdown of the expanded rest. -->
+    <style name="WorkoutClock" parent="TextAppearance.Compat.Notification.Title">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">34sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <!-- The load, the reps or the time between its − and + buttons. -->
+    <style name="WorkoutValue" parent="TextAppearance.Compat.Notification.Title">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <style name="WorkoutRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
+    <!-- −, + and the check: a 40 dp circle, the most a collapsed notification row can hold. -->
+    <style name="WorkoutRoundButton">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:padding">10dp</item>
+        <item name="android:background">@drawable/workout_button_round</item>
+        <item name="android:scaleType">fitCenter</item>
+    </style>
+
+    <!-- "Concluir", "+15 s", "Pular". -->
+    <style name="WorkoutButton">
+        <item name="android:layout_height">40dp</item>
+        <item name="android:background">@drawable/workout_button</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:textColor">#FFFFFFFF</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+    </style>
+</resources>

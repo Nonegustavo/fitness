@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Workout notification during the rest, expanded: a large countdown, the next set, "+15 s" and "Pular". -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        style="@style/WorkoutText"
+        android:text="Descanso" />
+
+    <Chronometer
+        android:id="@+id/workout_clock"
+        style="@style/WorkoutClock" />
+
+    <TextView
+        android:id="@+id/workout_next"
+        style="@style/WorkoutTitle" />
+
+    <TextView
+        android:id="@+id/workout_next_detail"
+        style="@style/WorkoutText" />
+
+    <LinearLayout
+        style="@style/WorkoutRow"
+        android:layout_marginTop="8dp">
+
+        <TextView
+            android:id="@+id/workout_add"
+            style="@style/WorkoutButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:text="+15 s" />
+
+        <TextView
+            android:id="@+id/workout_skip"
+            style="@style/WorkoutButton"
+            android:layout_width="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="Pular" />
+    </LinearLayout>
+</LinearLayout>

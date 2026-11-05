@@ -47,6 +47,16 @@
                 android:resource="@xml/quick_widget_info" />
         </receiver>
 
+        <!-- The workout notification's buttons and the end of the rest, also with the app closed; after
+             a restart of the phone, it brings back the notification of a workout still in progress. -->
+        <receiver
+            android:name=".WorkoutReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Health Connect shows this screen ("why the app wants this data") before granting access. -->
         <activity
             android:name=".PermissionsRationaleActivity"
@@ -89,6 +99,8 @@
     <!-- The end of a rest has to ring on time, also with the screen off. The notifications plugin
          declares SCHEDULE_EXACT_ALARM, which Android 14+ denies by default; this one is granted. -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- The workout notification comes back after a restart (the notifications plugin asks for it too). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Health Connect: the scale's measurements and the watch's sleep, read-only. -->
     <uses-permission android:name="android.permission.health.READ_WEIGHT" />

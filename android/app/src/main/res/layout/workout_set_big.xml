@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Workout notification, expanded: the current set with −/+ for the load (load and reps exercises) and
+     for the reps or the time, and "Concluir". About 190 dp, within the 252 dp an expanded one may get. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/workout_title"
+        style="@style/WorkoutTitle" />
+
+    <TextView
+        android:id="@+id/workout_text"
+        style="@style/WorkoutText" />
+
+    <LinearLayout
+        android:id="@+id/workout_load_row"
+        style="@style/WorkoutRow"
+        android:layout_marginTop="8dp">
+
+        <ImageButton
+            android:id="@+id/workout_load_down"
+            style="@style/WorkoutRoundButton"
+            android:contentDescription="Diminuir a carga"
+            android:src="@drawable/workout_ic_minus" />
+
+        <TextView
+            android:id="@+id/workout_load"
+            style="@style/WorkoutValue" />
+
+        <ImageButton
+            android:id="@+id/workout_load_up"
+            style="@style/WorkoutRoundButton"
+            android:contentDescription="Aumentar a carga"
+            android:src="@drawable/workout_ic_plus" />
+    </LinearLayout>
+
+    <LinearLayout
+        style="@style/WorkoutRow"
+        android:layout_marginTop="6dp">
+
+        <ImageButton
+            android:id="@+id/workout_value_down"
+            style="@style/WorkoutRoundButton"
+            android:src="@drawable/workout_ic_minus" />
+
+        <TextView
+            android:id="@+id/workout_value"
+            style="@style/WorkoutValue" />
+
+        <ImageButton
+            android:id="@+id/workout_value_up"
+            style="@style/WorkoutRoundButton"
+            android:src="@drawable/workout_ic_plus" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/workout_complete"
+        style="@style/WorkoutButton"
+        android:layout_width="match_parent"
+        android:layout_marginTop="8dp"
+        android:text="Concluir" />
+</LinearLayout>
