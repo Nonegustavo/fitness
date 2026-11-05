@@ -559,6 +559,12 @@ export interface Activity extends Synced {
   sets?: WatchSet[]
   hasTrack: boolean
   fileName?: string
+  /** How hard it felt, 1–10 (RPE), told after the workout. */
+  effort?: number
+  /** Where it hurt or felt off (keys of DISCOMFORT_AREAS). */
+  discomfort?: string[]
+  /** The user's comment on the workout: what they tell their coach. */
+  notes?: string
 }
 
 /**

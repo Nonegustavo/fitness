@@ -27,6 +27,8 @@ export interface NowDay {
   /** The habits to do that aren't done yet today, by name. */
   habitsLeft: string[]
   journaled: boolean
+  /** Today's latest run with nothing said about it yet (comment or effort), for the coach. */
+  uncommented?: { id: string; title: string; endedAt: number }
   /** The times set for the smart reminders (weigh-in, lunch, dinner). */
   smart?: SmartReminders
 }
@@ -38,7 +40,7 @@ export type NowAction =
 
 export interface NowStep {
   /** What it is about, for the icon and the color. */
-  kind: 'workout' | 'weighIn' | 'meal' | 'water' | 'habits' | 'journal' | 'upcoming'
+  kind: 'workout' | 'weighIn' | 'meal' | 'water' | 'habits' | 'journal' | 'upcoming' | 'comment'
   /** For workouts: gym, run… */
   agendaKind?: AgendaKind
   /** When: "Agora", "Mais tarde" (today) or "Próximo treino". */
@@ -53,6 +55,8 @@ const MINUTE = 60_000
 const SOON_MS = 90 * MINUTE
 /** …and stays until this long after it (the watch may not have synced the run yet). */
 const LATE_MS = 60 * MINUTE
+/** A run waits this long for its comment before "Agora" lets it go. */
+const COMMENT_MS = 12 * 60 * MINUTE
 /** How far behind the water pace before it's worth a nudge: two glasses. */
 const WATER_BEHIND_ML = 500
 
@@ -138,6 +142,16 @@ export function nextStep(day: NowDay, nowDate: Date): NowStep | undefined {
       title: 'Pesagem de hoje',
       detail: 'Ainda não há pesagem hoje',
       action: { type: 'link', to: '/corpo?novo=peso', label: 'Registrar' },
+    }
+  }
+
+  if (day.uncommented && now - day.uncommented.endedAt < COMMENT_MS) {
+    return {
+      kind: 'comment',
+      when: 'Agora',
+      title: 'Como foi a corrida?',
+      detail: `${day.uncommented.title} · comentário e esforço para o treinador`,
+      action: { type: 'link', to: `/treinos/atividades/${day.uncommented.id}?comentar=1`, label: 'Comentar' },
     }
   }
 

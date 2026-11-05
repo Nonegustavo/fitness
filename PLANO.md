@@ -147,6 +147,7 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Comemoração de recordes de corrida (tempo melhor numa distância, primeira vez numa distância, corrida mais longa) e de sequências (3, 7, 14… dias seguidos na meta de água, na de proteína e com todos os hábitos); cartão "Sequências" para o Hoje
 - [x] Vibração leve no celular ao marcar hábito, registrar água, concluir série, começar treino e programar; deslizar para o lado troca o dia em Alimentação, Hábitos e Diário; puxar o Hoje para baixo sincroniza com o servidor e o Garmin
 - [x] Barra de baixo personalizável (Ajustes → Barra de baixo): as 4 seções que aparecem; as outras ficam em "Mais"
+- [x] "Como foi?" nas corridas (e em qualquer treino gravado pelo relógio): o comentário para o treinador, o esforço (PSE de 1 a 10) e dor ou desconforto, com "Copiar para mandar ao treinador". Aparece no calendário e em "Treinos de hoje", o "Agora" lembra de comentar a corrida do dia, e a análise do dia lê tudo isso
 
 ## Observações
 

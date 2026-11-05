@@ -13,6 +13,8 @@ import { summarize } from '../training/stats'
 export const DETAIL_DAYS = 14
 const TREND_DAYS = 30
 const DIARY_CHARS = 600
+/** A workout's comment (what the user told the coach). */
+const NOTE_CHARS = 400
 const PLANNED_DAYS = 7
 export const PROFILE_CHARS = 3000
 
@@ -150,7 +152,13 @@ function dayLine(day: DayKey, row: DayRow | undefined, metric: Map<string, Metri
       .map((activity) => {
         const distance = activity.distanceM ? ` ${formatNumber(activity.distanceM / 1000, 1)} km` : ''
         const effect = activity.aerobicEffect ? `, efeito ${formatNumber(activity.aerobicEffect, 1)}` : ''
-        return `${activity.title ?? activityLabel(activity)}${distance} em ${formatDuration(activity.timerSec * 1000)}${effect}`
+        const effort = activity.effort ? `, esforço ${activity.effort}/10` : ''
+        const pain = activity.discomfort?.length
+          ? `, desconforto: ${activity.discomfort.map((area) => DISCOMFORT_AREAS[area] ?? area).join(', ').toLowerCase()}`
+          : ''
+        const said = activity.notes?.trim().replace(/\s*\n\s*/g, ' / ')
+        const note = said ? `, comentário: "${said.length > NOTE_CHARS ? `${said.slice(0, NOTE_CHARS)}…` : said}"` : ''
+        return `${activity.title ?? activityLabel(activity)}${distance} em ${formatDuration(activity.timerSec * 1000)}${effect}${effort}${pain}${note}`
       }),
     ...sources.sessions
       .filter((session) => session.date === day && session.endedAt)

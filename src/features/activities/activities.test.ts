@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity, ActivityStream, WorkoutSession } from '../../db/types'
-import { formatSpeed, matchActivity, matchSession, setPeakHeartRates } from './activities'
+import { coachMessage, formatSpeed, matchActivity, matchSession, setPeakHeartRates } from './activities'
 
 const T0 = Date.UTC(2026, 10, 3, 21, 0, 0)
 const MIN = 60_000
@@ -85,5 +85,19 @@ describe('formatSpeed', () => {
     expect(formatSpeed(1, 'swim')).toBe('1:40 /100 m')
     expect(formatSpeed(10, 'speed')).toBe('36,0 km/h')
     expect(formatSpeed(0.1, 'pace')).toBe('—')
+  })
+})
+
+describe('coachMessage', () => {
+  const run = { sport: 'running', title: 'Corrida 7 Km', date: '2026-11-05' }
+
+  it('puts the workout and its day, the comment, the effort and the pain in a message', () => {
+    const message = coachMessage({ ...run, notes: 'Tiros no ritmo.\nO último mais pesado.', effort: 7, discomfort: ['knee', 'ankle'] })
+    expect(message).toBe('Corrida 7 Km (quinta, 5/11)\nTiros no ritmo.\nO último mais pesado.\nEsforço (PSE): 7/10\nDesconforto: joelho, tornozelo')
+  })
+
+  it('leaves out what was not filled, and names a workout without a title by its sport', () => {
+    expect(coachMessage({ ...run, notes: '  ', effort: 5 })).toBe('Corrida 7 Km (quinta, 5/11)\nEsforço (PSE): 5/10')
+    expect(coachMessage({ sport: 'running', date: '2026-11-05', notes: 'Leve.' })).toBe('Corrida (quinta, 5/11)\nLeve.')
   })
 })

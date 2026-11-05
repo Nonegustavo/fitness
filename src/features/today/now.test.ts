@@ -135,6 +135,25 @@ describe('nextStep', () => {
   })
 })
 
+describe('nextStep, after a run', () => {
+  const ran = { ...base, uncommented: { id: 'r1', title: 'Corrida 7 Km', endedAt: at(7, 10).getTime() } }
+
+  it('asks how the run went, for the coach, for 12 hours', () => {
+    expect(nextStep(ran, at(7, 30))).toMatchObject({
+      kind: 'comment',
+      title: 'Como foi a corrida?',
+      detail: 'Corrida 7 Km · comentário e esforço para o treinador',
+      action: { type: 'link', to: '/treinos/atividades/r1?comentar=1', label: 'Comentar' },
+    })
+    expect(nextStep(ran, at(19, 30))?.kind).not.toBe('comment')
+  })
+
+  it('comes after a workout about to start and the morning weigh-in', () => {
+    expect(nextStep({ ...ran, weighed: false }, at(7, 30))?.kind).toBe('weighIn')
+    expect(nextStep({ ...ran, agenda: [gym(8)] }, at(7, 30))?.kind).toBe('workout')
+  })
+})
+
 describe('inTime', () => {
   it('reads minutes and hours', () => {
     expect(inTime(40 * 60_000)).toBe('em 40 min')

@@ -1,15 +1,30 @@
-import { ChevronRight, GlassWater, ListChecks, NotebookPen, Play, Scale, Utensils, type LucideIcon } from 'lucide-react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import {
+  ChevronRight,
+  GlassWater,
+  ListChecks,
+  MessageSquareText,
+  NotebookPen,
+  Play,
+  Scale,
+  Utensils,
+  type LucideIcon,
+} from 'lucide-react'
 import { Link } from 'react-router'
 import { IconTile, type Tone } from '../../components/tone'
 import { Button } from '../../components/ui'
 import { useNow, useSettings } from '../../db/hooks'
-import { shiftDay, type DayKey } from '../../lib/dates'
+import { alive } from '../../db/repo'
+import { db } from '../../db/schema'
+import { parseDay, shiftDay, type DayKey } from '../../lib/dates'
+import { activityLabel } from '../activities/activities'
 import { useWeights } from '../body/body'
 import { KIND_ICONS, KIND_TONES } from '../calendar/components'
 import { useAgenda, useTodayTemplate } from '../calendar/plans'
 import { useFoodLogs } from '../food/nutrition'
 import { habitLogId, isSuccess, useHabitLogs, useHabits } from '../habits/habits'
 import { useJournalEntry } from '../journal/journal'
+import { isRun } from '../running/running'
 import { useStartWorkout } from '../training/components'
 import { findActive, useSessions, useTemplates } from '../training/training'
 import { sumMl, useContainers, useWaterLogs } from '../water/water'
@@ -22,6 +37,7 @@ const LOOKS: Record<Exclude<NowStep['kind'], 'workout' | 'upcoming'>, { icon: Lu
   water: { icon: GlassWater, tone: 'water' },
   habits: { icon: ListChecks, tone: 'habits' },
   journal: { icon: NotebookPen, tone: 'journal' },
+  comment: { icon: MessageSquareText, tone: 'today' },
 }
 
 const look = (step: NowStep) =>
@@ -50,15 +66,25 @@ export function NowCard({ today }: { today: DayKey }) {
   const habits = useHabits()
   const habitLogs = useHabitLogs(today, today)
   const journal = useJournalEntry(today)
+  const todaysActivities = useLiveQuery(
+    async () => alive(await db.activities.where('startTime').aboveOrEqual(parseDay(today).getTime()).toArray()),
+    [today],
+  )
   const start = useStartWorkout()
   const addWater = useAddWater()
 
-  if (!sessions || !agenda || !weights || !foodLogs || !waterLogs || !habits || !habitLogs || journal === undefined) return null
+  if (!sessions || !agenda || !weights || !foodLogs || !waterLogs || !habits || !habitLogs || journal === undefined || !todaysActivities) {
+    return null
+  }
 
   const lastWeek = shiftDay(today, -7)
   const glass = containers?.find((container) => container.favorite === 1)
   const values = new Map(habitLogs.map((log) => [log.id, log.value]))
   const active = findActive(sessions)
+  // The latest run of the day that has no comment or effort yet.
+  const run = todaysActivities
+    .filter((activity) => isRun(activity) && activity.date === today && !activity.notes?.trim() && !activity.effort)
+    .sort((a, b) => b.startTime - a.startTime)[0]
   const step = nextStep(
     {
       today,
@@ -77,6 +103,7 @@ export function NowCard({ today }: { today: DayKey }) {
         .filter((habit) => !isSuccess(habit, values.get(habitLogId(habit.id, today))))
         .map((habit) => habit.name),
       journaled: journal !== null,
+      uncommented: run && { id: run.id, title: run.title ?? activityLabel(run), endedAt: run.startTime + run.elapsedSec * 1000 },
       smart: settings.smartReminders,
     },
     now,

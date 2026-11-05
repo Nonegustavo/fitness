@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { DailyHealth, Habit, HabitLog, JournalEntry, Settings } from '../../db/types'
+import type { Activity, DailyHealth, Habit, HabitLog, JournalEntry, Settings } from '../../db/types'
 import { dayRange, shiftDay } from '../../lib/dates'
 import type { Sources } from '../insights/metrics'
 import { buildContext, hasRecentData } from './context'
@@ -140,5 +140,30 @@ describe('profile and weight goal', () => {
     expect(text).toContain('## Sobre a pessoa (escrito por ela)')
     expect(text).toContain('Tenho tendinite no ombro.')
     expect(text).toContain('- Peso: chegar a 75 kg (perder 0,5 kg por semana).')
+  })
+})
+
+describe('what was said about a run', () => {
+  it('goes with the run: the effort, the pain and the comment, on one line', () => {
+    const run: Activity = {
+      id: 'run',
+      sport: 'running',
+      title: 'Corrida 7 Km',
+      date: TODAY,
+      startTime: new Date(2026, 10, 3, 6, 30).getTime(),
+      elapsedSec: 2700,
+      timerSec: 2600,
+      distanceM: 7050,
+      laps: [],
+      hasTrack: false,
+      effort: 7,
+      discomfort: ['knee'],
+      notes: 'Tiros no ritmo.\nO último mais pesado.',
+      ...meta,
+    }
+    const text = build({ ...world(), activities: [run] })
+    expect(text).toContain(
+      'treino: Corrida 7 Km 7,1 km em 43 min, esforço 7/10, desconforto: joelho, comentário: "Tiros no ritmo. / O último mais pesado."',
+    )
   })
 })

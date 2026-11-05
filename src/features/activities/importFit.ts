@@ -29,7 +29,10 @@ export async function saveParsed(
 ): Promise<void> {
   const now = Date.now()
   await db.transaction('rw', db.activities, db.activityStreams, async () => {
-    await db.activities.put({ ...activity, ...extra, updatedAt: now, deleted: 0, dirty: 1 })
+    // Importing the file again keeps what the user said about the workout.
+    const previous = await db.activities.get(activity.id)
+    const said = previous && !previous.deleted ? { effort: previous.effort, discomfort: previous.discomfort, notes: previous.notes } : {}
+    await db.activities.put({ ...activity, ...extra, ...said, updatedAt: now, deleted: 0, dirty: 1 })
     await db.activityStreams.put({ ...stream, updatedAt: now, deleted: 0, dirty: 1 })
   })
 }

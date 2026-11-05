@@ -1,9 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Activity as ActivityIcon, Bike, Dumbbell, Footprints, HeartPulse, Mountain, Waves, type LucideIcon } from 'lucide-react'
-import { alive, remove } from '../../db/repo'
+import { alive, patch, remove } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Activity, ActivityStream, WorkoutSession } from '../../db/types'
+import { formatDay } from '../../lib/dates'
 import { formatClock, formatFixed } from '../../lib/format'
+import { DISCOMFORT_AREAS } from '../training/discomfort'
 
 /** All activities, newest first. */
 export function useActivities(): Activity[] | undefined {
@@ -78,6 +80,27 @@ const SPORTS: Record<string, string> = {
   golf: 'Golfe',
   multisport: 'Multiesporte',
   meditation: 'Meditação',
+}
+
+/** What the user says about a workout after it: effort, discomfort and the comment. Syncs like the rest. */
+export const saveActivityFeedback = (id: string, changes: Partial<Pick<Activity, 'effort' | 'discomfort' | 'notes'>>) =>
+  patch(db.activities, id, changes)
+
+/**
+ * The feedback as a message to paste for the coach: the workout and its day, the comment, the
+ * effort (PSE) and where it hurt.
+ */
+export function coachMessage(
+  activity: Pick<Activity, 'sport' | 'subSport' | 'title' | 'date' | 'notes' | 'effort' | 'discomfort'>,
+): string {
+  const lines = [`${activity.title ?? activityLabel(activity)} (${formatDay(activity.date, 'EEE, d/MM')})`]
+  const notes = activity.notes?.trim()
+  if (notes) lines.push(notes)
+  if (activity.effort) lines.push(`Esforço (PSE): ${activity.effort}/10`)
+  if (activity.discomfort?.length) {
+    lines.push(`Desconforto: ${activity.discomfort.map((area) => DISCOMFORT_AREAS[area] ?? area).join(', ').toLowerCase()}`)
+  }
+  return lines.join('\n')
 }
 
 export function activityLabel(activity: Pick<Activity, 'sport' | 'subSport'>): string {

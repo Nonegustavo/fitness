@@ -7,6 +7,7 @@ import {
   Clock,
   Dumbbell,
   Footprints,
+  MessageSquareText,
   Pencil,
   Play,
   Trash2,
@@ -132,6 +133,7 @@ export function describeItem(item: AgendaItem): string {
     } else if (item.activity) {
       if (item.activity.distanceM) parts.push(formatDistance(item.activity.distanceM))
       parts.push(formatClock(item.activity.timerSec))
+      if (item.activity.effort) parts.push(`PSE ${item.activity.effort}`)
     }
     return parts.join(' · ')
   }
@@ -195,6 +197,12 @@ function ItemRow({
           </p>
         )}
         <p className="text-xs text-muted">{describeItem(item)}</p>
+        {item.activity?.notes?.trim() && (
+          <p className="mt-0.5 flex items-start gap-1 text-xs text-ink-2">
+            <MessageSquareText size={12} aria-label="Comentário" className="mt-0.5 shrink-0" />
+            <span className="line-clamp-2">{item.activity.notes}</span>
+          </p>
+        )}
         {item.event?.description && item.status !== 'done' && (
           <p className="mt-0.5 line-clamp-3 text-xs whitespace-pre-line text-ink-2">{item.event.description}</p>
         )}

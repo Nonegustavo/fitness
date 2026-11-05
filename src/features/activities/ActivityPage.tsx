@@ -1,6 +1,6 @@
 import { ChevronRight, Dumbbell, Trash2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Confirm } from '../../components/Modal'
 import { Button, Card, Empty, Page, Stat } from '../../components/ui'
 import { formatDay, formatTime } from '../../lib/dates'
@@ -18,11 +18,13 @@ import {
   useActivity,
   useActivityStream,
 } from './activities'
+import { ActivityFeedback } from './ActivityFeedback'
 import { HeartRateZones, LapsTable, StreamCharts } from './ActivityCharts'
 import { ActivityMap } from './ActivityMap'
 
 export default function ActivityPage() {
   const { id = '' } = useParams()
+  const [params] = useSearchParams()
   const navigate = useNavigate()
   const activity = useActivity(id)
   const stream = useActivityStream(activity ? id : undefined)
@@ -99,6 +101,9 @@ export default function ActivityPage() {
         </div>
         {activity.device && <p className="mt-4 text-xs text-muted">Gravado com {deviceName(activity.device)}</p>}
       </Card>
+
+      {/* A gym workout has its own "Como foi o treino?" in the session. */}
+      {!session && <ActivityFeedback key={activity.id} activity={activity} focus={params.get('comentar') === '1'} />}
 
       {session && (
         <Card>
