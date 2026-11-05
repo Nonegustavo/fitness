@@ -8,6 +8,7 @@ import type {
   PlannedSet,
   SessionExercise,
   SetKind,
+  TemplateExercise,
   WorkoutSession,
   WorkoutTemplate,
 } from '../../db/types'
@@ -57,8 +58,9 @@ export async function startWorkout(template?: WorkoutTemplate): Promise<string> 
     name: template?.name ?? 'Treino livre',
     date: dayKey(now),
     startedAt: now,
-    exercises: (template?.exercises ?? []).map((exercise) => ({
-      key: newId(),
+    exercises: (template?.exercises ?? []).map((exercise, i, all) => ({
+      // The template's own key (unless repeated), so its order can be saved back even after a swap.
+      key: all.findIndex((other) => other.key === exercise.key) === i ? exercise.key : newId(),
       exerciseId: exercise.exerciseId,
       restSec: exercise.restSec,
       warmupRestSec: exercise.warmupRestSec,
@@ -185,4 +187,100 @@ export function swapExercise(session: WorkoutSession, exerciseKey: string, exerc
       return [{ ...exercise, sets: done, supersetWithNext: false }, { ...swapped, key: newId() }]
     }),
   }
+}
+
+/**
+ * One more set: a working set at the end, with the last working set's target, or a warm-up after the
+ * warm-ups already there (first, when there are none), with the last warm-up's target.
+ */
+export function addSet(exercise: SessionExercise, kind: SetKind): SessionExercise {
+  const target = exercise.sets.findLast((s) => s.kind === kind)?.target
+  const set: PerformedSet = { key: newId(), kind, target, done: false }
+  const at = kind === 'warmup' ? exercise.sets.findLastIndex((s) => s.kind === 'warmup') + 1 : exercise.sets.length
+  return { ...exercise, sets: [...exercise.sets.slice(0, at), set, ...exercise.sets.slice(at)] }
+}
+
+/** The workout without an exercise. When it closed a bi-set, the one before isn't left linked to the next. */
+export function removeExercise(session: WorkoutSession, exerciseKey: string): WorkoutSession {
+  const index = session.exercises.findIndex((exercise) => exercise.key === exerciseKey)
+  if (index < 0) return session
+  const closesPair = !session.exercises[index].supersetWithNext || index === session.exercises.length - 1
+  return {
+    ...session,
+    exercises: session.exercises.flatMap((exercise, i) => {
+      if (i === index) return []
+      const unlink = i === index - 1 && closesPair && exercise.supersetWithNext
+      return [unlink ? { ...exercise, supersetWithNext: false } : exercise]
+    }),
+  }
+}
+
+/** Exercises in runs linked as bi-sets (or longer): what moves as one when reordering. */
+export function exerciseBlocks<T extends { supersetWithNext?: boolean }>(exercises: T[]): T[][] {
+  const blocks: T[][] = []
+  exercises.forEach((exercise, i) => {
+    if (i > 0 && exercises[i - 1].supersetWithNext) blocks[blocks.length - 1].push(exercise)
+    else blocks.push([exercise])
+  })
+  return blocks
+}
+
+/** A link left on the last exercise of a block (its pair was removed) would pair it with its new neighbor. */
+const unlinkLast = <T extends { supersetWithNext?: boolean }>(block: T[]): T[] =>
+  block.map((exercise, i) =>
+    i === block.length - 1 && exercise.supersetWithNext ? { ...exercise, supersetWithNext: false } : exercise,
+  )
+
+/**
+ * The exercises with their blocks in a new order, given by the key of each block's first exercise: a
+ * bi-set moves whole and stays linked. Blocks the order leaves out (added meanwhile) go at the end.
+ */
+export function reorderExercises(exercises: SessionExercise[], order: string[]): SessionExercise[] {
+  const rank = (block: SessionExercise[]) => {
+    const at = order.indexOf(block[0].key)
+    return at < 0 ? order.length : at
+  }
+  return exerciseBlocks(exercises)
+    .sort((a, b) => rank(a) - rank(b))
+    .flatMap(unlinkLast)
+}
+
+/**
+ * The template exercise each exercise of the workout came from: the same key (a workout keeps its
+ * template's keys, even through a swap), or else the same exercise, in order, so a repeated exercise
+ * finds its own copy. Undefined for exercises the template doesn't have.
+ */
+export function matchTemplate(
+  template: TemplateExercise[],
+  exercises: SessionExercise[],
+): (TemplateExercise | undefined)[] {
+  const free = new Set(template)
+  const take = (found: TemplateExercise | undefined) => {
+    if (found) free.delete(found)
+    return found
+  }
+  const byKey = exercises.map((exercise) => take(template.find((t) => free.has(t) && t.key === exercise.key)))
+  return byKey.map(
+    (match, i) => match ?? take(template.find((t) => free.has(t) && t.exerciseId === exercises[i].exerciseId)),
+  )
+}
+
+/**
+ * The template's exercises in the workout's order, to save it back. Each of the template's bi-sets
+ * moves whole, to where the first of its exercises is in the workout; one the workout doesn't have
+ * stays after the exercise it followed. Exercises only in the workout stay out of the template.
+ */
+export function templateInOrder(template: TemplateExercise[], exercises: SessionExercise[]): TemplateExercise[] {
+  const position = new Map<TemplateExercise, number>()
+  matchTemplate(template, exercises).forEach((match, i) => match && position.set(match, i))
+  let anchor = -1
+  const placed = exerciseBlocks(template).map((block, i) => {
+    const at = Math.min(...block.flatMap((exercise) => position.get(exercise) ?? []))
+    if (Number.isFinite(at)) anchor = at
+    // A block the workout lacks keeps following the one it came after (or stays first).
+    return { block, at: Number.isFinite(at) ? at : anchor, after: Number.isFinite(at) ? 0 : 1, i }
+  })
+  return placed
+    .sort((a, b) => a.at - b.at || a.after - b.after || a.i - b.i)
+    .flatMap(({ block }) => unlinkLast(block))
 }

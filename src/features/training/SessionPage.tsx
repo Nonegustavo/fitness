@@ -1,32 +1,68 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowLeftRight, Check, Disc3, Heart, Link2, Minus, Plus, Trash2, TrendingUp, Trophy, Unlink2 } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  ArrowUpDown,
+  Check,
+  Disc3,
+  Ellipsis,
+  Flame,
+  Heart,
+  Link2,
+  Minus,
+  Plus,
+  Trash2,
+  TrendingUp,
+  Trophy,
+  Unlink2,
+  type LucideIcon,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { celebrate } from '../../components/celebrate'
-import { Confirm } from '../../components/Modal'
+import { Confirm, Modal } from '../../components/Modal'
+import { SortableList } from '../../components/Sortable'
 import { Button, Card, cx, DecimalInput, Empty, IconButton, Page, SkeletonCard, Stat, TextInput } from '../../components/ui'
+import { mutate } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Exercise, ExerciseType, PerformedSet, SessionExercise, WorkoutSession } from '../../db/types'
 import { formatDay } from '../../lib/dates'
 import { formatClock, formatDuration, formatNumber, parseClock, parseDecimal } from '../../lib/format'
-import { newId } from '../../lib/ids'
 import { setPeakHeartRates, useActivityStream, useWorkoutActivity } from '../activities/activities'
 import { WorkoutWatchCard } from '../activities/WorkoutWatchCard'
-import { EQUIPMENT, formatReps, formatSet, MUSCLES } from './catalog'
+import { EQUIPMENT, formatComparison, formatE1rm, formatReps, formatSet, MUSCLES } from './catalog'
 import { Elapsed } from './components'
 import { ExercisePicker } from './ExercisePicker'
 import { startRest, stopRest } from './restTimer'
 import { LoadStepper, PlatesModal, SwapModal } from './GymTools'
-import { LOAD_STEP, lastPerformance, personalRecords, suggestNextWeight, summarize, type Performance } from './stats'
 import {
+  compareSet,
+  LOAD_STEP,
+  lastPerformance,
+  personalRecords,
+  setE1rm,
+  suggestNextWeight,
+  summarize,
+  type Performance,
+  type SetComparison,
+  type Trend,
+} from './stats'
+import {
+  addSet,
   changeExercise,
   changeSet,
+  completeSet,
   deleteWorkout,
+  exerciseBlocks,
   finishWorkout,
+  matchTemplate,
   newSessionExercise,
-  restsAfter,
+  removeExercise,
+  reorderExercises,
+  restOf,
+  restSecAfter,
   shiftLoad,
   swapExercise,
+  templateInOrder,
   updateSession,
   useExerciseMap,
   useSessions,
@@ -46,6 +82,7 @@ export default function SessionPage() {
   const sessions = useSessions()
   const exercises = useExerciseMap()
   const [picking, setPicking] = useState(false)
+  const [reordering, setReordering] = useState(false)
   const [dialog, setDialog] = useState<'finish' | 'discard' | 'delete' | null>(null)
   const active = !!session && session.deleted === 0 && !session.endedAt
   useWakeLock(active)
@@ -142,6 +179,7 @@ export default function SessionPage() {
           active={active}
           record={records.has(exercise.exerciseId)}
           peaks={peaks}
+          onReorder={session.exercises.length > 1 ? () => setReordering(true) : undefined}
         />
       ))}
       {session.exercises.length === 0 && (
@@ -179,6 +217,7 @@ export default function SessionPage() {
           }
         />
       )}
+      {reordering && <ReorderModal session={session} exercises={exercises} onClose={() => setReordering(false)} />}
       {dialog === 'finish' && (
         <Confirm
           title="Finalizar treino?"
@@ -223,6 +262,7 @@ function ExerciseCard({
   active,
   record,
   peaks,
+  onReorder,
 }: {
   session: WorkoutSession
   /** Its place in the workout, for the bi-sets. */
@@ -237,7 +277,10 @@ function ExerciseCard({
   record: boolean
   /** Peak heart rate of each set (by key), from the watch. */
   peaks?: Map<string, number>
+  /** Opens the reordering of the workout's exercises (with two or more). */
+  onReorder?: () => void
 }) {
+  const [menu, setMenu] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [swapping, setSwapping] = useState(false)
   const [plates, setPlates] = useState(false)
@@ -270,9 +313,34 @@ function ExerciseCard({
   // Bi-sets: this one and the next are done alternating, with the rest after the pair.
   const next = session.exercises[index + 1]
   const previous = session.exercises[index - 1]
-  const inSuperset = !!exercise.supersetWithNext || !!previous?.supersetWithNext
-  const rests = restsAfter(session.exercises, index)
+  // A link left on the last exercise (its pair was dropped) pairs with nothing.
+  const linked = !!exercise.supersetWithNext && !!next
+  const inSuperset = linked || !!previous?.supersetWithNext
   const nameOf = (id: string) => library.find((e) => e.id === id)?.name ?? 'o próximo'
+  const name = info?.name ?? 'Exercício removido'
+  const hasWarmups = exercise.sets.some((set) => set.kind === 'warmup')
+
+  // The "⋯" sheet. Swapping and bi-sets are for a workout in progress; a finished one keeps the rest.
+  const actions: (MenuAction | false | undefined)[] = [
+    active && info && { label: 'Trocar exercício', icon: ArrowLeftRight, onClick: () => setSwapping(true) },
+    active &&
+      next && {
+        label: linked ? 'Desfazer bi-set' : `Bi-set com ${nameOf(next.exerciseId)}`,
+        detail: linked ? undefined : 'Uma série de cada, com o descanso depois do par',
+        icon: linked ? Unlink2 : Link2,
+        onClick: () => update((current) => ({ ...current, supersetWithNext: !current.supersetWithNext })),
+      },
+    { label: 'Adicionar série', icon: Plus, onClick: () => update((current) => addSet(current, 'normal')) },
+    { label: 'Adicionar aquecimento', icon: Flame, onClick: () => update((current) => addSet(current, 'warmup')) },
+    {
+      label: 'Remover última série',
+      icon: Minus,
+      disabled: exercise.sets.length === 0,
+      onClick: () => update((current) => ({ ...current, sets: current.sets.slice(0, -1) })),
+    },
+    onReorder && { label: 'Reordenar exercícios', icon: ArrowUpDown, onClick: onReorder },
+    { label: 'Remover exercício', icon: Trash2, danger: true, onClick: () => setConfirmRemove(true) },
+  ]
 
   // The load the next sets will use: typed, or last time's, or the template's.
   const firstLeft = rows.find(({ set }) => set.kind === 'normal' && !set.done)
@@ -285,10 +353,11 @@ function ExerciseCard({
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <Link to={`/treinos/exercicios/${exercise.exerciseId}`} className="font-medium hover:text-accent-ink">
-            {info?.name ?? 'Exercício removido'}
+            {name}
           </Link>
           <p className="text-xs text-muted">
             {info && `${MUSCLES[info.muscle]} · ${EQUIPMENT[info.equipment]} · `}descanso {formatClock(exercise.restSec)}
+            {hasWarmups && ` · aquecimento ${formatClock(restOf(exercise, 'warmup'))}`}
           </p>
         </div>
         {record && (
@@ -296,28 +365,14 @@ function ExerciseCard({
             <Trophy size={14} className="text-accent-ink" /> Recorde
           </span>
         )}
-        {active && info && (
-          <IconButton label="Trocar por outro exercício" onClick={() => setSwapping(true)}>
-            <ArrowLeftRight size={16} />
-          </IconButton>
-        )}
-        {active && next && (
-          <IconButton
-            label={exercise.supersetWithNext ? 'Desfazer bi-set' : `Bi-set com ${nameOf(next.exerciseId)}`}
-            aria-pressed={!!exercise.supersetWithNext}
-            onClick={() => update((current) => ({ ...current, supersetWithNext: !current.supersetWithNext }))}
-          >
-            {exercise.supersetWithNext ? <Unlink2 size={16} /> : <Link2 size={16} />}
-          </IconButton>
-        )}
-        <IconButton label="Remover exercício" onClick={() => setConfirmRemove(true)}>
-          <Trash2 size={16} />
+        <IconButton label={`Opções de ${name}`} onClick={() => setMenu(true)}>
+          <Ellipsis size={18} />
         </IconButton>
       </div>
       {inSuperset && (
         <p className="mt-1 text-xs font-medium text-(--tone-training)">
-          {exercise.supersetWithNext
-            ? `Bi-set: uma série daqui, uma de ${nameOf(next!.exerciseId)}, e o descanso depois.`
+          {linked
+            ? `Bi-set: uma série daqui, uma de ${nameOf(next.exerciseId)}, e o descanso depois.`
             : 'Fim do bi-set: o descanso começa depois desta série.'}
         </p>
       )}
@@ -367,7 +422,7 @@ function ExerciseCard({
       <div className="mt-3 space-y-1">
         <div className={cx('grid items-end gap-2 px-1 text-xs text-muted', columns)}>
           <span className="text-center">Série</span>
-          <span>Anterior</span>
+          <span className="text-center">Anterior</span>
           {type === 'weight_reps' && <span className="text-center">kg</span>}
           <span className="text-center">{type === 'time' ? 'Tempo' : 'Reps'}</span>
           <span />
@@ -383,36 +438,12 @@ function ExerciseCard({
             type={type}
             columns={columns}
             restLabel={info?.name ?? 'Descanso'}
-            startsRest={active && rests}
+            rest={active ? restSecAfter(session.exercises, index, set.kind) : 0}
           />
         ))}
       </div>
-      <div className="mt-2 flex gap-1">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() =>
-            update((current) => ({
-              ...current,
-              sets: [
-                ...current.sets,
-                { key: newId(), kind: 'normal', target: current.sets.at(-1)?.target, done: false },
-              ],
-            }))
-          }
-        >
-          <Plus size={16} /> Série
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={exercise.sets.length === 0}
-          onClick={() => update((current) => ({ ...current, sets: current.sets.slice(0, -1) }))}
-        >
-          <Minus size={16} /> Série
-        </Button>
-      </div>
 
+      {menu && <ActionSheet title={name} actions={actions} onClose={() => setMenu(false)} />}
       {swapping && info && (
         <SwapModal
           current={info}
@@ -433,12 +464,163 @@ function ExerciseCard({
           confirmLabel="Remover"
           danger
           onClose={() => setConfirmRemove(false)}
-          onConfirm={() => update(() => null)}
+          onConfirm={() => void updateSession(session.id, (current) => removeExercise(current, exercise.key))}
         />
       )}
     </Card>
   )
 }
+
+interface MenuAction {
+  label: string
+  detail?: string
+  icon: LucideIcon
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
+}
+
+/** A sheet of actions, one per row; picking one closes it. */
+function ActionSheet({
+  title,
+  actions,
+  onClose,
+}: {
+  title: string
+  actions: (MenuAction | false | undefined)[]
+  onClose: () => void
+}) {
+  return (
+    <Modal open title={title} onClose={onClose}>
+      <div className="grid gap-2">
+        {actions.map(
+          (action) =>
+            action && (
+              <button
+                key={action.label}
+                type="button"
+                disabled={action.disabled}
+                onClick={() => {
+                  onClose()
+                  action.onClick()
+                }}
+                className={cx(
+                  'flex min-h-12 items-center gap-3 rounded-xl bg-surface-2 px-3 py-2 text-left transition hover:brightness-110 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
+                  action.danger && 'text-critical',
+                )}
+              >
+                <action.icon size={20} aria-hidden className={cx('shrink-0', !action.danger && 'text-ink-2')} />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">{action.label}</span>
+                  {action.detail && <span className="block text-xs text-muted">{action.detail}</span>}
+                </span>
+              </button>
+            ),
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * The order of the workout's exercises, by dragging; a bi-set moves as one block. A workout from a
+ * template can take its new order back there.
+ */
+function ReorderModal({
+  session,
+  exercises,
+  onClose,
+}: {
+  session: WorkoutSession
+  exercises: Map<string, Exercise>
+  onClose: () => void
+}) {
+  // null = no template (or it's gone); undefined = still loading.
+  const template = useLiveQuery(
+    async () => (session.templateId ? ((await db.workoutTemplates.get(session.templateId)) ?? null) : null),
+    [session.templateId],
+  )
+  const nameOf = (exercise: { exerciseId: string }) => exercises.get(exercise.exerciseId)?.name ?? 'Exercício removido'
+  const names = (list: { exerciseId: string }[]) => LIST.format(list.map(nameOf))
+
+  const live = template && !template.deleted ? template : undefined
+  const matches = live ? matchTemplate(live.exercises, session.exercises) : []
+  // A template that shares nothing with the workout anymore has no order to take from it.
+  const own = matches.some(Boolean) ? live : undefined
+  const ordered = own ? templateInOrder(own.exercises, session.exercises) : []
+  const changed = !!own && ordered.some((exercise, i) => exercise.key !== own.exercises[i].key)
+  // Only the order changes: what's only in the workout stays out, what it lacks stays in the template.
+  const extra = session.exercises.filter((_, i) => own && !matches[i])
+  const missing = own ? own.exercises.filter((exercise) => !matches.includes(exercise)) : []
+
+  return (
+    <Modal open title="Reordenar exercícios" onClose={onClose}>
+      <p className="mb-3 text-sm text-ink-2">Arraste pela alça. Um bi-set se move junto.</p>
+      <SortableList
+        className="space-y-1.5"
+        itemClassName="rounded-xl"
+        items={exerciseBlocks(session.exercises)}
+        getId={(block) => block[0].key}
+        onReorder={(blocks) =>
+          void updateSession(session.id, (current) => ({
+            ...current,
+            exercises: reorderExercises(current.exercises, blocks.map((block) => block[0].key)),
+          }))
+        }
+      >
+        {(block, handle) => (
+          <div className="flex min-h-11 items-center gap-1 rounded-xl bg-surface-2 py-1 pr-3 pl-1">
+            {handle}
+            <span className="min-w-0 flex-1 text-sm">{block.map(nameOf).join(' + ')}</span>
+          </div>
+        )}
+      </SortableList>
+
+      {own && (
+        <div className="mt-4 border-t border-line pt-4">
+          {changed ? (
+            <>
+              <Button
+                className="w-full"
+                onClick={() =>
+                  void mutate(db.workoutTemplates, own.id, (current) => ({
+                    ...current,
+                    exercises: templateInOrder(current.exercises, session.exercises),
+                  }))
+                }
+              >
+                Salvar esta ordem na ficha
+              </Button>
+              {extra.length > 0 && (
+                <p className="mt-2 text-xs text-muted">
+                  {names(extra)}{' '}
+                  {extra.length === 1 ? 'não está na ficha e fica de fora.' : 'não estão na ficha e ficam de fora.'}
+                </p>
+              )}
+              {missing.length > 0 && (
+                <p className="mt-1 text-xs text-muted">
+                  {names(missing)}{' '}
+                  {missing.length === 1
+                    ? 'não está neste treino e continua na ficha, depois de onde estava.'
+                    : 'não estão neste treino e continuam na ficha, depois de onde estavam.'}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="flex items-center gap-2 text-sm text-ink-2">
+              <Check size={16} className="shrink-0 text-good" /> A ficha {own.name} está nesta ordem.
+            </p>
+          )}
+        </div>
+      )}
+      <Button variant="primary" className="mt-4 w-full" onClick={onClose}>
+        Pronto
+      </Button>
+    </Modal>
+  )
+}
+
+const LIST = new Intl.ListFormat('pt-BR', { type: 'conjunction' })
 
 function SetRow({
   sessionId,
@@ -449,7 +631,7 @@ function SetRow({
   type,
   columns,
   restLabel,
-  startsRest,
+  rest,
 }: {
   sessionId: string
   exercise: SessionExercise
@@ -459,7 +641,8 @@ function SetRow({
   type: ExerciseType
   columns: string
   restLabel: string
-  startsRest: boolean
+  /** Seconds of rest once the set is checked; 0 for none. */
+  rest: number
 }) {
   // Text as typed, written to the workout on blur or when the set is checked.
   const [weight, setWeight] = useState(asText(set.weightKg))
@@ -480,6 +663,12 @@ function SetRow({
   const repsHint = set.target?.reps !== undefined ? formatReps(set.target.reps, set.target.repsMax) : fallback.reps
 
   const typed = () => ({ weightKg: parseDecimal(weight), reps: parseCount(reps), durationSec: parseClock(duration) })
+  // What checking the set records: what's typed, and the hints for the fields left empty.
+  const withHints = (values: ReturnType<typeof typed>) => ({
+    weightKg: type === 'weight_reps' ? (values.weightKg ?? fallback.weightKg) : undefined,
+    reps: type === 'time' ? undefined : (values.reps ?? fallback.reps),
+    durationSec: type === 'time' ? (values.durationSec ?? fallback.durationSec) : undefined,
+  })
   const write = (changes: Partial<PerformedSet>) =>
     updateSession(sessionId, (current) => changeSet(current, exercise.key, set.key, (s) => ({ ...s, ...changes })))
 
@@ -495,25 +684,35 @@ function SetRow({
       void write({ done: false, completedAt: undefined })
       return
     }
-    const values = typed()
-    const done = {
-      weightKg: type === 'weight_reps' ? (values.weightKg ?? fallback.weightKg) : undefined,
-      reps: type === 'time' ? undefined : (values.reps ?? fallback.reps),
-      durationSec: type === 'time' ? (values.durationSec ?? fallback.durationSec) : undefined,
-    }
+    const done = withHints(typed())
     if (type === 'time' ? done.durationSec === undefined : done.reps === undefined) {
       ;(type === 'time' ? durationInput : repsInput).current?.focus()
       return
     }
     tapFeedback()
-    void write({ ...done, done: true, completedAt: Date.now() })
-    if (startsRest && exercise.restSec > 0) startRest(exercise.restSec, restLabel)
+    void completeSet(sessionId, exercise.key, set.key, done)
+    if (rest > 0) startRest(rest, restLabel)
   }
 
+  // Under a working set: its estimated 1RM (reps or time without a load) against the same set last
+  // time, from what's done or live as it's typed; nothing while only the hints show. Under
+  // "Anterior", last time's own 1RM.
+  const working = set.kind === 'normal'
+  const shown = type === 'weight_reps' ? [weight, reps] : type === 'time' ? [duration] : [reps]
+  const values = set.done ? set : shown.some((text) => text.trim() !== '') ? withHints(typed()) : undefined
+  const comparison = working && values ? compareSet(values, previous, type) : undefined
+  const before = working && type === 'weight_reps' && previous ? setE1rm(previous) : undefined
+
   return (
-    <div className={cx('grid items-center gap-2 rounded-xl px-1 py-1 transition', columns, set.done && 'bg-series-1/10')}>
+    <div
+      className={cx(
+        'grid items-center gap-x-2 gap-y-0.5 rounded-xl px-1 py-1 transition',
+        columns,
+        set.done && 'bg-series-1/10',
+      )}
+    >
       <span className={cx('text-center text-sm font-semibold', set.kind === 'warmup' && 'text-muted')}>{label}</span>
-      <span className="truncate text-xs text-muted">{previous ? formatSet(previous, type) : '—'}</span>
+      <span className="truncate text-center text-xs text-muted">{previous ? formatSet(previous, type) : '—'}</span>
       {type === 'weight_reps' && (
         <DecimalInput
           className="h-10 px-1 text-center"
@@ -559,6 +758,41 @@ function SetRow({
       >
         <Check size={20} />
       </button>
+      {(before !== undefined || comparison) && (
+        <>
+          <span />
+          <span className="truncate text-center text-[11px] leading-tight text-muted tabular-nums">
+            {before !== undefined && formatE1rm(before)}
+          </span>
+          <span className={cx(type === 'weight_reps' && 'col-span-2')}>
+            {comparison && <ComparisonLine comparison={comparison} />}
+          </span>
+        </>
+      )}
     </div>
+  )
+}
+
+const TRENDS: Record<Trend, { arrow?: string; className: string; label: string }> = {
+  up: { arrow: '▲', className: 'text-good', label: 'mais que na última vez' },
+  down: { arrow: '▼', className: 'text-critical', label: 'menos que na última vez' },
+  same: { className: 'text-muted', label: 'igual à última vez' },
+}
+
+/** "1RM 83,3 ▲": green above the same set last time, red below, muted when equal or new. */
+function ComparisonLine({ comparison }: { comparison: SetComparison }) {
+  const trend = comparison.trend && TRENDS[comparison.trend]
+  return (
+    <span
+      className={cx(
+        'block truncate text-center text-[11px] leading-tight tabular-nums',
+        trend?.className ?? 'text-muted',
+      )}
+      title={comparison.metric === 'e1rm' ? '1RM estimado (Epley)' : undefined}
+    >
+      {formatComparison(comparison)}
+      {trend?.arrow && <span aria-hidden> {trend.arrow}</span>}
+      {trend && <span className="sr-only">, {trend.label}</span>}
+    </span>
   )
 }

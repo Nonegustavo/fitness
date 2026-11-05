@@ -1,5 +1,6 @@
 import type { Equipment, ExerciseType, MuscleGroup } from '../../db/types'
 import { formatClock, formatNumber } from '../../lib/format'
+import type { SetComparison } from './stats'
 
 export const MUSCLES: Record<MuscleGroup, string> = {
   chest: 'Peito',
@@ -42,12 +43,25 @@ export function formatReps(reps?: number, repsMax?: number): string {
   return repsMax !== undefined && repsMax !== reps ? `${reps}–${repsMax}` : String(reps)
 }
 
-/** "60×10", "12" or "0:45", depending on how the exercise is recorded. */
+/** "60×10", "PC×12" (peso corporal: no load) or "0:45", depending on how the exercise is recorded. */
 export function formatSet(
   set: { weightKg?: number; reps?: number; durationSec?: number },
   type: ExerciseType,
 ): string {
   if (type === 'time') return set.durationSec === undefined ? '' : formatClock(set.durationSec)
-  if (type === 'reps' || !set.weightKg) return set.reps === undefined ? '' : String(set.reps)
+  if (type === 'reps' || !set.weightKg) return set.reps === undefined ? '' : `PC×${set.reps}`
   return `${formatNumber(set.weightKg, 2)}×${set.reps ?? '?'}`
+}
+
+/** "1RM 83,3": an estimated one-rep max, to a tenth of a kilo. */
+export const formatE1rm = (kg: number): string => `1RM ${formatNumber(kg, 1)}`
+
+/** The line under a set: "1RM 83,3", "+2 reps", "−1 rep", "±0 reps", "+0:10"… */
+export function formatComparison(comparison: SetComparison): string {
+  if (comparison.metric === 'e1rm') return formatE1rm(comparison.value)
+  const { delta } = comparison
+  const sign = delta > 0 ? '+' : delta < 0 ? '−' : '±'
+  const size = Math.abs(delta)
+  if (comparison.metric === 'time') return `${sign}${formatClock(size)}`
+  return `${sign}${size} ${size === 1 ? 'rep' : 'reps'}`
 }

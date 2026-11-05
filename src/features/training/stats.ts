@@ -1,6 +1,7 @@
 import type {
   Equipment,
   Exercise,
+  ExerciseType,
   MuscleGroup,
   PerformedSet,
   SessionExercise,
@@ -24,6 +25,59 @@ export function bestE1rm(sets: PerformedSet[]): number | undefined {
     if (best === undefined || value > best) best = value
   }
   return best
+}
+
+type SetValues = Pick<PerformedSet, 'weightKg' | 'reps' | 'durationSec'>
+
+/** A set's estimated 1RM, when it has a load and reps. */
+export const setE1rm = (set: SetValues): number | undefined =>
+  set.weightKg !== undefined && set.weightKg > 0 && set.reps !== undefined && set.reps > 0
+    ? epley(set.weightKg, set.reps)
+    : undefined
+
+export type Trend = 'up' | 'down' | 'same'
+
+/** A set against the same set last time (same kind, same position). */
+export type SetComparison =
+  /** With a load: its estimated 1RM, and the trend when last time's had a load too. */
+  | { metric: 'e1rm'; value: number; trend?: Trend }
+  /** At body weight: reps more or fewer than last time. */
+  | { metric: 'reps'; delta: number; trend: Trend }
+  /** Timed: seconds more or fewer than last time. */
+  | { metric: 'time'; delta: number; trend: Trend }
+
+const trendOf = (delta: number): Trend => (delta > 0 ? 'up' : delta < 0 ? 'down' : 'same')
+
+/**
+ * How a set compares with the same set last time: its estimated 1RM when it has a load (to a tenth
+ * of a kilo, as shown), the reps at body weight, the duration when timed. Undefined when there's
+ * nothing to show: no reps or time yet, or, at body weight or timed, nothing to compare with.
+ */
+export function compareSet(
+  set: SetValues,
+  previous: SetValues | undefined,
+  type: ExerciseType,
+): SetComparison | undefined {
+  if (type === 'time') {
+    if (set.durationSec === undefined || previous?.durationSec === undefined) return undefined
+    const delta = Math.round(set.durationSec) - Math.round(previous.durationSec)
+    return { metric: 'time', delta, trend: trendOf(delta) }
+  }
+  const loaded = (values: SetValues) => type === 'weight_reps' && (values.weightKg ?? 0) > 0
+  if (loaded(set)) {
+    const value = setE1rm(set)
+    if (value === undefined) return undefined
+    const before = previous && loaded(previous) ? setE1rm(previous) : undefined
+    return {
+      metric: 'e1rm',
+      value,
+      trend: before === undefined ? undefined : trendOf(Math.round(value * 10) - Math.round(before * 10)),
+    }
+  }
+  // Body weight: reps against last time's, when that one had no load either.
+  if (set.reps === undefined || previous?.reps === undefined || loaded(previous)) return undefined
+  const delta = set.reps - previous.reps
+  return { metric: 'reps', delta, trend: trendOf(delta) }
 }
 
 export interface SessionSummary {

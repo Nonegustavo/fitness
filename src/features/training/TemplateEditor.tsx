@@ -12,7 +12,7 @@ import { formatClock, parseClock, parseDecimal } from '../../lib/format'
 import { newId } from '../../lib/ids'
 import { EQUIPMENT, MUSCLES } from './catalog'
 import { ExercisePicker } from './ExercisePicker'
-import { DEFAULT_REST_SEC, useExerciseMap, useTemplates } from './training'
+import { DEFAULT_REST_SEC, DEFAULT_WARMUP_REST_SEC, useExerciseMap, useTemplates } from './training'
 
 // The form keeps numbers as typed ("62,5") and parses them on save.
 interface DraftSet {
@@ -28,6 +28,8 @@ interface DraftExercise {
   key: string
   exerciseId: string
   rest: string
+  /** The rest after a warm-up set. */
+  warmupRest: string
   notes: string
   sets: DraftSet[]
   /** Bi-set with the next exercise. */
@@ -56,6 +58,7 @@ const newDraftExercise = (exerciseId: string): DraftExercise => ({
   key: newId(),
   exerciseId,
   rest: formatClock(DEFAULT_REST_SEC),
+  warmupRest: formatClock(DEFAULT_WARMUP_REST_SEC),
   notes: '',
   sets: [newDraftSet(), newDraftSet(), newDraftSet()],
   superset: false,
@@ -69,6 +72,7 @@ function toDraft(template: WorkoutTemplate): Draft {
       key: exercise.key,
       exerciseId: exercise.exerciseId,
       rest: formatClock(exercise.restSec),
+      warmupRest: formatClock(exercise.warmupRestSec ?? DEFAULT_WARMUP_REST_SEC),
       notes: exercise.notes ?? '',
       superset: !!exercise.supersetWithNext,
       sets: exercise.sets.map((set) => ({
@@ -145,6 +149,7 @@ export default function TemplateEditor() {
           key: exercise.key,
           exerciseId: exercise.exerciseId,
           restSec: parseClock(exercise.rest) ?? DEFAULT_REST_SEC,
+          warmupRestSec: parseClock(exercise.warmupRest) ?? DEFAULT_WARMUP_REST_SEC,
           notes: exercise.notes.trim() || undefined,
           sets: exercise.sets.map((set) => toPlannedSet(set, type)),
           // The last exercise has no next one to pair with.
@@ -321,7 +326,8 @@ function ExerciseEditor({
         </IconButton>
       </div>
 
-      <div className="mt-3 grid grid-cols-[6.5rem_1fr] gap-3">
+      {/* On a phone the note goes under the two rests; wider, all three share the line. */}
+      <div className="mt-3 grid grid-cols-[6.5rem_1fr] gap-3 sm:grid-cols-[6.5rem_auto_1fr]">
         <Field label="Descanso" hint="min:seg">
           <TextInput
             inputMode="numeric"
@@ -330,13 +336,24 @@ function ExerciseEditor({
             placeholder="1:30"
           />
         </Field>
-        <Field label="Observação">
+        <Field label="Descanso do aquecimento" hint="min:seg">
           <TextInput
-            value={exercise.notes}
-            onChange={(e) => onChange((current) => ({ ...current, notes: e.target.value }))}
-            placeholder="Ex.: pegada fechada"
+            className="max-w-[6.5rem]"
+            inputMode="numeric"
+            value={exercise.warmupRest}
+            onChange={(e) => onChange((current) => ({ ...current, warmupRest: e.target.value }))}
+            placeholder={formatClock(DEFAULT_WARMUP_REST_SEC)}
           />
         </Field>
+        <div className="col-span-2 sm:col-span-1">
+          <Field label="Observação">
+            <TextInput
+              value={exercise.notes}
+              onChange={(e) => onChange((current) => ({ ...current, notes: e.target.value }))}
+              placeholder="Ex.: pegada fechada"
+            />
+          </Field>
+        </div>
       </div>
       {!isLast && (
         <div className="mt-3 flex items-center justify-between gap-3">

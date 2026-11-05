@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionExercise } from '../../db/types'
-import { DEFAULT_WARMUP_REST_SEC, restOf, restSecAfter } from './training'
+import type { PerformedSet, SessionExercise, TemplateExercise, WorkoutSession } from '../../db/types'
+import {
+  addSet,
+  DEFAULT_WARMUP_REST_SEC,
+  exerciseBlocks,
+  matchTemplate,
+  removeExercise,
+  reorderExercises,
+  restOf,
+  restSecAfter,
+  templateInOrder,
+} from './training'
 
 const exercise = (changes: Partial<SessionExercise> = {}): SessionExercise => ({
   key: changes.key ?? 'e',
@@ -28,5 +38,140 @@ describe('rest after a set', () => {
   it('rests after the last exercise even when it was left linked', () => {
     expect(restSecAfter([exercise({ supersetWithNext: true })], 0, 'normal')).toBe(90)
     expect(restSecAfter([], 0, 'normal')).toBe(0)
+  })
+})
+
+/** Exercises named by their key ("a+b" links a to b), the exercise id being the key's letter. */
+const workout = (spec: string): SessionExercise[] =>
+  spec.split(' ').flatMap((block) =>
+    block.split('+').map((key, i, keys) => exercise({ key, exerciseId: key[0], supersetWithNext: i < keys.length - 1 || undefined })),
+  )
+/** The same notation back: keys in order, "+" between linked ones. */
+const notation = (exercises: { key: string; supersetWithNext?: boolean }[]): string =>
+  exercises.map((e, i) => e.key + (i === exercises.length - 1 ? '' : e.supersetWithNext ? '+' : ' ')).join('')
+
+describe('reordering exercises', () => {
+  it('groups bi-sets (and longer runs) into blocks', () => {
+    expect(exerciseBlocks(workout('a b+c d')).map((block) => block.map((e) => e.key))).toEqual([['a'], ['b', 'c'], ['d']])
+    expect(exerciseBlocks(workout('a+b+c d')).map((block) => block.length)).toEqual([3, 1])
+    expect(exerciseBlocks([])).toEqual([])
+  })
+
+  it('moves a bi-set as one block, still linked', () => {
+    expect(notation(reorderExercises(workout('a b+c d'), ['d', 'b', 'a']))).toBe('d b+c a')
+    expect(notation(reorderExercises(workout('a+b+c d'), ['d', 'a']))).toBe('d a+b+c')
+  })
+
+  it('unlinks a stale link so it never pairs with the new neighbor', () => {
+    // b's pair was removed, leaving it linked to nothing at the end.
+    const stale = [exercise({ key: 'a' }), exercise({ key: 'b', supersetWithNext: true })]
+    const reordered = reorderExercises(stale, ['b', 'a'])
+    expect(reordered.map((e) => e.key)).toEqual(['b', 'a'])
+    expect(reordered[0].supersetWithNext).toBe(false)
+  })
+
+  it('puts blocks the order leaves out at the end', () => {
+    expect(notation(reorderExercises(workout('a b c'), ['c', 'a']))).toBe('c a b')
+  })
+})
+
+describe('saving the order to the template', () => {
+  const plan = (key: string, exerciseId = key[0], supersetWithNext?: boolean): TemplateExercise => ({
+    key,
+    exerciseId,
+    restSec: 90,
+    sets: [],
+    supersetWithNext,
+  })
+  const done = (key: string, exerciseId = key[0], supersetWithNext?: boolean) => exercise({ key, exerciseId, supersetWithNext })
+  const keys = (list: { key: string }[]) => list.map((e) => e.key)
+
+  it('matches by key first, so a swapped exercise keeps its template place', () => {
+    const template = [plan('t1', 'leg'), plan('t2', 'squat')]
+    // t2 swapped for a hack squat: same key, another exercise.
+    const matches = matchTemplate(template, [done('t2', 'hack'), done('t1', 'leg')])
+    expect(matches.map((m) => m?.key)).toEqual(['t2', 't1'])
+    expect(keys(templateInOrder(template, [done('t2', 'hack'), done('t1', 'leg')]))).toEqual(['t2', 't1'])
+  })
+
+  it('matches by exercise otherwise, a repeated one to its own copy in order', () => {
+    const template = [plan('t1', 'abs'), plan('t2', 'bench'), plan('t3', 'abs')]
+    const exercises = [done('x1', 'bench'), done('x2', 'abs'), done('x3', 'abs'), done('x4', 'abs')]
+    expect(matchTemplate(template, exercises).map((m) => m?.key)).toEqual(['t2', 't1', 't3', undefined])
+    expect(keys(templateInOrder(template, exercises))).toEqual(['t2', 't1', 't3'])
+  })
+
+  it('keeps the template as it is when the order is the same', () => {
+    const template = [plan('t1', 'a'), plan('t2', 'b', true), plan('t3', 'c'), plan('t4', 'd')]
+    const ordered = templateInOrder(template, [done('t1', 'a'), done('t2', 'b', true), done('t3', 'c'), done('t4', 'd')])
+    expect(ordered).toEqual(template)
+  })
+
+  it('moves the template bi-sets whole, even when only one of the pair was done', () => {
+    const template = [plan('t1', 'a'), plan('t2', 'b', true), plan('t3', 'c'), plan('t4', 'd')]
+    // c was left out today; d came first.
+    const ordered = templateInOrder(template, [done('x4', 'd'), done('x2', 'b'), done('x1', 'a')])
+    expect(notation(ordered)).toBe('t4 t2+t3 t1')
+  })
+
+  it('leaves out exercises only in the workout and keeps the ones it lacks after what they followed', () => {
+    const template = [plan('t1', 'a'), plan('t2', 'b'), plan('t3', 'c'), plan('t4', 'd')]
+    // b was skipped, e was added.
+    const ordered = templateInOrder(template, [done('x4', 'd'), done('x5', 'e'), done('x1', 'a'), done('x3', 'c')])
+    expect(keys(ordered)).toEqual(['t4', 't1', 't2', 't3'])
+    // Skipped ones at the start stay at the start.
+    expect(keys(templateInOrder(template, [done('x4', 'd'), done('x3', 'c'), done('x2', 'b')]))).toEqual(['t1', 't4', 't3', 't2'])
+  })
+
+  it('unlinks a template exercise left linked at the end once it moves', () => {
+    const template = [plan('t1', 'a'), plan('t2', 'b', true)]
+    const ordered = templateInOrder(template, [done('t2', 'b'), done('t1', 'a')])
+    expect(keys(ordered)).toEqual(['t2', 't1'])
+    expect(ordered[0].supersetWithNext).toBe(false)
+  })
+})
+
+describe('sets and exercises during a workout', () => {
+  const performed = (key: string, kind: PerformedSet['kind'], reps?: number): PerformedSet => ({
+    key,
+    kind,
+    done: false,
+    target: reps === undefined ? undefined : { reps },
+  })
+
+  it('adds a working set at the end with the last working target', () => {
+    const added = addSet(exercise({ sets: [performed('w', 'warmup', 15), performed('1', 'normal', 8)] }), 'normal')
+    expect(added.sets.map((s) => s.kind)).toEqual(['warmup', 'normal', 'normal'])
+    expect(added.sets[2]).toMatchObject({ kind: 'normal', done: false, target: { reps: 8 } })
+  })
+
+  it('adds a warm-up after the warm-ups already there, or first', () => {
+    const sets = [performed('w', 'warmup', 15), performed('1', 'normal', 8), performed('2', 'normal', 8)]
+    const added = addSet(exercise({ sets }), 'warmup')
+    expect(added.sets.map((s) => s.key.length > 1 ? 'new' : s.key)).toEqual(['w', 'new', '1', '2'])
+    expect(added.sets[1].target).toEqual({ reps: 15 })
+    const first = addSet(exercise({ sets: sets.slice(1) }), 'warmup')
+    expect(first.sets.map((s) => s.kind)).toEqual(['warmup', 'normal', 'normal'])
+    expect(first.sets[0].target).toBeUndefined()
+  })
+
+  it('removes an exercise without linking the one before to the next', () => {
+    const session = (exercises: SessionExercise[]): WorkoutSession => ({
+      id: 's',
+      name: 'A',
+      date: '2026-11-05',
+      startedAt: 0,
+      exercises,
+      updatedAt: 0,
+      deleted: 0,
+      dirty: 0,
+    })
+    // The second of a pair: the first is unlinked.
+    expect(notation(removeExercise(session(workout('a+b c')), 'b').exercises)).toBe('a c')
+    // The middle of a run of three: the run goes on.
+    expect(notation(removeExercise(session(workout('a+b+c d')), 'b').exercises)).toBe('a+c d')
+    // The first of a pair: the second one stays as it was.
+    expect(notation(removeExercise(session(workout('a+b c')), 'a').exercises)).toBe('b c')
+    expect(removeExercise(session(workout('a b')), 'z').exercises).toHaveLength(2)
   })
 })

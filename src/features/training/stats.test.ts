@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Exercise, PerformedSet, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import {
+  compareSet,
   epley,
   lastPerformance,
   nextTemplate,
   personalRecords,
+  setE1rm,
   setsByMuscle,
   suggestNextWeight,
   summarize,
@@ -41,6 +43,52 @@ describe('epley', () => {
   it('estimates the one-rep max', () => {
     expect(epley(100, 1)).toBe(100)
     expect(epley(100, 10)).toBeCloseTo(133.33)
+  })
+})
+
+describe('compareSet', () => {
+  it('compares the estimated 1RM of sets with a load', () => {
+    expect(setE1rm({ weightKg: 62.5, reps: 10 })).toBeCloseTo(83.33)
+    expect(compareSet({ weightKg: 62.5, reps: 10 }, { weightKg: 60, reps: 10 }, 'weight_reps')).toEqual({
+      metric: 'e1rm',
+      value: epley(62.5, 10),
+      trend: 'up',
+    })
+    // Fewer reps with more load can still be less.
+    expect(compareSet({ weightKg: 62.5, reps: 6 }, { weightKg: 60, reps: 10 }, 'weight_reps')?.trend).toBe('down')
+  })
+
+  it('calls equal what shows equal, to a tenth of a kilo', () => {
+    expect(compareSet({ weightKg: 60, reps: 10 }, { weightKg: 60, reps: 10 }, 'weight_reps')?.trend).toBe('same')
+    // 68,6 × 5 ≈ 80,03 against 60 × 10 = 80: both read "1RM 80".
+    expect(compareSet({ weightKg: 68.6, reps: 5 }, { weightKg: 60, reps: 10 }, 'weight_reps')?.trend).toBe('same')
+    expect(compareSet({ weightKg: 68.7, reps: 5 }, { weightKg: 60, reps: 10 }, 'weight_reps')?.trend).toBe('up')
+  })
+
+  it('shows the 1RM without a trend when last time had nothing comparable', () => {
+    expect(compareSet({ weightKg: 60, reps: 10 }, undefined, 'weight_reps')).toEqual({ metric: 'e1rm', value: 80 })
+    expect(compareSet({ weightKg: 60, reps: 10 }, { reps: 12 }, 'weight_reps')?.trend).toBeUndefined()
+  })
+
+  it('compares reps at body weight', () => {
+    expect(compareSet({ reps: 12 }, { reps: 10 }, 'reps')).toEqual({ metric: 'reps', delta: 2, trend: 'up' })
+    expect(compareSet({ weightKg: 0, reps: 9 }, { reps: 10 }, 'weight_reps')).toEqual({ metric: 'reps', delta: -1, trend: 'down' })
+    expect(compareSet({ reps: 10 }, { reps: 10 }, 'reps')?.trend).toBe('same')
+    // A load last time and none now (or no last time): nothing to say.
+    expect(compareSet({ reps: 12 }, { weightKg: 10, reps: 8 }, 'weight_reps')).toBeUndefined()
+    expect(compareSet({ reps: 12 }, undefined, 'reps')).toBeUndefined()
+  })
+
+  it('compares the duration of timed sets', () => {
+    expect(compareSet({ durationSec: 70 }, { durationSec: 60 }, 'time')).toEqual({ metric: 'time', delta: 10, trend: 'up' })
+    expect(compareSet({ durationSec: 50 }, { durationSec: 60 }, 'time')?.trend).toBe('down')
+    expect(compareSet({ durationSec: 50 }, undefined, 'time')).toBeUndefined()
+  })
+
+  it('says nothing until there are reps (or a time)', () => {
+    expect(compareSet({ weightKg: 60 }, { weightKg: 60, reps: 10 }, 'weight_reps')).toBeUndefined()
+    expect(compareSet({}, { reps: 10 }, 'reps')).toBeUndefined()
+    expect(compareSet({}, { durationSec: 30 }, 'time')).toBeUndefined()
   })
 })
 
