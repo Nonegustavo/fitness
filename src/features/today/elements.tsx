@@ -9,6 +9,8 @@ import { TodayInsightCard } from '../analysis/TodayInsightCard'
 import { TodaySleepCard } from '../garmin/TodaySleepCard'
 import { HabitCheckList } from '../habits/HabitCheckList'
 import { TodayJournalCard } from '../journal/TodayJournalCard'
+import { TrainingLoadBig, TrainingLoadSmall } from '../running/LoadCards'
+import { ReadinessBig, ReadinessSmall } from '../running/ReadinessCards'
 import { PaceBig, PaceSmall, RecordsBig, RecordsSmall, RunVolumeBig, RunVolumeSmall, StreakBig, StreakSmall } from '../running/RunningCards'
 import { TodayWorkoutsCard } from '../calendar/cards'
 import { StreaksBig, StreaksSmall } from '../streaks/StreakCards'
@@ -87,6 +89,7 @@ export const ELEMENT_VIEWS: Record<HomeCardId, { big: ElementView; small: Elemen
   week: { big: WeeklyCard, small: LastWeekSmall },
   runVolume: { big: RunVolumeBig, small: RunVolumeSmall },
   pace: { big: PaceBig, small: PaceSmall },
+  trainingLoad: { big: TrainingLoadBig, small: TrainingLoadSmall },
   records: { big: RecordsBig, small: RecordsSmall },
   streak: { big: StreakBig, small: StreakSmall },
   goalStreaks: { big: StreaksBig, small: StreaksSmall },
@@ -94,6 +97,7 @@ export const ELEMENT_VIEWS: Record<HomeCardId, { big: ElementView; small: Elemen
   body: { big: WeightBig, small: WeightSmall },
   restingHr: { big: RestingHrBig, small: RestingHrSmall },
   hrv: { big: HrvBig, small: HrvSmall },
+  readiness: { big: ReadinessBig, small: ReadinessSmall },
   battery: { big: BatteryBig, small: BatterySmall },
   steps: { big: StepsBig, small: StepsSmall },
   burn: { big: BurnBig, small: BurnSmall },

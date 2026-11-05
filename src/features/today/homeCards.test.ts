@@ -4,7 +4,7 @@ import { DEFAULT_AREAS, HOME_ELEMENTS, homeAreas, orderForTime, toggleElement } 
 
 describe('homeAreas', () => {
   it('uses the default areas, with the week on top, when nothing is saved', () => {
-    expect(homeAreas({})).toEqual({ ...DEFAULT_AREAS, week: true, smartOrder: true, now: true })
+    expect(homeAreas({})).toEqual({ ...DEFAULT_AREAS, week: true, smartOrder: true, now: true, seen: ['readiness'] })
   })
 
   it('leaves out of the default what the older layout had hidden', () => {
@@ -19,10 +19,26 @@ describe('homeAreas', () => {
       homeAreas: { focus: ['agenda', 'records', 'gone' as HomeCardId, 'sleep', 'records'], quick: ['sleep', 'water'] },
       home: { order: [], hidden: ['sleep'] },
     })
-    expect(areas).toEqual({ focus: ['records', 'sleep'], quick: ['sleep', 'water'], week: true, smartOrder: true, now: true })
+    expect(areas).toEqual({
+      focus: ['records', 'sleep', 'readiness'],
+      quick: ['sleep', 'water'],
+      week: true,
+      smartOrder: true,
+      now: true,
+      seen: ['readiness'],
+    })
     expect(homeAreas({ homeAreas: { focus: [], quick: [], week: false } }).week).toBe(false)
     expect(homeAreas({ homeAreas: { focus: [], quick: [], smartOrder: false } }).smartOrder).toBe(false)
     expect(homeAreas({ homeAreas: { focus: [], quick: [], now: false } }).now).toBe(false)
+  })
+
+  it('puts a newer element into the saved areas once, after its neighbour, and leaves it out once taken out', () => {
+    const saved = homeAreas({ homeAreas: { focus: ['workout', 'sleep', 'food'], quick: ['water'] } })
+    expect(saved.focus).toEqual(['workout', 'sleep', 'readiness', 'food'])
+    expect(homeAreas({ homeAreas: { focus: ['food'], quick: [] } }).focus).toEqual(['food', 'readiness'])
+    // Taking it out saves the areas with what was seen: it doesn't come back.
+    const removed = toggleElement(saved, 'focus', 'readiness', false)
+    expect(homeAreas({ homeAreas: removed }).focus).toEqual(['workout', 'sleep', 'food'])
   })
 
   it('adds an element at the end of an area or takes it out', () => {

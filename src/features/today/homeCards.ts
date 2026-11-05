@@ -3,6 +3,8 @@ import {
   BatteryMedium,
   CalendarCheck,
   CalendarRange,
+  ChartSpline,
+  CircleGauge,
   Dumbbell,
   Flame,
   Footprints,
@@ -38,6 +40,7 @@ export interface HomeElement {
 export const HOME_ELEMENTS: HomeElement[] = [
   { id: 'workout', label: 'Próximos treinos', detail: 'Os de hoje e os próximos, com o dia de cada um, e a próxima ficha da sequência', icon: Dumbbell, tone: 'training' },
   { id: 'sleep', label: 'Sono', detail: 'Nota, horários e as fases da última noite', icon: Moon, tone: 'sleep' },
+  { id: 'readiness', label: 'Prontidão', detail: 'Nota de 0 a 100 para treinar hoje: sono, HRV, FC de repouso, carga e dores', icon: CircleGauge, tone: 'recovery' },
   { id: 'food', label: 'Alimentação', detail: 'Calorias e macros do dia', icon: Utensils, tone: 'food' },
   { id: 'water', label: 'Água', detail: 'Total do dia contra a meta, com botões de 1 toque', icon: GlassWater, tone: 'water' },
   { id: 'habits', label: 'Hábitos', detail: 'O check do dia', icon: ListChecks, tone: 'habits' },
@@ -46,6 +49,7 @@ export const HOME_ELEMENTS: HomeElement[] = [
   { id: 'week', label: 'Semana passada', detail: 'A semana passada contra a anterior, área por área', icon: CalendarRange, tone: 'insights' },
   { id: 'runVolume', label: 'Volume de corrida', detail: 'Km por semana nas últimas semanas, contra o planejado', icon: Footprints, tone: 'today' },
   { id: 'pace', label: 'Ritmo médio', detail: 'O ritmo das últimas 4 semanas e a evolução semana a semana', icon: Gauge, tone: 'today' },
+  { id: 'trainingLoad', label: 'Carga de treino', detail: 'Últimos 7 dias contra as 4 semanas (ACWR), condicionamento, fadiga e forma', icon: ChartSpline, tone: 'today' },
   { id: 'records', label: 'Recordes pessoais', detail: 'Melhores tempos em 1, 5, 10, 21 e 42 km e a corrida mais longa', icon: Trophy, tone: 'analysis' },
   { id: 'goalStreaks', label: 'Sequências', detail: 'Dias seguidos na meta de água, na de proteína e com todos os hábitos', icon: Flame, tone: 'habits' },
   { id: 'streak', label: 'Constância', detail: 'Semanas seguidas treinando, recorde de dias seguidos e o mapa dos dias', icon: CalendarCheck, tone: 'today' },
@@ -63,22 +67,41 @@ export const elementInfo = (id: HomeCardId): HomeElement | undefined => HOME_ELE
 const KNOWN = new Set(HOME_ELEMENTS.map((element) => element.id))
 
 export const DEFAULT_AREAS: HomeAreas = {
-  focus: ['workout', 'sleep', 'food', 'runVolume', 'habits'],
+  focus: ['workout', 'sleep', 'readiness', 'food', 'runVolume', 'habits'],
   quick: ['water', 'race', 'body', 'restingHr', 'hrv', 'battery', 'steps', 'burn', 'records', 'streak'],
 }
 
+/**
+ * Elements that came after people had saved their areas: each goes into them once, after a neighbour
+ * (or at the end), and `seen` keeps it from coming back once the user takes it out.
+ */
+const ADDED: { id: HomeCardId; area: HomeArea; after: HomeCardId }[] = [{ id: 'readiness', area: 'focus', after: 'sleep' }]
+
 const clean = (ids: HomeCardId[]) => [...new Set(ids.filter((id) => KNOWN.has(id)))]
 
-/** The areas as saved; or else the default, leaving out what the older layout had hidden. */
+/** Puts the newer elements not seen yet into the areas (in place); the ones seen from now on. */
+function addNew(areas: Record<HomeArea, HomeCardId[]>, seen: HomeCardId[]): HomeCardId[] {
+  for (const { id, area, after } of ADDED) {
+    const list = areas[area]
+    if (seen.includes(id) || list.includes(id)) continue
+    const at = list.indexOf(after)
+    list.splice(at < 0 ? list.length : at + 1, 0, id)
+  }
+  return [...new Set([...seen, ...ADDED.map((added) => added.id)])]
+}
+
+/** The areas as saved (with the newer elements put in once); or else the default, leaving out what the older layout had hidden. */
 export function homeAreas(settings: Pick<Settings, 'homeAreas' | 'home'>): Required<HomeAreas> {
   if (settings.homeAreas) {
-    const { focus, quick, week, smartOrder, now } = settings.homeAreas
+    const { focus, quick, week, smartOrder, now, seen = [] } = settings.homeAreas
+    const areas = { focus: clean(focus), quick: clean(quick) }
+    const seenNow = addNew(areas, seen)
     return {
-      focus: clean(focus),
-      quick: clean(quick),
+      ...areas,
       week: week !== false,
       smartOrder: smartOrder !== false,
       now: now !== false,
+      seen: seenNow,
     }
   }
   const hidden = new Set(settings.home?.hidden ?? [])
@@ -88,6 +111,7 @@ export function homeAreas(settings: Pick<Settings, 'homeAreas' | 'home'>): Requi
     week: true,
     smartOrder: true,
     now: true,
+    seen: ADDED.map((added) => added.id),
   }
 }
 
@@ -104,9 +128,9 @@ export function toggleElement(areas: HomeAreas, area: HomeArea, id: HomeCardId, 
  */
 const MOMENTS: { from: number; ids: HomeCardId[] }[] = [
   { from: 0, ids: ['habits', 'journal', 'food', 'steps', 'burn'] },
-  { from: 4, ids: ['sleep', 'body', 'hrv', 'restingHr', 'battery', 'insights', 'workout'] },
+  { from: 4, ids: ['sleep', 'readiness', 'body', 'hrv', 'restingHr', 'battery', 'insights', 'workout'] },
   { from: 11, ids: ['food', 'water', 'workout'] },
-  { from: 15, ids: ['workout', 'runVolume', 'water', 'steps', 'food'] },
+  { from: 15, ids: ['workout', 'runVolume', 'trainingLoad', 'water', 'steps', 'food'] },
   { from: 19, ids: ['habits', 'journal', 'food', 'insights', 'steps', 'burn'] },
 ]
 

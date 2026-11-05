@@ -2,35 +2,51 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Trophy } from 'lucide-react'
 import { Link } from 'react-router'
 import { Card, Empty, Page, SkeletonCard } from '../../components/ui'
+import { useToday } from '../../db/hooks'
 import { alive } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { ActivityStream } from '../../db/types'
-import { formatDay } from '../../lib/dates'
+import { formatDay, type DayKey } from '../../lib/dates'
 import { formatClock, formatNumber } from '../../lib/format'
+import { shiftPeriod } from '../../lib/periods'
+import { PredictionsCard, VdotCard } from './FitnessCards'
+import { fitnessOf, monthlyVdot, runEfforts } from './predict'
 import { effortsByDistance, formatPace, isOutdoorRun, longestRuns } from './running'
 
-/** The runs and their samples, ranked: the best times of each distance and the longest runs. */
-function useRanking() {
+/**
+ * The runs and their samples, ranked: the best times of each distance and the longest runs; and from the
+ * last 12 months, the race predictions and the VDOT.
+ */
+function useRanking(today: DayKey) {
   return useLiveQuery(async () => {
     const runs = alive(await db.activities.toArray()).filter(isOutdoorRun)
     const streams = await db.activityStreams.bulkGet(runs.map((run) => run.id))
     const byId = new Map(streams.filter((stream): stream is ActivityStream => stream !== undefined).map((stream) => [stream.id, stream]))
-    return { distances: effortsByDistance(runs, byId, 5), longest: longestRuns(runs, 5), runs: runs.length }
-  })
+    const since = shiftPeriod('month', today, -11)
+    const efforts = runEfforts(runs.filter((run) => run.date >= since), byId)
+    return {
+      distances: effortsByDistance(runs, byId, 5),
+      longest: longestRuns(runs, 5),
+      runs: runs.length,
+      fitness: fitnessOf(efforts, today),
+      months: monthlyVdot(efforts, today, 12),
+    }
+  }, [today])
 }
 
 const activityLink = (id: string) => `/treinos/atividades/${id}`
 
-/** The personal records of the runs: each distance's five best times, and the longest runs. */
+/** The race predictions and the VDOT, then the personal records: each distance's five best times, and the longest runs. */
 export default function RecordsPage() {
-  const ranking = useRanking()
+  const today = useToday()
+  const ranking = useRanking(today)
   return (
     <Page
       title="Recordes"
       icon={Trophy}
       tone="analysis"
       back={{ to: '/corrida', label: 'Corrida' }}
-      subtitle="Os melhores trechos das suas corridas ao ar livre"
+      subtitle="Previsões e os melhores trechos das suas corridas ao ar livre"
     >
       {!ranking ? (
         <>
@@ -43,6 +59,9 @@ export default function RecordsPage() {
         </Card>
       ) : (
         <>
+          <PredictionsCard fitness={ranking.fitness} />
+          <VdotCard fitness={ranking.fitness} months={ranking.months} />
+
           {ranking.distances.map(({ meters, label, efforts: [best, ...others] }) => (
             <Card key={label} icon={Trophy} tone="analysis" title={label}>
               <Link to={activityLink(best.activityId)} className="block hover:text-accent-ink">

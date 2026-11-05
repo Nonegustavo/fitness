@@ -15,6 +15,7 @@ import { eventKm, eventTitle } from '../calendar/agenda'
 import { DayProgress } from '../food/DayProgress'
 import { goalsFor, sumNutrients, useFoodLogs, useTrainingDays } from '../food/nutrition'
 import { hrvStatus } from '../garmin/recovery'
+import { RacePredictionLine } from '../running/RacePrediction'
 import { weeklyVolume } from '../running/running'
 import { ActiveRestBar, average, useNextRace, useRecentHealth } from './tiles'
 
@@ -134,6 +135,7 @@ export function RaceBig({ today, inRunning = false }: { today: DayKey; inRunning
         {race.time !== undefined && ` às ${formatTime(race.time)}`}
         {km !== undefined && ` · ${formatNumber(km, 1)} km`}
       </p>
+      <RacePredictionLine race={race} today={today} />
       {weeks && (
         <p className="mt-3 text-xs text-muted">
           Corrida nas últimas 4 semanas: {weeks.map((week) => formatNumber(week.km, 1)).join(' · ')} km

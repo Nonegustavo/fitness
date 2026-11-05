@@ -13,6 +13,7 @@ import { WeightModal } from '../body/WeightModal'
 import { eventKm, eventTitle, nextRace } from '../calendar/agenda'
 import { hrvStatus, useDailyHealth } from '../garmin/recovery'
 import { usePlannedEvents } from '../garmin/sync'
+import { predicted, useRacePrediction } from '../running/RacePrediction'
 
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 /** "dom 8/11". */
@@ -152,6 +153,7 @@ export function useNextRace(today: DayKey) {
 
 export function RaceSmall({ today }: { today: DayKey }) {
   const race = useNextRace(today)
+  const prediction = useRacePrediction(race, today)
   if (!race) return null
   const days = daysBetween(today, race.date)
   const km = eventKm(race.title)
@@ -159,11 +161,19 @@ export function RaceSmall({ today }: { today: DayKey }) {
     <SmallCard icon={Target} tone="analysis" label="Prova" to="/corrida">
       <Value value={days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `${days} dias`} />
       <span className="mt-0.5 block truncate text-xs text-ink-2">{eventTitle(race.title)}</span>
-      <Note>
-        {shortDate(race.date)}
-        {race.time !== undefined && ` · ${formatTime(race.time)}`}
-        {km !== undefined && ` · ${formatNumber(km, 1)} km`}
-      </Note>
+      {prediction ? (
+        // No room for one more line: the prediction takes the date's place, which the countdown already tells.
+        <Note>
+          Previsão {predicted(prediction.seconds)}
+          {race.time !== undefined && ` · ${formatTime(race.time)}`}
+        </Note>
+      ) : (
+        <Note>
+          {shortDate(race.date)}
+          {race.time !== undefined && ` · ${formatTime(race.time)}`}
+          {km !== undefined && ` · ${formatNumber(km, 1)} km`}
+        </Note>
+      )}
     </SmallCard>
   )
 }

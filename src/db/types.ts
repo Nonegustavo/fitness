@@ -186,11 +186,13 @@ export type HomeCardId =
   | 'race'
   | 'restingHr'
   | 'hrv'
+  | 'readiness'
   | 'battery'
   | 'steps'
   | 'burn'
   | 'runVolume'
   | 'pace'
+  | 'trainingLoad'
   | 'records'
   | 'streak'
   | 'goalStreaks'
@@ -205,6 +207,8 @@ export interface HomeAreas {
   smartOrder?: boolean
   /** "Agora", the next step of the day, at the very top; on unless false. */
   now?: boolean
+  /** Elements an update put into the saved areas once: one taken out afterwards stays out. */
+  seen?: HomeCardId[]
 }
 
 /** The arrangement of the Hoje screen before the two areas (kept for the hidden cards). */

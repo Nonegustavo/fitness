@@ -9,6 +9,7 @@ import { buildDailyData, formatMetric, type DailyData, type DayRow, type Metric,
 import { mean } from '../insights/stats'
 import { firstDayOf } from '../insights/useDailyData'
 import { painLines, painsText } from '../journal/pains'
+import { athleteLines } from './athleteLines'
 import {
   adherenceLines,
   bodyLines,
@@ -167,6 +168,7 @@ export function buildContext(input: ContextInput): string {
     bodyLines({ weights: sources.weights, measurements: input.measurements ?? [], sites: settings.measurementSites, settings }, today),
   )
   section(out, 'Dores e desconfortos (contadas no diário, de 1 a 10)', painLines(sources.pains ?? [], today))
+  section(out, 'Carga, prontidão e previsões de prova (calculadas pelo app)', athleteLines(input))
   section(out, 'Energia e proteína', energyLines({ foodLogs: sources.foodLogs, weights: sources.weights, health: sources.health }, today))
   section(
     out,

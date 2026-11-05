@@ -12,6 +12,7 @@ import { weekSummary } from '../calendar/agenda'
 import { AgendaItems } from '../calendar/components'
 import { useAgenda } from '../calendar/plans'
 import { RaceBig } from '../today/bigCards'
+import { LoadFormCard } from './LoadChart'
 import { ConsistencyMap, RecordsBig, useConsistency } from './RunningCards'
 import { RunPaceChart, runsByPeriod, RunVolumeChart } from './RunningCharts'
 import { formatPace, isRun, pooledPace, weeklyVolume } from './running'
@@ -80,6 +81,8 @@ export default function RunningPage() {
         )}
         <RunPaceChart periods={period.window} runs={runPeriods} />
       </Card>
+
+      <LoadFormCard today={today} />
 
       <Card icon={CalendarCheck} tone="today" title="Constância">
         <div className="mb-3 grid grid-cols-3 gap-3">
