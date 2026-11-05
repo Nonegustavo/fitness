@@ -1,21 +1,37 @@
 import { Moon } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { DailyBars } from '../../components/DailyBars'
-import { LineOverTime } from '../../components/TimeCharts'
-import { Card, cx, Empty, Page, SkeletonCard, Stat } from '../../components/ui'
+import { PeriodBars } from '../../components/PeriodBars'
+import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
+import { PeriodLine } from '../../components/TimeCharts'
+import { Card, cx, Empty, Page, SkeletonCard, SkeletonLines, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
+import { db } from '../../db/schema'
 import type { DailyHealth } from '../../db/types'
-import { dayRange, formatTime, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
+import { formatTime, relativeDay, shiftDay } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
+import type { DayValue } from '../../lib/stats'
 import { Hypnogram } from './Hypnogram'
 import { hrvStatus, latestNight, sleepStages, STAGE_CLASS, useDailyHealth } from './recovery'
 
-const TREND_DAYS = 30
+/** The last nights, for the latest one and the recovery numbers. */
+const RECENT_DAYS = 30
+
+const NIGHTS = ['noite', 'noites'] as const
+const hasNight = (day: DailyHealth) => day.sleep !== undefined || day.hrv?.lastNight !== undefined || day.restingHr !== undefined
+const sleepHours = (hours: number) => formatDuration(hours * 3_600_000)
+const hoursAxis = (hours: number) => `${hours}h`
+
+/** One reading per day, from the days that have it. */
+const readings = (days: DailyHealth[], pick: (day: DailyHealth) => number | undefined): DayValue[] =>
+  days.flatMap((day) => {
+    const value = pick(day)
+    return value ? [{ date: day.id, value }] : []
+  })
 
 export default function SleepPage() {
   const today = useToday()
-  const from = shiftDay(today, -(TREND_DAYS - 1))
+  const from = shiftDay(today, -(RECENT_DAYS - 1))
   const days = useDailyHealth(from, today)
   if (!days) {
     return (
@@ -48,7 +64,7 @@ export default function SleepPage() {
         <>
           <NightCard day={latest} />
           <RecoveryCard day={latest} />
-          <TrendsCard days={days} from={from} to={today} />
+          <TrendsCard />
         </>
       )}
     </Page>
@@ -142,40 +158,45 @@ function RecoveryCard({ day }: { day: DailyHealth }) {
   )
 }
 
-function TrendsCard({ days, from, to }: { days: DailyHealth[]; from: DayKey; to: DayKey }) {
-  const range = useMemo(() => dayRange(from, to), [from, to])
-  const byDay = useMemo(() => new Map(days.map((day) => [day.id, day])), [days])
-  const sleepHours = useMemo(() => range.map((day) => (byDay.get(day)?.sleep?.totalSec ?? 0) / 3600), [range, byDay])
-  const hrv = useMemo(
-    () => days.flatMap((day) => (day.hrv?.lastNight ? [{ date: day.id, value: day.hrv.lastNight }] : [])),
-    [days],
-  )
-  const resting = useMemo(
-    () => days.flatMap((day) => (day.restingHr ? [{ date: day.id, value: day.restingHr }] : [])),
-    [days],
-  )
+/** Sleep, HRV and resting heart rate over the period picked: each night, or the average of a week, month or year. */
+function TrendsCard() {
+  const earliest = useFirstDay(db.dailyHealth, 'id', hasNight)
+  const period = usePeriod('sono', { earliest })
+  const days = useDailyHealth(period.window.from, period.window.to)
+  const hours = useMemo(() => readings(days ?? [], (day) => (day.sleep ? day.sleep.totalSec / 3600 : undefined)), [days])
+  const hrv = useMemo(() => readings(days ?? [], (day) => day.hrv?.lastNight), [days])
+  const resting = useMemo(() => readings(days ?? [], (day) => day.restingHr), [days])
   return (
-    <Card title={`Últimos ${TREND_DAYS} dias`}>
-      <p className="mb-1 text-sm font-medium">Horas de sono</p>
-      <DailyBars
-        days={range}
-        values={sleepHours}
-        format={(hours) => formatDuration(hours * 3_600_000)}
-        axisFormat={(hours) => `${hours}h`}
-        valueLabel="de sono"
-        label={`Horas de sono por noite nos últimos ${TREND_DAYS} dias`}
-        step={2}
-      />
-      {hrv.length > 1 && (
+    <Card title="Histórico">
+      <PeriodControl period={period} />
+      {!days ? (
+        <SkeletonLines lines={5} />
+      ) : (
         <>
-          <p className="mt-5 mb-1 text-sm font-medium">HRV da noite</p>
-          <LineOverTime points={hrv} unit="ms" label="HRV" digits={0} />
-        </>
-      )}
-      {resting.length > 1 && (
-        <>
-          <p className="mt-5 mb-1 text-sm font-medium">FC de repouso</p>
-          <LineOverTime points={resting} unit="bpm" label="FC de repouso" digits={0} />
+          <p className="mb-1 text-sm font-medium">Horas de sono</p>
+          <PeriodBars
+            periods={period.window}
+            values={hours}
+            how="mean"
+            format={sleepHours}
+            axisFormat={hoursAxis}
+            valueLabel="de sono"
+            noun={NIGHTS}
+            label="Horas de sono por noite"
+            step={2}
+          />
+          {hrv.length > 0 && (
+            <>
+              <p className="mt-5 mb-1 text-sm font-medium">HRV da noite</p>
+              <PeriodLine periods={period.window} values={hrv} how="mean" unit="ms" digits={0} label="HRV" noun={NIGHTS} />
+            </>
+          )}
+          {resting.length > 0 && (
+            <>
+              <p className="mt-5 mb-1 text-sm font-medium">FC de repouso</p>
+              <PeriodLine periods={period.window} values={resting} how="mean" unit="bpm" digits={0} label="FC de repouso" />
+            </>
+          )}
         </>
       )}
     </Card>

@@ -1,34 +1,32 @@
 import { GlassWater, Plus, Star, Target, Trash2 } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
-import { DailyBars } from '../../components/DailyBars'
 import { Modal } from '../../components/Modal'
+import { PeriodBars } from '../../components/PeriodBars'
+import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
 import { SortableList } from '../../components/Sortable'
 import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
-import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, TextInput } from '../../components/ui'
+import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, SkeletonLines, TextInput } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import { patch, remove, save, saveOrder } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
 import type { ContainerIcon, WaterContainer } from '../../db/types'
-import { dayRange, formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
+import { formatDay, formatTime, type DayKey } from '../../lib/dates'
 import { formatMl, formatNumber, parseDecimal } from '../../lib/format'
 import { useWeights } from '../body/body'
 import { CONTAINER_ICONS } from './containerIcons'
-import { suggestedGoalMl, sumMl, totalsByDay, useContainers, useWaterLogs } from './water'
+import { suggestedGoalMl, sumMl, useContainers, useWaterLogs } from './water'
 import { WaterQuickAdd, WaterSummary } from './WaterQuickAdd'
 
 export default function WaterPage() {
   const today = useToday()
   const settings = useSettings()
-  const from = shiftDay(today, -13)
-  const logs = useWaterLogs(from, today)
+  const logs = useWaterLogs(today, today)
   const containers = useContainers() ?? []
   const [goalOpen, setGoalOpen] = useState(false)
   const [editing, setEditing] = useState<WaterContainer | 'new' | null>(null)
   const removeWithUndo = useRemoveWithUndo()
 
-  const days = useMemo(() => dayRange(from, today), [from, today])
-  const totals = useMemo(() => totalsByDay(logs ?? []), [logs])
-  const todayLogs = (logs ?? []).filter((log) => log.date === today)
+  const todayLogs = logs ?? []
   const containerName = (id?: string) => containers.find((container) => container.id === id)?.name
 
   return (
@@ -71,8 +69,8 @@ export default function WaterPage() {
         )}
       </Card>
 
-      <Card title="Últimos 14 dias">
-        <WaterHistory days={days} totals={totals} goalMl={settings.waterGoalMl} />
+      <Card title="Histórico">
+        <WaterHistory today={today} goalMl={settings.waterGoalMl} />
       </Card>
 
       <Card
@@ -133,19 +131,32 @@ export default function WaterPage() {
 
 const litersAxis = (value: number) => (value === 0 ? '0' : `${formatNumber(value / 1000)} L`)
 
-function WaterHistory({ days, totals, goalMl }: { days: DayKey[]; totals: Map<DayKey, number>; goalMl: number }) {
-  const values = useMemo(() => days.map((day) => totals.get(day) ?? 0), [days, totals])
+/** Water over the period picked: each day, or the average per day of a week, month or year. */
+function WaterHistory({ today, goalMl }: { today: DayKey; goalMl: number }) {
+  const earliest = useFirstDay(db.waterLogs, 'date')
+  const period = usePeriod('agua', { earliest })
+  const logs = useWaterLogs(period.window.from, period.window.to)
+  const values = useMemo(() => (logs ?? []).map((log) => ({ date: log.date, value: log.ml })), [logs])
   return (
-    <DailyBars
-      days={days}
-      values={values}
-      goals={goalMl}
-      format={formatMl}
-      axisFormat={litersAxis}
-      valueLabel="de água"
-      label="Água bebida por dia nos últimos 14 dias"
-      step={500}
-    />
+    <>
+      <PeriodControl period={period} />
+      {logs ? (
+        <PeriodBars
+          periods={period.window}
+          values={values}
+          how="perDay"
+          unfinished={today}
+          goal={goalMl}
+          format={formatMl}
+          axisFormat={litersAxis}
+          valueLabel="de água"
+          label="Água bebida por dia"
+          step={500}
+        />
+      ) : (
+        <SkeletonLines lines={5} />
+      )}
+    </>
   )
 }
 

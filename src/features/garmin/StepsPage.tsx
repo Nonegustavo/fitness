@@ -1,12 +1,20 @@
 import { Footprints } from 'lucide-react'
-import { DailyBars } from '../../components/DailyBars'
-import { Card, Empty, Page, SkeletonCard, Stat } from '../../components/ui'
+import { useMemo } from 'react'
+import { PeriodBars } from '../../components/PeriodBars'
+import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
+import { Card, Empty, Page, SkeletonCard, SkeletonLines, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
-import { dayRange, formatDay, relativeDay, shiftDay } from '../../lib/dates'
+import { db } from '../../db/schema'
+import type { DailyHealth } from '../../db/types'
+import { dayRange, formatDay, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import { useDailyHealth } from './recovery'
 
 const DAYS = 30
+
+const hasSteps = (day: DailyHealth) => day.steps !== undefined
+const formatSteps = (value: number) => `${formatNumber(value, 0)} passos`
+const stepsAxis = (value: number) => (value >= 1000 ? `${formatNumber(value / 1000, 0)} mil` : String(value))
 
 const average = (values: number[]) => (values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : undefined)
 
@@ -55,17 +63,7 @@ export default function StepsPage() {
             </div>
           </Card>
 
-          <Card title={`Últimos ${DAYS} dias`}>
-            <DailyBars
-              days={days}
-              values={steps.map((value) => value ?? 0)}
-              format={(value) => `${formatNumber(value, 0)} passos`}
-              axisFormat={(value) => (value >= 1000 ? `${formatNumber(value / 1000, 0)} mil` : String(value))}
-              valueLabel="passos"
-              label={`Passos por dia nos últimos ${DAYS} dias`}
-              step={2000}
-            />
-          </Card>
+          <StepsHistory today={today} />
 
           <Card title="Dia a dia">
             <ul className="divide-y divide-line">
@@ -86,5 +84,35 @@ export default function StepsPage() {
         </>
       )}
     </Page>
+  )
+}
+
+/** Steps over the period picked: each day, or the average per day of a week, month or year. */
+function StepsHistory({ today }: { today: DayKey }) {
+  const earliest = useFirstDay(db.dailyHealth, 'id', hasSteps)
+  const period = usePeriod('passos', { earliest })
+  const rows = useDailyHealth(period.window.from, period.window.to)
+  const steps = useMemo(
+    () => (rows ?? []).flatMap((row) => (row.steps !== undefined ? [{ date: row.id, value: row.steps }] : [])),
+    [rows],
+  )
+  return (
+    <Card title="Histórico">
+      <PeriodControl period={period} />
+      {rows ? (
+        <PeriodBars
+          periods={period.window}
+          values={steps}
+          how="perDay"
+          unfinished={today}
+          format={formatSteps}
+          axisFormat={stepsAxis}
+          label="Passos por dia"
+          step={2000}
+        />
+      ) : (
+        <SkeletonLines lines={5} />
+      )}
+    </Card>
   )
 }

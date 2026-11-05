@@ -86,6 +86,23 @@ export function tooltipRow(color: string, value: string, label: string, kind: 'l
   return `<div style="white-space:nowrap">${key}<strong>${escapeHtml(value)}</strong> <span style="opacity:.7">${escapeHtml(label)}</span></div>`
 }
 
+/** The tooltip's first line: the day or period it is about. */
+export const tooltipTitle = (text: string): string => `<div style="opacity:.7;margin-bottom:4px">${escapeHtml(text)}</div>`
+
+/** A muted line under the rows ("média de 5 dias", "sem registro"). */
+export const tooltipNote = (text: string): string => `<div style="opacity:.7;font-size:12px;margin-top:2px">${escapeHtml(text)}</div>`
+
+/** A category x axis (one slot per day or period) on the baseline, without grid lines. */
+export function categoryAxis(t: ChartTokens, labels: string[]) {
+  return {
+    type: 'category',
+    data: labels,
+    ...axisStyle(t),
+    axisLine: { show: true, lineStyle: { color: t.baseline } },
+    splitLine: { show: false },
+  }
+}
+
 export function Chart({
   option,
   height = 220,
@@ -123,6 +140,15 @@ export function Chart({
   }, [option])
 
   return <div ref={element} role="img" aria-label={label} style={{ height }} className="w-full" />
+}
+
+/** A chart's place while its period has nothing to draw, so the card keeps its size. */
+export function NoData({ height }: { height: number }) {
+  return (
+    <p className="flex items-center justify-center text-center text-sm text-muted" style={{ height }}>
+      Nada registrado nesse período.
+    </p>
+  )
 }
 
 /** Legend for two or more series: the colored key carries identity, the text stays in ink. */

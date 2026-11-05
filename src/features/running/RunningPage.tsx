@@ -1,7 +1,8 @@
 import { CalendarCheck, CalendarDays, Footprints, Gauge, TrendingUp } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router'
-import { Card, Empty, Page, Segmented, SkeletonCard, Stat } from '../../components/ui'
+import { PeriodControl, usePeriod } from '../../components/PeriodControl'
+import { Card, Empty, Page, SkeletonCard, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { shiftDay, weekStart } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
@@ -12,26 +13,21 @@ import { AgendaItems } from '../calendar/components'
 import { useAgenda } from '../calendar/plans'
 import { RaceBig } from '../today/bigCards'
 import { ConsistencyMap, RecordsBig, useConsistency } from './RunningCards'
-import { WeeklyKmChart, WeeklyPaceChart } from './RunningCharts'
+import { RunPaceChart, runsByPeriod, RunVolumeChart } from './RunningCharts'
 import { formatPace, isRun, pooledPace, weeklyVolume } from './running'
-
-type Span = '12' | '26' | '52'
-
-const SPANS: { value: Span; label: string }[] = [
-  { value: '12', label: '12 semanas' },
-  { value: '26', label: '26 semanas' },
-  { value: '52', label: '1 ano' },
-]
 
 /** Running in detail: this week, volume and pace week by week, consistency, records, the next race and the latest runs. */
 export default function RunningPage() {
   const today = useToday()
   const activities = useActivities()
-  const [span, setSpan] = useState<Span>('12')
   const from = weekStart(today)
   const agenda = useAgenda(from, shiftDay(from, 6), today)
   const consistency = useConsistency(today, 26)
-  const weeks = useMemo(() => activities && weeklyVolume(activities, today, Number(span)), [activities, today, span])
+  // This week and the pace of the last 4 weeks against the 4 before; the charts follow the period picked.
+  const weeks = useMemo(() => activities && weeklyVolume(activities, today, 8), [activities, today])
+  const firstRun = useMemo(() => activities?.findLast(isRun)?.date, [activities])
+  const period = usePeriod('corrida', { grain: 'week', earliest: firstRun })
+  const runPeriods = useMemo(() => runsByPeriod(period.window, activities ?? []), [period.window, activities])
 
   if (!activities || !weeks || !agenda || !consistency) {
     return (
@@ -69,14 +65,12 @@ export default function RunningPage() {
         )}
       </Card>
 
-      <Card icon={TrendingUp} tone="today" title="Volume por semana">
-        <div className="mb-2">
-          <Segmented label="Período" value={span} onChange={setSpan} options={SPANS} />
-        </div>
-        <WeeklyKmChart weeks={weeks} />
+      <Card icon={TrendingUp} tone="today" title="Volume">
+        <PeriodControl period={period} />
+        <RunVolumeChart periods={period.window} runs={runPeriods} />
       </Card>
 
-      <Card icon={Gauge} tone="today" title="Ritmo médio por semana">
+      <Card icon={Gauge} tone="today" title="Ritmo médio">
         {recentPace !== undefined && (
           <p className="mb-2 text-sm text-ink-2">
             <span className="text-lg font-semibold text-ink tabular-nums">{formatPace(recentPace)}/km</span> nas últimas 4 semanas
@@ -84,7 +78,7 @@ export default function RunningPage() {
               ` · ${recentPace < beforePace ? 'mais rápido' : 'mais lento'} que as 4 antes (${formatPace(beforePace)}/km)`}
           </p>
         )}
-        <WeeklyPaceChart weeks={weeks} />
+        <RunPaceChart periods={period.window} runs={runPeriods} />
       </Card>
 
       <Card icon={CalendarCheck} tone="today" title="Constância">

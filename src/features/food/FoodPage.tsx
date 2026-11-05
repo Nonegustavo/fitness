@@ -1,7 +1,8 @@
 import { Bookmark, ChevronRight, Copy, Dumbbell, Flame, Pencil, Plus, Target, Trash2, Utensils } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
-import { DailyBars } from '../../components/DailyBars'
+import { PeriodBars } from '../../components/PeriodBars'
+import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
 import { DayNav } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
 import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
@@ -674,42 +675,55 @@ function SaveMealModal({ meal, date, entries, onClose }: { meal: MealKey; date: 
   )
 }
 
+/** Calories against the goals over the period picked: each day, or the average per day of a week, month or year. */
 function FoodHistory({ today }: { today: DayKey }) {
   const settings = useSettings()
-  const from = shiftDay(today, -13)
-  const logs = useFoodLogs(from, today)
-  const trainingDays = useTrainingDays(from, today)
-  const days = useMemo(() => dayRange(from, today), [from, today])
+  const earliest = useFirstDay(db.foodLogs, 'date')
+  const period = usePeriod('alimentacao', { earliest })
+  const { from, to } = period.window
+  const logs = useFoodLogs(from, to)
+  const trainingDays = useTrainingDays(from, to)
 
-  const totals = useMemo(() => {
-    const byDay = new Map<DayKey, Nutrients[]>()
-    for (const log of logs ?? []) byDay.set(log.date, [...(byDay.get(log.date) ?? []), log.nutrients])
-    return days.map((day) => (byDay.has(day) ? sumNutrients(byDay.get(day)!) : undefined))
-  }, [logs, days])
-  const values = useMemo(() => totals.map((total) => total?.kcal ?? 0), [totals])
+  const values = useMemo(() => (logs ?? []).map((log) => ({ date: log.date, value: log.nutrients.kcal })), [logs])
+  // Each day's goal follows whether it had a workout; a longer period's is their average over its days with logs.
   const goals = useMemo(
     () =>
-      settings.nutrition ? days.map((day) => goalsFor(settings, trainingDays?.has(day) ?? false)?.kcal) : undefined,
-    [settings, days, trainingDays],
+      settings.nutrition
+        ? dayRange(from, to).flatMap((day) => {
+            const goal = goalsFor(settings, trainingDays?.has(day) ?? false)?.kcal
+            return goal === undefined ? [] : [{ date: day, value: goal }]
+          })
+        : undefined,
+    [settings, from, to, trainingDays],
   )
 
-  // Averages over the days that have anything logged, today excluded (it isn't over yet).
-  const logged = totals.slice(0, -1).filter((total): total is Nutrients => total !== undefined)
-  const average = logged.length > 0 ? sumNutrients(logged) : undefined
-  const n = logged.length
+  // Averages over the days of the period that have anything logged, today excluded (it isn't over yet).
+  const { average, n } = useMemo(() => {
+    const counted = (logs ?? []).filter((log) => log.date !== today)
+    const days = new Set(counted.map((log) => log.date)).size
+    return { average: days > 0 ? sumNutrients(counted.map((log) => log.nutrients)) : undefined, n: days }
+  }, [logs, today])
 
   return (
     <>
-      <DailyBars
-        days={days}
-        values={values}
-        goals={goals}
-        format={kcal}
-        axisFormat={(value) => formatNumber(value, 0)}
-        valueLabel="consumidas"
-        label="Calorias por dia nos últimos 14 dias"
-        step={500}
-      />
+      <PeriodControl period={period} />
+      {logs ? (
+        <PeriodBars
+          periods={period.window}
+          values={values}
+          how="perDay"
+          unfinished={today}
+          goal={goals}
+          format={kcal}
+          axisFormat={(value) => formatNumber(value, 0)}
+          valueLabel="consumidas"
+          legend="Consumido"
+          label="Calorias consumidas por dia"
+          step={500}
+        />
+      ) : (
+        <SkeletonLines lines={5} />
+      )}
       {average && (
         <p className="mt-2 text-xs text-ink-2">
           Média de {n} {n === 1 ? 'dia' : 'dias'} com registro: {kcal(average.kcal / n)} · C{' '}

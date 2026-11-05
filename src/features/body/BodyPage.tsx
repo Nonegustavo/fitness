@@ -6,25 +6,21 @@ import { Button, Card, Empty, Page, Segmented, Select, SkeletonCard, Stat } from
 import { useSettings, useToday } from '../../db/hooks'
 import { db } from '../../db/schema'
 import type { MeasurementEntry, WeightEntry } from '../../db/types'
-import { formatDay, formatTime, relativeDay, shiftDay } from '../../lib/dates'
+import { formatDay, formatTime, relativeDay } from '../../lib/dates'
 import { formatFixed, formatNumber, formatSigned } from '../../lib/format'
 import { changeOver } from '../../lib/stats'
-import { metricSeries, useMeasurements, useWeights, type MetricSeries } from './body'
+import { metricSeries, useMeasurements, useWeights } from './body'
 import { MeasurementModal } from './MeasurementModal'
-import { LineOverTime, TrendChart } from '../../components/TimeCharts'
+import { PeriodControl, usePeriod } from '../../components/PeriodControl'
+import { PeriodLine } from '../../components/TimeCharts'
 import { describeExtras, WeightModal } from './WeightModal'
 import { WeightGoalCard } from './WeightGoalCard'
 import { ProgressPhotos } from './ProgressPhotos'
 
 type Tab = 'peso' | 'medidas' | 'fotos'
-type Range = '30' | '90' | '365' | 'all'
 
-const RANGES: { value: Range; label: string }[] = [
-  { value: '30', label: '30 dias' },
-  { value: '90', label: '90 dias' },
-  { value: '365', label: '1 ano' },
-  { value: 'all', label: 'Tudo' },
-]
+const WEIGH_INS = ['pesagem', 'pesagens'] as const
+const MEASURES = ['medição', 'medições'] as const
 
 const LIST_LIMIT = 15
 
@@ -106,15 +102,12 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
   const settings = useSettings()
   const weights = useWeights()
   const removeWithUndo = useRemoveWithUndo()
-  const [range, setRange] = useState<Range>('90')
   const [showAll, setShowAll] = useState(false)
+  const period = usePeriod('corpo', { earliest: weights?.[0]?.date })
 
+  // The trend is computed over the whole history and the charts cut it to the period, so it is right at its start.
   const weight = useMemo(() => metricSeries(weights ?? [], (entry) => entry.weightKg), [weights])
   const fat = useMemo(() => metricSeries(weights ?? [], (entry) => entry.bodyFatPct), [weights])
-  // The trend is computed over the whole history, then cut to the range, so it is right at the window's start.
-  const from = range === 'all' ? '' : shiftDay(today, -Number(range))
-  const weightInRange = useMemo(() => sliceSeries(weight, from), [weight, from])
-  const fatInRange = useMemo(() => sliceSeries(fat, from), [fat, from])
 
   if (!weights) return <SkeletonCard lines={4} />
   if (weights.length === 0) {
@@ -160,21 +153,36 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
 
       <WeightGoalCard trend={weight.trend} today={today} />
 
-      <Segmented label="Período dos gráficos" value={range} onChange={setRange} options={RANGES} />
+      <PeriodControl period={period} className="" />
 
       <Card title="Peso (kg)">
-        <TrendChart
-          {...weightInRange}
+        <PeriodLine
+          periods={period.window}
+          values={weight.readings}
+          trend={weight.trend}
+          how="mean"
           unit="kg"
           digits={1}
-          label="Peso de cada dia e tendência"
+          label="Peso"
+          noun={WEIGH_INS}
           goal={settings.weightGoal?.targetKg}
+          height={220}
         />
       </Card>
 
       {fat.readings.length > 0 && (
         <Card title="Gordura corporal (%)">
-          <TrendChart {...fatInRange} unit="%" digits={1} label="Gordura corporal de cada dia e tendência" />
+          <PeriodLine
+            periods={period.window}
+            values={fat.readings}
+            trend={fat.trend}
+            how="mean"
+            unit="%"
+            digits={1}
+            label="Gordura corporal"
+            noun={WEIGH_INS}
+            height={220}
+          />
         </Card>
       )}
 
@@ -220,18 +228,13 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
   )
 }
 
-function sliceSeries(series: MetricSeries, from: string): MetricSeries {
-  return {
-    readings: series.readings.filter((point) => point.date >= from),
-    trend: series.trend.filter((point) => point.date >= from),
-  }
-}
-
 function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'new') => void }) {
   const { measurementSites: sites } = useSettings()
   const measurements = useMeasurements()
   const removeWithUndo = useRemoveWithUndo()
   const [siteKey, setSiteKey] = useState<string>()
+  // Measurements come weeks apart: month by month shows them best at first.
+  const period = usePeriod('medidas', { grain: 'month', earliest: measurements?.[0]?.date })
 
   // Latest value of each site and its change since the previous time that site was measured.
   const rows = useMemo(
@@ -315,7 +318,8 @@ function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'n
             </Select>
           }
         >
-          <LineOverTime points={points} unit="cm" label={selected.label} />
+          <PeriodControl period={period} />
+          <PeriodLine periods={period.window} values={points} how="mean" unit="cm" digits={1} label={selected.label} noun={MEASURES} />
         </Card>
       )}
 
