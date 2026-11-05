@@ -59,7 +59,7 @@ A foto (ou a descrição em texto, como "2 ovos mexidos e 1 pão francês") é a
 
 ### Ler a tabela nutricional por foto
 
-Ao criar um alimento (ou em **Adicionar alimento → Ler tabela nutricional**), uma foto da tabela da embalagem é lida pelo Claude na função [`supabase/functions/read-label`](supabase/functions/read-label/index.ts), que preenche o formulário por porção para você conferir. Usa a mesma `ANTHROPIC_API_KEY`; cada leitura custa uns 5 centavos de dólar, e só é preciso uma vez por produto.
+Ao criar um alimento (ou em **Adicionar alimento → câmera → Tabela nutricional**), uma foto da tabela da embalagem é lida pelo Claude na função [`supabase/functions/read-label`](supabase/functions/read-label/index.ts), que preenche o formulário por porção para você conferir. Usa a mesma `ANTHROPIC_API_KEY`; cada leitura custa uns 5 centavos de dólar, e só é preciso uma vez por produto.
 
 ```bash
 npx supabase functions deploy read-label --remote=xxxx --no-verify-jwt --use-api

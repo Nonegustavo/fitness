@@ -64,7 +64,7 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Calorias do Garmin (total e ativas) na tela de alimentação
 - [x] Fibras, açúcares, gorduras saturadas e sódio: no cadastro, no Open Food Facts e no total do dia contra as referências (OMS)
 - [x] Recentes pela refeição: o que costuma ser comido naquela refeição aparece primeiro
-- [x] Atalhos de 1 toque (suplementos, o café de todo dia) com a quantidade fixa, na tela de alimentação
+- [x] Atalhos de 1 toque (suplementos, o café de todo dia) com a quantidade fixa, na tela de alimentação (retirados em 5/11/2026, a pedido)
 - [x] Copiar um item, uma refeição ou o dia inteiro para hoje; duplicar um item
 - [x] Editar as quantidades de todos os itens de uma refeição de uma vez
 - [x] "+" em cada alimento da lista (recentes, favoritos, busca): adiciona a quantidade de sempre sem abrir o alimento
@@ -153,6 +153,16 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] "Próximos treinos" no "Em foco": os treinos de hoje e os próximos, com o dia de cada um ("Amanhã", "Domingo, 8/11")
 - [x] Correção: o horário marcado para os treinos do Garmin se perdia na sincronização, porque o calendário publicado gera códigos novos a cada busca; agora vale o nome do treino e o dia
 - [x] Foto do prato em duas etapas: a IA lista o que viu, um item por linha com a quantidade, num texto que você corrige; depois calcula os gramas, carboidratos, proteína e gorduras de cada item (as calorias saem dos macros). "Descrever o que comi" vai direto para a segunda etapa. Nada é casado com a TACO: cada item vira um alimento seu ("Análise por IA"), atualizado se o nome se repetir
+
+- [x] Treino ao vivo: 1RM estimado em cada série, verde ou vermelho contra a mesma série do treino anterior (que também mostra o seu); sem carga aparece "PC×10" e compara as repetições; coluna "Anterior" centralizada; um menu ⋯ por exercício com trocar, bi-set, adicionar série ou aquecimento, remover série, reordenar e remover exercício; reordenar com o bi-set junto e "Salvar esta ordem na ficha"; descanso próprio do aquecimento (1:00 por padrão)
+- [x] Notificação do treino no Android: a série atual (aquecimento ou "Série 2 de 4", carga e repetições) com −/+ e Concluir, o descanso em contagem regressiva com +15 s e Pular, e um só aviso no fim do descanso; funciona na tela de bloqueio e com o app fechado, e o que for feito ali entra no treino
+- [x] Hábitos com cor, ícone e horário (que ordena a lista do dia: os pendentes primeiro) e "Hoje não vou fazer" (segurar o hábito), que não quebra nem soma na sequência
+- [x] Dores e desconfortos no diário, escritos à mão com nota de 1 a 10, que seguem para os dias seguintes com a última nota até serem removidos
+- [x] Alimentação: o resumo no formato do cartão do Em foco, refeições da mais recente para a primeira, "Salvar como refeição" na janela da refeição, sem o aviso de proporção, sem "Repetir ontem" e sem os atalhos de 1 toque; Adicionar alimento abre em Favoritos sem abrir o teclado
+- [x] Foto ou emoji em cada alimento (inclusive da TACO), antes do nome nas listas; a IA sugere emojis e o código de barras traz a foto do produto
+- [x] Câmera dentro do app: prato, código de barras ou tabela nutricional, com a opção da galeria
+- [x] Caminhadas separadas da corrida e programadas no app (com repetição semanal), treino do Garmin oculto (a prova repetida), botão + configurável e a ordem das medidas
+- [x] Cores por seção: botões, chaves, abas e links na cor de cada área
 
 ## Observações
 
