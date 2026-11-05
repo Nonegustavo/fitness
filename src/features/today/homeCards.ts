@@ -5,8 +5,7 @@ export type HomeArea = 'focus' | 'quick'
 
 /** Every element the Hoje screen offers; each one has a big card and a small one. */
 export const HOME_ELEMENTS: { id: HomeCardId; label: string; detail: string }[] = [
-  { id: 'workout', label: 'Treino', detail: 'A ficha de hoje (programada ou a próxima) ou o treino em andamento' },
-  { id: 'planned', label: 'Treino do Garmin', detail: 'O treino de hoje no calendário do Garmin, com a descrição' },
+  { id: 'workout', label: 'Treinos de hoje', detail: 'Musculação e corrida do dia, com a próxima ficha e o próximo treino' },
   { id: 'sleep', label: 'Sono', detail: 'Nota, horários e as fases da última noite' },
   { id: 'food', label: 'Alimentação', detail: 'Calorias e macros do dia' },
   { id: 'water', label: 'Água', detail: 'Total do dia contra a meta, com botões de 1 toque' },

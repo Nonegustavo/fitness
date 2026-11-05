@@ -29,7 +29,7 @@ export default function RecordsPage() {
       title="Recordes"
       icon={Trophy}
       tone="analysis"
-      back={{ to: '/treinos', label: 'Treinos' }}
+      back={{ to: '/corrida', label: 'Corrida' }}
       subtitle="Os melhores trechos das suas corridas ao ar livre"
     >
       {!ranking ? (

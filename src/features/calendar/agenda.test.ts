@@ -166,6 +166,27 @@ describe('buildAgenda', () => {
   })
 })
 
+describe('the time set for a Garmin workout', () => {
+  it('replaces the calendar time (or the lack of one) and is kept on the item', () => {
+    const event = { uid: 'u1', date: '2026-11-06', title: '06/11 Sex - Corrida 7 Km' }
+    const [item] = buildAgenda(
+      '2026-11-06',
+      '2026-11-06',
+      TODAY,
+      sources({ events: [event], eventTimes: [{ id: 'u1|2026-11-06', date: '2026-11-06', time: '06:45', ...meta }] }),
+    )
+    expect(item).toMatchObject({ eventKey: 'u1|2026-11-06', customTime: '06:45', time: dayTime('2026-11-06', '06:45') })
+    const [deleted] = buildAgenda(
+      '2026-11-06',
+      '2026-11-06',
+      TODAY,
+      sources({ events: [event], eventTimes: [{ id: 'u1|2026-11-06', date: '2026-11-06', time: '06:45', ...meta, deleted: 1 }] }),
+    )
+    expect(deleted.customTime).toBeUndefined()
+    expect(deleted.time).toBeUndefined()
+  })
+})
+
 describe('eventKm, isRace and nextRace', () => {
   it('read the distance of a workout name, the longer end of a range', () => {
     expect(eventKm('06/11 Sex - Corrida Intervalado ativo 4,48 - 4,97 Km')).toBe(4.97)

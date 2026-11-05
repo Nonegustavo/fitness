@@ -27,6 +27,8 @@ const MorePage = lazy(() => import('./features/more/MorePage'))
 const CalendarPage = lazy(() => import('./features/calendar/CalendarPage'))
 const StepsPage = lazy(() => import('./features/garmin/StepsPage'))
 const RecordsPage = lazy(() => import('./features/running/RecordsPage'))
+const RunningPage = lazy(() => import('./features/running/RunningPage'))
+const CaloriesPage = lazy(() => import('./features/garmin/CaloriesPage'))
 
 const router = createHashRouter([
   {
@@ -43,8 +45,11 @@ const router = createHashRouter([
       { path: 'treinos/atividades', element: <ActivitiesPage /> },
       { path: 'treinos/atividades/:id', element: <ActivityPage /> },
       { path: 'calendario', element: <CalendarPage /> },
-      { path: 'recordes', element: <RecordsPage /> },
+      { path: 'corrida', element: <RunningPage /> },
+      { path: 'corrida/recordes', element: <RecordsPage /> },
+      { path: 'recordes', element: <Navigate to="/corrida/recordes" replace /> },
       { path: 'passos', element: <StepsPage /> },
+      { path: 'calorias', element: <CaloriesPage /> },
       { path: 'alimentacao', element: <FoodPage /> },
       { path: 'alimentacao/adicionar', element: <AddFoodPage /> },
       { path: 'corpo', element: <BodyPage /> },

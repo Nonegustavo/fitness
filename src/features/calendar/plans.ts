@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo } from 'react'
 import { alive, patch, remove, restore, save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
+import type { EventTime, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { useActivities } from '../activities/activities'
 import { usePlannedEvents } from '../garmin/sync'
@@ -28,17 +28,30 @@ export const reschedule = (id: string, changes: Partial<Pick<WorkoutPlan, 'date'
 export const unschedule = (id: string) => remove(db.workoutPlans, id)
 export const undoUnschedule = (id: string) => restore(db.workoutPlans, id)
 
+/** The times set for the Garmin workouts between two days. */
+export function useEventTimes(from: DayKey, to: DayKey): EventTime[] | undefined {
+  return useLiveQuery(
+    async () => alive(await db.eventTimes.where('date').between(from, to, true, true).toArray()),
+    [from, to],
+  )
+}
+
+/** Plans a Garmin workout at a time ("07:00"), or clears the time. */
+export const setEventTime = (key: string, date: DayKey, time: string | undefined) =>
+  time ? save(db.eventTimes, { id: key, date, time }) : remove(db.eventTimes, key)
+
 /** The calendar of the days from `from` to `to`; undefined while it loads. */
 export function useAgenda(from: DayKey, to: DayKey, today: DayKey): AgendaItem[] | undefined {
   const plans = usePlans(from, to)
+  const eventTimes = useEventTimes(from, to)
   const events = usePlannedEvents()
   const sessions = useSessions()
   const activities = useActivities()
   const templates = useTemplates()
   return useMemo(() => {
-    if (!plans || events === undefined || !sessions || !activities || !templates) return undefined
-    return buildAgenda(from, to, today, { plans, events, sessions, activities, templates })
-  }, [from, to, today, plans, events, sessions, activities, templates])
+    if (!plans || !eventTimes || events === undefined || !sessions || !activities || !templates) return undefined
+    return buildAgenda(from, to, today, { plans, events, sessions, activities, templates, eventTimes })
+  }, [from, to, today, plans, eventTimes, events, sessions, activities, templates])
 }
 
 /** Today's scheduled template not done yet (the first, when there are two). */

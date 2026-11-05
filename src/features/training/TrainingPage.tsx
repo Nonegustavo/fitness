@@ -229,8 +229,8 @@ function ActivitiesCard({ today }: { today: string }) {
       action={
         activities.length > 0 ? (
           <span className="flex gap-3">
-            <Link to="/recordes" className="text-sm font-medium text-accent-ink">
-              Recordes
+            <Link to="/corrida" className="text-sm font-medium text-accent-ink">
+              Corrida
             </Link>
             <Link to="/treinos/atividades" className="text-sm font-medium text-accent-ink">
               Ver todas

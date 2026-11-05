@@ -133,7 +133,13 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Corrida: volume por semana nas últimas 12 semanas contra o planejado, ritmo médio das últimas 4 semanas contra as 4 anteriores, recordes pessoais (melhores trechos de 1, 5, 10, 21 e 42 km calculados dos dados do relógio, já que a API pessoal do Garmin não traz os recordes, e a corrida mais longa) e constância (semanas seguidas treinando, recorde de dias seguidos, dias treinados e o mapa das últimas 16 semanas)
 - [x] Correção: trocar de tela sempre abre a nova no topo (todas as telas dividiam a mesma rolagem)
 - [x] Correção: com muitos cartões no "Em foco", um texto de leitor de tela do Diário escapava do carrossel e alargava a tela (no celular, a barra de menus sumia)
-- [x] Telas de Passos (dia a dia, médias e as calorias do relógio) e de Recordes (os 5 melhores tempos de cada distância e as corridas mais longas)
+- [x] Telas de Passos (dia a dia e médias) e de Recordes (os 5 melhores tempos de cada distância e as corridas mais longas)
+- [x] Área de Corrida (Mais → Corrida; no computador, na barra lateral): esta semana contra o previsto, volume por semana em 12, 26 ou 52 semanas, ritmo médio por semana, constância com o mapa de 26 semanas, recordes, próxima prova e corridas recentes; os cartões de corrida levam para ela
+- [x] Área de Calorias gastas: hoje, médias de 7 e 30 dias, o gráfico de 30 dias (em repouso e ativas, com o que foi comido por cima) e o saldo dia a dia
+- [x] Horário planejado para os treinos do Garmin (as corridas do SisRUN vêm só com o dia): o relógio no item, no calendário e nos cartões; sincroniza entre os aparelhos e aparece no widget
+- [x] "Treinos de hoje" no lugar do cartão de musculação: todos os treinos do dia (musculação e corrida) com as ações, a próxima ficha da sequência e o próximo treino
+- [x] "Em foco" mostra um cartão por vez, na mesma largura do "Minha semana"; Hábitos, Água e Diário mais simples; "Semana passada" em blocos, com a diferença para a anterior
+- [x] Botão voltar do Android: fecha a janela aberta, volta para a tela anterior onde ela estava e só sai do app da primeira tela
 - [x] A análise do dia também lê a musculação programada para a semana
 
 ## Observações

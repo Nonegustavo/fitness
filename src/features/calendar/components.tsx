@@ -4,6 +4,7 @@ import {
   Bike,
   CalendarPlus,
   Check,
+  Clock,
   Dumbbell,
   Footprints,
   Pencil,
@@ -26,7 +27,7 @@ import { useStartWorkout } from '../training/components'
 import { summarize } from '../training/stats'
 import { useSessions, useTemplates } from '../training/training'
 import { suggestTemplate, type AgendaItem, type AgendaKind, type AgendaStatus } from './agenda'
-import { reschedule, schedule, unschedule, undoUnschedule, useAgenda, usePlans } from './plans'
+import { reschedule, schedule, setEventTime, unschedule, undoUnschedule, useAgenda, usePlans } from './plans'
 
 export const KIND_ICONS: Record<AgendaKind, LucideIcon> = {
   gym: Dumbbell,
@@ -147,7 +148,17 @@ export function dayTitle(date: DayKey, today: DayKey): string {
   return formatDay(date)
 }
 
-function ItemRow({ item, today, onEdit }: { item: AgendaItem; today: DayKey; onEdit: (plan: WorkoutPlan) => void }) {
+function ItemRow({
+  item,
+  today,
+  onEdit,
+  onTime,
+}: {
+  item: AgendaItem
+  today: DayKey
+  onEdit: (plan: WorkoutPlan) => void
+  onTime: (item: AgendaItem) => void
+}) {
   const navigate = useNavigate()
   const toast = useToast()
   const start = useStartWorkout()
@@ -159,6 +170,8 @@ function ItemRow({ item, today, onEdit }: { item: AgendaItem; today: DayKey; onE
       : undefined
   const plan = item.plan
   const pending = plan && (item.status === 'planned' || item.status === 'missed')
+  // A Garmin workout still ahead can get the time it's planned for.
+  const timeable = item.eventKey && item.status === 'planned' && item.kind !== 'rest'
   const template = plan && templates?.find((t) => t.id === plan.templateId)
 
   const drop = () => {
@@ -190,6 +203,11 @@ function ItemRow({ item, today, onEdit }: { item: AgendaItem; today: DayKey; onE
           Continuar
         </Button>
       )}
+      {timeable && (
+        <IconButton label={item.customTime ? `Mudar o horário de ${item.title}` : `Definir o horário de ${item.title}`} onClick={() => onTime(item)}>
+          <Clock size={16} className={item.customTime ? 'text-accent-ink' : undefined} />
+        </IconButton>
+      )}
       {pending && (
         <div className="flex shrink-0 items-center gap-1">
           {item.date === today && template && (
@@ -212,15 +230,50 @@ function ItemRow({ item, today, onEdit }: { item: AgendaItem; today: DayKey; onE
 /** Items with their actions: start, change or unschedule what is scheduled; open what was done. */
 export function AgendaItems({ items, today }: { items: AgendaItem[]; today: DayKey }) {
   const [editing, setEditing] = useState<WorkoutPlan>()
+  const [timing, setTiming] = useState<AgendaItem>()
   return (
     <>
       <ul className="divide-y divide-line">
         {items.map((item) => (
-          <ItemRow key={item.key} item={item} today={today} onEdit={setEditing} />
+          <ItemRow key={item.key} item={item} today={today} onEdit={setEditing} onTime={setTiming} />
         ))}
       </ul>
       {editing && <PlanModal date={editing.date} today={today} plan={editing} onClose={() => setEditing(undefined)} />}
+      {timing && <EventTimeModal item={timing} onClose={() => setTiming(undefined)} />}
     </>
+  )
+}
+
+/** The time a Garmin workout (a SisRUN run) is planned for: the coach's plan only has the day. */
+function EventTimeModal({ item, onClose }: { item: AgendaItem; onClose: () => void }) {
+  const toast = useToast()
+  const [time, setTime] = useState(item.customTime ?? (item.time !== undefined ? formatTime(item.time) : ''))
+  const store = async (value: string | undefined) => {
+    await setEventTime(item.eventKey!, item.date, value)
+    toast({ message: value ? `${item.title} às ${value}.` : `Horário de ${item.title} tirado.` })
+    onClose()
+  }
+  return (
+    <Modal open title="Horário planejado" onClose={onClose}>
+      <p className="text-sm font-medium">{item.title}</p>
+      <p className="mb-4 text-xs text-muted first-letter:uppercase">{formatDay(item.date)}</p>
+      <Field label="Horário">
+        <TextInput type="time" value={time} autoFocus onChange={(event) => setTime(event.target.value)} />
+      </Field>
+      <div className="mt-4 flex gap-2">
+        {item.customTime && (
+          <Button variant="ghost" onClick={() => void store(undefined)}>
+            Tirar
+          </Button>
+        )}
+        <Button className="ml-auto" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button variant="primary" disabled={!time} onClick={() => void store(time)}>
+          Salvar
+        </Button>
+      </div>
+    </Modal>
   )
 }
 

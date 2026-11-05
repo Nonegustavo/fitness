@@ -3,6 +3,8 @@ package io.github.nonegustavo.fitness;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.WebView;
+import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 import org.json.JSONObject;
 
@@ -19,6 +21,21 @@ public class MainActivity extends BridgeActivity {
             String url = bridge.getAppUrl() + "#/" + route;
             bridge.getWebView().post(() -> bridge.getWebView().loadUrl(url));
         }
+
+        // Back works inside the app: it closes an open sheet first (the page decides, through
+        // window.fitnessBack), then goes to the previous screen, and only from the first screen
+        // does it leave, keeping the app in the background instead of closing it.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView webView = bridge.getWebView();
+                webView.evaluateJavascript("window.fitnessBack ? window.fitnessBack() : 'none'", result -> {
+                    if ("\"handled\"".equals(result)) return;
+                    if (webView.canGoBack()) webView.goBack();
+                    else moveTaskToBack(true);
+                });
+            }
+        });
     }
 
     @Override

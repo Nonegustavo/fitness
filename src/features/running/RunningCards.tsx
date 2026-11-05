@@ -25,6 +25,7 @@ import {
   trainingDays,
   weeklyVolume,
   weekPace,
+  type HeatDay,
   type Records,
 } from './running'
 
@@ -63,8 +64,8 @@ export function RunVolumeBig({ today }: { today: DayKey }) {
       tone="today"
       title="Volume de corrida"
       action={
-        <Link to="/treinos/atividades" className="text-sm font-medium text-accent-ink">
-          Atividades
+        <Link to="/corrida" className="text-sm font-medium text-accent-ink">
+          Corrida
         </Link>
       }
     >
@@ -98,7 +99,7 @@ export function RunVolumeSmall({ today }: { today: DayKey }) {
   const { weeks, planned } = volume
   const current = weeks.at(-1)!
   return (
-    <SmallCard icon={Footprints} tone="today" label="Corrida na semana" to="/treinos/atividades">
+    <SmallCard icon={Footprints} tone="today" label="Corrida na semana" to="/corrida">
       <Value value={formatNumber(current.km, 1)} unit={planned ? `de ${formatNumber(planned, 1)} km` : 'km'} />
       <Note>semana passada {formatNumber(weeks.at(-2)!.km, 1)} km</Note>
       <MiniBars values={weeks.map((week) => week.km)} color={RUN} label="Quilômetros por semana nas últimas 8 semanas" className="mt-1.5 h-5" />
@@ -106,40 +107,26 @@ export function RunVolumeSmall({ today }: { today: DayKey }) {
   )
 }
 
-/** Weeks in a row, the record of days in a row and the map of the last 16 weeks. */
-function useConsistency(today: DayKey) {
+/** Weeks in a row, the record of days in a row and the map of the last `weeks` weeks. */
+export function useConsistency(today: DayKey, weeks = 16) {
   const activities = useActivities()
   const sessions = useSessions()
   return useMemo(() => {
     if (!activities || !sessions) return undefined
     const days = trainingDays(activities, sessions)
-    return { stats: consistency(days, today, 16), map: heatmap(activities, days, today, 16) }
-  }, [activities, sessions, today])
+    return { stats: consistency(days, today, weeks), map: heatmap(activities, days, today, weeks) }
+  }, [activities, sessions, today, weeks])
 }
 
-export function StreakBig({ today }: { today: DayKey }) {
-  const data = useConsistency(today)
-  if (!data) return <SkeletonCard lines={5} />
-  const { stats, map } = data
+/** The days of the last weeks as squares, a column per week (Sunday on top): runs by distance, other workouts. */
+export function ConsistencyMap({ map, rowHeight = 11 }: { map: HeatDay[][]; rowHeight?: number }) {
   return (
-    <Card icon={CalendarCheck} tone="today" title="Constância">
-      <div className="grid grid-cols-3 gap-2 text-center">
-        {[
-          { value: stats.weeksInRow, label: stats.weeksInRow === 1 ? 'semana seguida' : 'semanas seguidas' },
-          { value: stats.daysTrained, label: 'dias treinados em 16 semanas' },
-          { value: stats.bestDayStreak, label: 'dias seguidos (recorde)' },
-        ].map(({ value, label }) => (
-          <div key={label} className="rounded-xl bg-surface-2 px-1 py-2">
-            <p className="text-2xl leading-none font-semibold tabular-nums">{value}</p>
-            <p className="mt-1 text-[11px] leading-tight text-muted">{label}</p>
-          </div>
-        ))}
-      </div>
+    <>
       <div
         role="img"
-        aria-label="Dias com treino nas últimas 16 semanas, de domingo a sábado"
-        className="mt-3 grid grid-flow-col grid-rows-[repeat(7,11px)] gap-[3px]"
-        style={{ gridTemplateColumns: `repeat(${map.length}, minmax(0, 1fr))` }}
+        aria-label={`Dias com treino nas últimas ${map.length} semanas, de domingo a sábado`}
+        className="grid grid-flow-col gap-[3px]"
+        style={{ gridTemplateColumns: `repeat(${map.length}, minmax(0, 1fr))`, gridTemplateRows: `repeat(7, ${rowHeight}px)` }}
       >
         {map.flat().map((day) => (
           <span
@@ -164,6 +151,40 @@ export function StreakBig({ today }: { today: DayKey }) {
           <span className="size-2.5 rounded-[2px] opacity-60" style={{ background: toneColor('training') }} /> outro treino
         </span>
       </p>
+    </>
+  )
+}
+
+export function StreakBig({ today }: { today: DayKey }) {
+  const data = useConsistency(today)
+  if (!data) return <SkeletonCard lines={5} />
+  const { stats, map } = data
+  return (
+    <Card
+      icon={CalendarCheck}
+      tone="today"
+      title="Constância"
+      action={
+        <Link to="/corrida" className="text-sm font-medium text-accent-ink">
+          Corrida
+        </Link>
+      }
+    >
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {[
+          { value: stats.weeksInRow, label: stats.weeksInRow === 1 ? 'semana seguida' : 'semanas seguidas' },
+          { value: stats.daysTrained, label: 'dias treinados em 16 semanas' },
+          { value: stats.bestDayStreak, label: 'dias seguidos (recorde)' },
+        ].map(({ value, label }) => (
+          <div key={label} className="rounded-xl bg-surface-2 px-1 py-2">
+            <p className="text-2xl leading-none font-semibold tabular-nums">{value}</p>
+            <p className="mt-1 text-[11px] leading-tight text-muted">{label}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3">
+        <ConsistencyMap map={map} />
+      </div>
     </Card>
   )
 }
@@ -173,7 +194,7 @@ export function StreakSmall({ today }: { today: DayKey }) {
   if (!data) return <TileSkeleton />
   const { stats } = data
   return (
-    <SmallCard icon={CalendarCheck} tone="today" label="Constância" to="/calendario">
+    <SmallCard icon={CalendarCheck} tone="today" label="Constância" to="/corrida">
       <Value value={stats.weeksInRow} unit={stats.weeksInRow === 1 ? 'semana' : 'semanas'} />
       <Note>seguidas treinando</Note>
       <Note>{stats.daysTrained} dias em 16 semanas</Note>
@@ -203,7 +224,7 @@ export function RecordsBig() {
       tone="analysis"
       title="Recordes pessoais"
       action={
-        <Link to="/recordes" className="text-sm font-medium text-accent-ink">
+        <Link to="/corrida/recordes" className="text-sm font-medium text-accent-ink">
           Ver todos
         </Link>
       }
@@ -241,7 +262,7 @@ export function RecordsSmall() {
   const [first, ...rest] = [...records.efforts].reverse().filter((record) => record.meters <= 10000)
   if (!first) return null
   return (
-    <SmallCard icon={Trophy} tone="analysis" label="Recordes" to="/recordes">
+    <SmallCard icon={Trophy} tone="analysis" label="Recordes" to="/corrida/recordes">
       <Value value={formatClock(first.seconds)} unit={first.short} />
       {rest.slice(0, 2).map((record) => (
         <Note key={record.label}>
@@ -271,7 +292,16 @@ export function PaceBig({ today }: { today: DayKey }) {
   if (!pace) return <SkeletonCard lines={4} />
   if (pace.now === undefined) return null
   return (
-    <Card icon={Gauge} tone="today" title="Ritmo médio">
+    <Card
+      icon={Gauge}
+      tone="today"
+      title="Ritmo médio"
+      action={
+        <Link to="/corrida" className="text-sm font-medium text-accent-ink">
+          Corrida
+        </Link>
+      }
+    >
       <p className="text-4xl leading-none font-semibold tabular-nums">
         {formatPace(pace.now)}
         <span className="ml-1.5 text-base font-normal text-ink-2">/km nas últimas 4 semanas</span>
@@ -294,7 +324,7 @@ export function PaceSmall({ today }: { today: DayKey }) {
   if (!pace) return <TileSkeleton />
   if (pace.now === undefined) return null
   return (
-    <SmallCard icon={Gauge} tone="today" label="Ritmo médio">
+    <SmallCard icon={Gauge} tone="today" label="Ritmo médio" to="/corrida">
       <Value value={formatPace(pace.now)} unit="/km" />
       <Note>últimas 4 semanas</Note>
       {pace.change !== undefined && <Note>{paceChange(pace.change)} vs as 4 antes</Note>}

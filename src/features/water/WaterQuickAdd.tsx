@@ -36,8 +36,11 @@ export function WaterSummary({ totalMl, goalMl }: { totalMl: number; goalMl: num
   )
 }
 
-/** One-tap buttons for the favorite containers, plus a custom amount. */
-export function WaterQuickAdd() {
+/**
+ * One-tap buttons for the favorite containers, plus a custom amount. `simple` (the Hoje card)
+ * leaves out the "+" marks and the custom amount, which stays on the water screen.
+ */
+export function WaterQuickAdd({ simple = false }: { simple?: boolean }) {
   const containers = useContainers()
   const settings = useSettings()
   const toast = useToast()
@@ -74,18 +77,20 @@ export function WaterQuickAdd() {
                 <span className="block truncate text-sm font-medium">{container.name}</span>
                 <span className="block text-xs text-ink-2">{formatMl(container.ml)}</span>
               </span>
-              <Plus size={18} className="ml-auto shrink-0 text-muted" />
+              {!simple && <Plus size={18} className="ml-auto shrink-0 text-muted" />}
             </button>
           )
         })}
-        <button
-          type="button"
-          onClick={() => setCustomOpen(true)}
-          className="flex min-h-14 items-center gap-3 rounded-xl border border-dashed border-baseline px-3 py-2 text-left text-sm text-ink-2 transition active:scale-[0.97]"
-        >
-          <Plus size={20} className="shrink-0" />
-          Outro valor
-        </button>
+        {!simple && (
+          <button
+            type="button"
+            onClick={() => setCustomOpen(true)}
+            className="flex min-h-14 items-center gap-3 rounded-xl border border-dashed border-baseline px-3 py-2 text-left text-sm text-ink-2 transition active:scale-[0.97]"
+          >
+            <Plus size={20} className="shrink-0" />
+            Outro valor
+          </button>
+        )}
       </div>
       {customOpen && (
         <CustomAmountModal onClose={() => setCustomOpen(false)} onAdd={(ml) => void add(ml)} />

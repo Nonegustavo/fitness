@@ -3,6 +3,8 @@ import {
   ChartScatter,
   Dumbbell,
   Ellipsis,
+  Flame,
+  Footprints,
   GlassWater,
   House,
   ListChecks,
@@ -13,8 +15,8 @@ import {
   Sparkles,
   Utensils,
 } from 'lucide-react'
-import { Suspense, useLayoutEffect } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { Suspense, useEffect, useLayoutEffect, useRef } from 'react'
+import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { SyncStatus } from '../features/settings/SyncStatus'
 import { RestTimerBar } from '../features/training/RestTimerBar'
 import { QuickLogButton } from './QuickLog'
@@ -26,9 +28,11 @@ const SECTIONS: { to: string; label: string; icon: typeof House; tone: Tone }[] 
   { to: '/', label: 'Hoje', icon: House, tone: 'today' },
   { to: '/treinos', label: 'Treinos', icon: Dumbbell, tone: 'training' },
   { to: '/calendario', label: 'Calendário', icon: CalendarDays, tone: 'training' },
+  { to: '/corrida', label: 'Corrida', icon: Footprints, tone: 'today' },
   { to: '/alimentacao', label: 'Alimentação', icon: Utensils, tone: 'food' },
   { to: '/corpo', label: 'Corpo', icon: Scale, tone: 'body' },
   { to: '/sono', label: 'Sono', icon: Moon, tone: 'sleep' },
+  { to: '/calorias', label: 'Calorias gastas', icon: Flame, tone: 'training' },
   { to: '/analise', label: 'Análise', icon: Sparkles, tone: 'analysis' },
   { to: '/correlacoes', label: 'Correlações', icon: ChartScatter, tone: 'insights' },
   { to: '/agua', label: 'Água', icon: GlassWater, tone: 'water' },
@@ -48,15 +52,64 @@ const bottomClass = (active: boolean) =>
 // The app manages the scroll itself: the browser's own restoring would fight the reset below.
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
 
+declare global {
+  interface Window {
+    /** Asked by the Android app before going back: "handled" when it closed an open sheet instead. */
+    fitnessBack?: () => 'handled' | 'none'
+  }
+}
+
+window.fitnessBack = () => {
+  if (!document.querySelector('[role="dialog"]')) return 'none'
+  // The sheets close on Escape, the innermost first.
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+  return 'handled'
+}
+
+/** Scrolls to `y`, again for a moment while the page is still too short (its data loading). */
+function scrollBackTo(y: number) {
+  let tries = 0
+  const attempt = () => {
+    window.scrollTo(0, y)
+    if (Math.abs(window.scrollY - y) > 2 && tries++ < 20) setTimeout(attempt, 50)
+  }
+  attempt()
+}
+
+/**
+ * A new screen opens at its top (all screens share the page's scroll, so otherwise one kept the
+ * position of the last); going back returns to where that screen was left. Changes within a
+ * screen (?dia=, ?refeicao=) keep the position.
+ */
+function useScrollPerScreen() {
+  const location = useLocation()
+  const navigation = useNavigationType()
+  const positions = useRef(new Map<string, number>())
+  const current = useRef({ key: location.key, pathname: location.pathname, y: 0 })
+
+  useEffect(() => {
+    const onScroll = () => {
+      current.current.y = window.scrollY
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useLayoutEffect(() => {
+    const previous = current.current
+    if (previous.key === location.key) return
+    positions.current.set(previous.key, previous.y)
+    current.current = { key: location.key, pathname: location.pathname, y: 0 }
+    const saved = navigation === 'POP' ? positions.current.get(location.key) : undefined
+    if (saved !== undefined) scrollBackTo(saved)
+    else if (previous.pathname !== location.pathname) window.scrollTo(0, 0)
+  }, [location.key, location.pathname, navigation])
+}
+
 export function Layout() {
   const { pathname } = useLocation()
   const inMore = UNDER_MORE.some((path) => pathname === path || pathname.startsWith(`${path}/`))
-
-  // Every screen opens at its top. All screens share the page's scroll, so without this one kept
-  // the position of the last. Changes within a screen (?dia=, ?refeicao=) keep where it is.
-  useLayoutEffect(() => {
-    window.scrollTo(0, 0)
-  }, [pathname])
+  useScrollPerScreen()
 
   return (
     // Nothing may widen the screen sideways: on a phone that also pushed the bottom bar out of view.

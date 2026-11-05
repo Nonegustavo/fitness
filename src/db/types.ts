@@ -424,6 +424,17 @@ export interface SessionExercise {
   supersetWithNext?: boolean
 }
 
+/**
+ * The time the user plans to do a workout of the Garmin calendar: the coach's workouts come with a
+ * day but no time. Keyed by the event (its uid, or its name) and its day.
+ */
+export interface EventTime extends Synced {
+  id: string
+  date: DayKey
+  /** "07:00". */
+  time: string
+}
+
 /** A gym workout scheduled for a day: which template (ficha), and at what time when one was picked. */
 export interface WorkoutPlan extends Synced {
   date: DayKey

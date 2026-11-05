@@ -1,5 +1,5 @@
 import { CalendarRange } from 'lucide-react'
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { Card, SkeletonCard } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { formatDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
@@ -64,18 +64,19 @@ export function WeeklyCard({ today }: { today: DayKey }) {
         <p className="text-sm text-muted">Sem registros na semana passada.</p>
       ) : (
         <>
-          <ul className="divide-y divide-line">
+          <ul className="grid grid-cols-2 gap-2">
             {rows.map((row) => (
-              <li key={row.label} className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
-                <span className="text-ink-2">{row.label}</span>
-                <span className="text-right">
-                  <span className="font-medium tabular-nums">{row.value}</span>
-                  {row.change && <span className="ml-2 text-xs text-muted tabular-nums">{row.change}</span>}
-                </span>
+              <li key={row.label} className="rounded-xl bg-surface-2 px-3 py-2">
+                <p className="truncate text-xs text-ink-2">{row.label}</p>
+                <p className="text-lg leading-tight font-semibold tabular-nums">{row.value}</p>
+                {row.change && (
+                  <p className="text-xs text-muted tabular-nums">
+                    {/^±0(\D|$)/.test(row.change) ? 'igual à anterior' : `${row.change} vs. anterior`}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-muted">Ao lado, a diferença para a semana anterior.</p>
         </>
       )}
     </Card>
@@ -84,8 +85,12 @@ export function WeeklyCard({ today }: { today: DayKey }) {
 
 export interface Row {
   label: string
-  value: ReactNode
+  value: string
   change?: string
+  /** The few numbers the small card shows, most important first. */
+  key?: number
+  /** A shorter label for the small card. */
+  short?: string
 }
 
 /** "+120", "−0,4", or nothing when the week before had no data. */
@@ -94,30 +99,31 @@ const delta = (now: number | undefined, then: number | undefined, digits = 0, un
 
 function rowsOf(w: WeekStats, p: WeekStats): Row[] {
   const rows: Row[] = []
-  if (w.kcal !== undefined) {
-    rows.push({ label: `Calorias (${w.foodDays} ${w.foodDays === 1 ? 'dia' : 'dias'})`, value: `${formatNumber(w.kcal, 0)} kcal`, change: delta(w.kcal, p.kcal) })
-    rows.push({ label: 'Proteína', value: `${formatNumber(w.protein!, 0)} g`, change: delta(w.protein, p.protein, 0, ' g') })
-    if (w.onTarget !== undefined) rows.push({ label: 'Dias na meta de calorias (±10%)', value: `${w.onTarget} de ${w.foodDays}` })
+  if (w.workouts || p.workouts) {
+    rows.push({ label: 'Musculação', short: 'Musculação', value: `${w.workouts} ${w.workouts === 1 ? 'treino' : 'treinos'}`, change: delta(w.workouts, p.workouts), key: 1 })
+    rows.push({ label: 'Séries', value: String(w.sets), change: delta(w.sets, p.workouts || p.sets ? p.sets : undefined) })
   }
-  if (w.workouts || w.activities || p.workouts) {
-    rows.push({
-      label: 'Treinos',
-      value: `${w.workouts} musculação · ${w.sets} séries${w.activities ? ` · ${w.activities} atividades` : ''}`,
-      change: delta(w.sets, p.workouts || p.sets ? p.sets : undefined, 0, ' séries'),
-    })
-  }
+  if (w.activities || p.activities) rows.push({ label: 'Outras atividades', short: 'Atividades', value: String(w.activities), change: delta(w.activities, p.activities) })
   if (w.sleepHours !== undefined)
     rows.push({
       label: 'Sono por noite',
+      short: 'Sono',
       value: formatDuration(w.sleepHours * 3_600_000),
       change: p.sleepHours !== undefined ? `${formatSigned((w.sleepHours - p.sleepHours) * 60, 0)} min` : undefined,
+      key: 2,
     })
-  if (w.steps !== undefined) rows.push({ label: 'Passos por dia', value: formatNumber(w.steps, 0), change: delta(w.steps, p.steps) })
-  if (w.weightChange !== undefined) rows.push({ label: 'Peso (tendência)', value: `${formatSigned(w.weightChange)} kg` })
-  if (w.waterL !== undefined) rows.push({ label: 'Água por dia', value: `${formatNumber(w.waterL)} L`, change: delta(w.waterL, p.waterL, 1, ' L') })
+  if (w.kcal !== undefined) {
+    rows.push({ label: 'Calorias por dia', short: 'Calorias', value: `${formatNumber(w.kcal, 0)} kcal`, change: delta(w.kcal, p.kcal), key: 3 })
+    rows.push({ label: 'Proteína por dia', short: 'Proteína', value: `${formatNumber(w.protein!, 0)} g`, change: delta(w.protein, p.protein, 0, ' g') })
+    if (w.onTarget !== undefined) rows.push({ label: 'Dias na meta (±10%)', short: 'Na meta', value: `${w.onTarget} de ${w.foodDays}` })
+  }
+  if (w.steps !== undefined) rows.push({ label: 'Passos por dia', short: 'Passos', value: formatNumber(w.steps, 0), change: delta(w.steps, p.steps) })
+  if (w.weightChange !== undefined) rows.push({ label: 'Peso (tendência)', short: 'Peso', value: `${formatSigned(w.weightChange)} kg`, key: 4 })
+  if (w.waterL !== undefined) rows.push({ label: 'Água por dia', short: 'Água', value: `${formatNumber(w.waterL)} L`, change: delta(w.waterL, p.waterL, 1, ' L') })
   if (w.habits !== undefined)
     rows.push({
       label: 'Hábitos cumpridos',
+      short: 'Hábitos',
       value: `${formatNumber(w.habits * 100, 0)}%`,
       change: p.habits !== undefined ? `${formatSigned((w.habits - p.habits) * 100, 0)} p.p.` : undefined,
     })

@@ -1,4 +1,4 @@
-import type { Activity, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
+import type { Activity, EventTime, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import { dayTime, type DayKey } from '../../lib/dates'
 import { activityLabel } from '../activities/activities'
 import type { PlannedEvent } from '../garmin/calendar'
@@ -23,9 +23,16 @@ export interface AgendaItem {
   time?: number
   plan?: WorkoutPlan
   event?: PlannedEvent
+  /** A Garmin workout's key, for the time the user plans it at. */
+  eventKey?: string
+  /** That time ("07:00"), when the user set one. */
+  customTime?: string
   session?: WorkoutSession
   activity?: Activity
 }
+
+/** The key of a Garmin calendar workout: its uid (or name) and its day. */
+export const eventKey = (event: Pick<PlannedEvent, 'uid' | 'title' | 'date'>): string => `${event.uid ?? event.title}|${event.date}`
 
 const plain = (text: string) =>
   text
@@ -85,6 +92,8 @@ export interface AgendaSources {
   sessions: WorkoutSession[]
   activities: Activity[]
   templates: WorkoutTemplate[]
+  /** The times the user set for the Garmin workouts. */
+  eventTimes?: EventTime[]
 }
 
 const sessionStatus = (session: WorkoutSession): AgendaStatus => (session.endedAt ? 'done' : 'active')
@@ -149,15 +158,20 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
     })
   }
 
+  const times = new Map((sources.eventTimes ?? []).filter((time) => !time.deleted).map((time) => [time.id, time.time]))
   for (const event of sources.events ?? []) {
     if (!inRange(event.date)) continue
     const kind = eventKind(event)
+    const key = eventKey(event)
+    const customTime = times.get(key)
     const base = {
       key: `event-${event.uid ?? event.title}-${event.date}`,
       date: event.date,
       kind,
       title: eventTitle(event.title),
       event,
+      eventKey: key,
+      ...(customTime && { customTime }),
     }
     const activity =
       kind === 'rest'
@@ -167,7 +181,11 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
       usedActivities.add(activity.id)
       items.push({ ...base, status: 'done', time: activity.startTime, activity })
     } else {
-      items.push({ ...base, status: event.date < today && kind !== 'rest' ? 'missed' : 'planned', time: event.time })
+      items.push({
+        ...base,
+        status: event.date < today && kind !== 'rest' ? 'missed' : 'planned',
+        time: customTime ? dayTime(event.date, customTime) : event.time,
+      })
     }
   }
 

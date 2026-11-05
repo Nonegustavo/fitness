@@ -1,60 +1,67 @@
-import { CalendarRange, Dumbbell, GlassWater, ListChecks, Moon, NotebookPen, Play, Plus, Sparkles, Utensils } from 'lucide-react'
+import { CalendarRange, GlassWater, ListChecks, Moon, NotebookPen, Play, Plus, Sparkles, Utensils } from 'lucide-react'
 import { useToast } from '../../components/Toast'
 import { toneColor } from '../../components/tone'
 import { IconButton } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { remove } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { DayKey } from '../../lib/dates'
+import { formatTime, type DayKey } from '../../lib/dates'
 import { formatDuration, formatMl, formatNumber } from '../../lib/format'
 import { useInsight } from '../analysis/daily'
-import { useTodayTemplate } from '../calendar/plans'
+import { shortTitle, type AgendaKind } from '../calendar/agenda'
+import { KIND_ICONS, KIND_TONES } from '../calendar/components'
+import { useAgenda, useTodayTemplate } from '../calendar/plans'
 import { goalsFor, sumNutrients, useFoodLogs, useTrainingDays } from '../food/nutrition'
 import { latestNight, sleepQuality } from '../garmin/recovery'
 import { isSuccess, useHabitLogs, useHabits } from '../habits/habits'
 import { ENERGY, levelOf, MOODS, useJournalEntry } from '../journal/journal'
 import { useStartWorkout } from '../training/components'
-import { findActive, useSessions } from '../training/training'
 import { addWater, sumMl, useContainers, useWaterLogs } from '../water/water'
 import { Note, SmallCard, ThinBar, TileSkeleton, useRecentHealth, Value } from './tiles'
 import { useLastWeek } from './WeeklyCard'
 
-/** Today's workout in short, with a button to start it. */
+/** Today's workout in short (gym or run), with a button to start a gym workout. */
 export function WorkoutSmall({ today }: { today: DayKey }) {
-  const sessions = useSessions()
+  const agenda = useAgenda(today, today, today)
   const todays = useTodayTemplate(today)
   const start = useStartWorkout()
-  if (!sessions) return <TileSkeleton />
-  const active = findActive(sessions)
-  const doneToday = sessions.find((session) => session.endedAt && session.date === today)
+  if (!agenda) return <TileSkeleton />
+  const items = agenda.filter((item) => item.kind !== 'rest')
+  const current = items.find((item) => item.status === 'active') ?? items.find((item) => item.status === 'planned')
+  const done = items.filter((item) => item.status === 'done')
+  let kind: AgendaKind = 'gym'
   let title = todays?.template.name ?? '—'
-  let note = todays?.plan ? `programado para hoje${todays.plan.time ? ` às ${todays.plan.time}` : ''}` : 'próxima ficha'
+  let note = 'próxima ficha'
   let to = '/treinos'
-  if (active) {
-    title = active.name
-    note = 'em andamento'
-    to = `/treinos/sessao/${active.id}`
-  } else if (doneToday && !todays?.plan) {
-    title = doneToday.name
+  if (current) {
+    kind = current.kind
+    title = shortTitle(current)
+    note = current.status === 'active' ? 'em andamento' : `hoje${current.time !== undefined ? ` às ${formatTime(current.time)}` : ''}`
+    to = current.session ? `/treinos/sessao/${current.session.id}` : `/calendario?dia=${today}`
+  } else if (done.length > 0) {
+    kind = done[0].kind
+    title = done.map(shortTitle).join(' · ')
     note = 'feito hoje'
-    to = `/treinos/sessao/${doneToday.id}`
+    to = `/calendario?dia=${today}`
   }
-  const startable = !active && todays && !(doneToday && !todays.plan)
+  // The template to start: today's, or the rotation's next when nothing else is on.
+  const startable = current ? current.kind === 'gym' && current.status === 'planned' : done.length === 0
   return (
     <SmallCard
-      icon={Dumbbell}
-      tone="training"
+      icon={KIND_ICONS[kind]}
+      tone={KIND_TONES[kind]}
       label="Treino"
       to={to}
       action={
-        startable && (
+        startable &&
+        todays && (
           <IconButton label={`Iniciar ${todays.template.name}`} className="size-8 text-accent-ink" onClick={() => void start(todays.template)}>
             <Play size={18} />
           </IconButton>
         )
       }
     >
-      <span className="block truncate text-lg leading-tight font-semibold">{title}</span>
+      <span className="line-clamp-2 text-base leading-tight font-semibold">{title}</span>
       <Note>{note}</Note>
     </SmallCard>
   )
@@ -188,16 +195,18 @@ export function LastWeekSmall({ today }: { today: DayKey }) {
   const week = useLastWeek(today)
   if (!week) return <TileSkeleton />
   if (week.rows.length === 0) return null
+  const key = week.rows.filter((row) => row.key !== undefined).sort((a, b) => a.key! - b.key!)
+  const shown = (key.length >= 3 ? key : [...key, ...week.rows.filter((row) => row.key === undefined)]).slice(0, 3)
   return (
     <SmallCard icon={CalendarRange} tone="insights" label="Semana passada">
-      <ul className="space-y-0.5 text-xs">
-        {week.rows.slice(0, 3).map((row) => (
-          <li key={row.label} className="flex justify-between gap-2">
-            <span className="min-w-0 truncate text-ink-2">{row.label.replace(/ \(.*\)$/, '')}</span>
-            <span className="max-w-[55%] truncate font-medium tabular-nums">{row.value}</span>
-          </li>
+      <dl className="space-y-1">
+        {shown.map((row) => (
+          <div key={row.label} className="flex items-baseline justify-between gap-2">
+            <dt className="min-w-0 truncate text-xs text-ink-2">{row.short ?? row.label}</dt>
+            <dd className="shrink-0 text-sm font-semibold tabular-nums">{row.value}</dd>
+          </div>
         ))}
-      </ul>
+      </dl>
     </SmallCard>
   )
 }

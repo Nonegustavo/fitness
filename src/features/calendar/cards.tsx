@@ -1,13 +1,15 @@
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Dumbbell, Play } from 'lucide-react'
 import { useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 import { Modal } from '../../components/Modal'
 import { toneColor } from '../../components/tone'
-import { Card, cx, Empty, SkeletonCard, SkeletonLines } from '../../components/ui'
-import { dayRange, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
-import { byDay, type AgendaItem } from './agenda'
-import { AgendaItems, DayDetails, dayTitle, KIND_LABELS, KIND_TONES } from './components'
-import { useAgenda } from './plans'
+import { Button, Card, cx, Empty, SkeletonCard, SkeletonLines } from '../../components/ui'
+import { dayRange, formatTime, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
+import { useStartWorkout } from '../training/components'
+import { findActive, useSessions } from '../training/training'
+import { byDay, shortTitle, type AgendaItem } from './agenda'
+import { AgendaIcon, AgendaItems, DayDetails, dayTitle, KIND_LABELS, KIND_TONES } from './components'
+import { useAgenda, useTodayTemplate } from './plans'
 
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 const weekday = (date: DayKey) => WEEKDAYS[parseDay(date).getDay()]
@@ -114,6 +116,48 @@ function Dot({ item, onAccent }: { item: AgendaItem; onAccent: boolean }) {
         ? { boxShadow: `inset 0 0 0 1.5px ${color}` }
         : { background: color }
   return <span className="size-2 rounded-full" style={style} />
+}
+
+/**
+ * "Em foco": every workout of today, gym and runs, with their actions (start, time, open what was
+ * done). Without a gym workout today, the rotation's next template to start; and what comes next.
+ */
+export function TodayWorkoutsCard({ today }: { today: DayKey }) {
+  const agenda = useAgenda(today, shiftDay(today, 13), today)
+  const todays = useTodayTemplate(today)
+  const sessions = useSessions()
+  const start = useStartWorkout()
+  if (!agenda || !sessions) return <SkeletonCard lines={3} />
+  const todayItems = agenda.filter((item) => item.date === today && item.kind !== 'rest')
+  const next = agenda.find((item) => item.date > today && item.status === 'planned' && item.kind !== 'rest')
+  const gymToday = todayItems.some((item) => item.kind === 'gym')
+  return (
+    <Card icon={Dumbbell} tone="training" title="Treinos de hoje" action={calendarLink}>
+      {todayItems.length > 0 ? (
+        <AgendaItems items={todayItems} today={today} />
+      ) : (
+        <p className="py-1 text-sm text-ink-2">Nada programado para hoje.</p>
+      )}
+      {!findActive(sessions) && !gymToday && todays && (
+        <div className="mt-2 flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2">
+          <AgendaIcon kind="gym" status="planned" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-ink-2">Próxima ficha da sequência</p>
+            <p className="truncate text-sm font-medium">{todays.template.name}</p>
+          </div>
+          <Button size="sm" variant="primary" onClick={() => void start(todays.template)}>
+            <Play size={14} /> Iniciar
+          </Button>
+        </div>
+      )}
+      {next && (
+        <p className="mt-2 text-xs text-muted first-letter:uppercase">
+          Próximo: {dayTitle(next.date, today)}
+          {next.time !== undefined && ` às ${formatTime(next.time)}`} · {shortTitle(next)}
+        </p>
+      )}
+    </Card>
+  )
 }
 
 /** The Treinos card: the coming week as a list, with the details of each workout. */

@@ -161,7 +161,8 @@ export function WeightBig({ today }: { today: DayKey }) {
   )
 }
 
-export function RaceBig({ today }: { today: DayKey }) {
+/** `inRunning`: on the running screen itself, the link goes to the race's day in the calendar. */
+export function RaceBig({ today, inRunning = false }: { today: DayKey; inRunning?: boolean }) {
   const race = useNextRace(today)
   const activities = useActivities()
   if (!race) return null
@@ -169,7 +170,12 @@ export function RaceBig({ today }: { today: DayKey }) {
   const km = eventKm(race.title)
   const weeks = activities ? weeklyVolume(activities, today, 4) : undefined
   return (
-    <Card icon={Target} tone="analysis" title="Próxima prova" action={detailsLink(`/calendario?dia=${race.date}`, 'Calendário')}>
+    <Card
+      icon={Target}
+      tone="analysis"
+      title="Próxima prova"
+      action={inRunning ? detailsLink(`/calendario?dia=${race.date}`, 'Calendário') : detailsLink('/corrida', 'Corrida')}
+    >
       <Headline value={days === 0 ? 'Hoje!' : days === 1 ? 'Amanhã' : days} unit={days > 1 ? 'dias' : undefined} />
       <p className="mt-3 font-medium">{eventTitle(race.title)}</p>
       <p className="text-sm text-ink-2 first-letter:uppercase">
@@ -296,7 +302,7 @@ export function BurnBig({ today }: { today: DayKey }) {
   if (!latest?.calories?.total) return null
   const { total, active = 0 } = latest.calories
   return (
-    <Card icon={Flame} tone="training" title="Calorias gastas" action={detailsLink('/alimentacao', 'Alimentação')}>
+    <Card icon={Flame} tone="training" title="Calorias gastas" action={detailsLink('/calorias')}>
       <Headline
         value={formatNumber(total, 0)}
         unit="kcal"

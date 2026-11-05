@@ -1,19 +1,16 @@
-import { CalendarDays, GlassWater, ListChecks } from 'lucide-react'
+import { GlassWater, ListChecks } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { Link } from 'react-router'
 import { Card, SkeletonLines } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import type { HomeCardId } from '../../db/types'
-import { formatTime, type DayKey } from '../../lib/dates'
+import type { DayKey } from '../../lib/dates'
 import { TodayInsightCard } from '../analysis/TodayInsightCard'
-import { eventTitle } from '../calendar/agenda'
 import { TodaySleepCard } from '../garmin/TodaySleepCard'
-import { usePlannedEvents } from '../garmin/sync'
-import { TodayPlannedCard } from '../garmin/UpcomingWorkouts'
 import { HabitCheckList } from '../habits/HabitCheckList'
 import { TodayJournalCard } from '../journal/TodayJournalCard'
 import { PaceBig, PaceSmall, RecordsBig, RecordsSmall, RunVolumeBig, RunVolumeSmall, StreakBig, StreakSmall } from '../running/RunningCards'
-import { TodayWorkoutCard } from '../training/TodayWorkoutCard'
+import { TodayWorkoutsCard } from '../calendar/cards'
 import { sumMl, useWaterLogs } from '../water/water'
 import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
 import { BatteryBig, BurnBig, FoodBig, HrvBig, RaceBig, RestingHrBig, StepsBig, WeightBig } from './bigCards'
@@ -27,7 +24,7 @@ import {
   WaterSmall,
   WorkoutSmall,
 } from './smallCards'
-import { BatterySmall, BurnSmall, HrvSmall, Note, RaceSmall, RestingHrSmall, SmallCard, StepsSmall, WeightSmall } from './tiles'
+import { BatterySmall, BurnSmall, HrvSmall, RaceSmall, RestingHrSmall, StepsSmall, WeightSmall } from './tiles'
 import { WeeklyCard } from './WeeklyCard'
 
 type ElementView = ComponentType<{ today: DayKey }>
@@ -50,7 +47,7 @@ function WaterCard({ today }: { today: DayKey }) {
     >
       {waterLogs ? <WaterSummary totalMl={sumMl(waterLogs)} goalMl={settings.waterGoalMl} /> : <SkeletonLines lines={2} />}
       <div className="mt-4">
-        <WaterQuickAdd />
+        <WaterQuickAdd simple />
       </div>
     </Card>
   )
@@ -68,25 +65,8 @@ function HabitsCard({ today }: { today: DayKey }) {
         </Link>
       }
     >
-      <HabitCheckList date={today} />
+      <HabitCheckList date={today} compact />
     </Card>
-  )
-}
-
-/** Today's workout in the Garmin calendar, in short. */
-function PlannedSmall({ today }: { today: DayKey }) {
-  const events = usePlannedEvents()
-  const todays = events?.filter((event) => event.date === today) ?? []
-  if (todays.length === 0) return null
-  const [first] = todays
-  return (
-    <SmallCard icon={CalendarDays} tone="training" label="Treino do Garmin" to={`/calendario?dia=${today}`}>
-      <span className="line-clamp-2 text-sm leading-snug font-semibold">{eventTitle(first.title)}</span>
-      <Note>
-        hoje{first.time !== undefined && ` às ${formatTime(first.time)}`}
-        {todays.length > 1 && ` · +${todays.length - 1}`}
-      </Note>
-    </SmallCard>
   )
 }
 
@@ -94,8 +74,9 @@ function PlannedSmall({ today }: { today: DayKey }) {
 export const ELEMENT_VIEWS: Record<HomeCardId, { big: ElementView; small: ElementView } | undefined> = {
   // "Minha semana" sits above "Em foco" instead.
   agenda: undefined,
-  workout: { big: TodayWorkoutCard, small: WorkoutSmall },
-  planned: { big: TodayPlannedCard, small: PlannedSmall },
+  workout: { big: TodayWorkoutsCard, small: WorkoutSmall },
+  // Today's Garmin workouts are in "Treinos de hoje" now.
+  planned: undefined,
   sleep: { big: TodaySleepCard, small: SleepSmall },
   food: { big: FoodBig, small: FoodSmall },
   water: { big: WaterCard, small: WaterSmall },

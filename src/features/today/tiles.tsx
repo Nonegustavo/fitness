@@ -156,7 +156,7 @@ export function RaceSmall({ today }: { today: DayKey }) {
   const days = daysBetween(today, race.date)
   const km = eventKm(race.title)
   return (
-    <SmallCard icon={Target} tone="analysis" label="Prova" to={`/calendario?dia=${race.date}`}>
+    <SmallCard icon={Target} tone="analysis" label="Prova" to="/corrida">
       <Value value={days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `${days} dias`} />
       <span className="mt-0.5 block truncate text-xs text-ink-2">{eventTitle(race.title)}</span>
       <Note>
@@ -247,7 +247,7 @@ export function BurnSmall({ today }: { today: DayKey }) {
   if (!latest?.calories?.total) return null
   const { total, active = 0 } = latest.calories
   return (
-    <SmallCard icon={Flame} tone="training" label="Calorias gastas" to="/alimentacao">
+    <SmallCard icon={Flame} tone="training" label="Calorias gastas" to="/calorias">
       <Value value={formatNumber(total, 0)} unit="kcal" />
       <ActiveRestBar total={total} active={active} />
       <Note>

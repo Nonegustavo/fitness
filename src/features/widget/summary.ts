@@ -93,7 +93,7 @@ export function widgetWorkouts(items: AgendaItem[]): WidgetWorkout[] {
     .filter((item) => (item.status === 'planned' || item.status === 'active') && item.kind !== 'rest')
     .slice(0, 12)
     .map((item) => {
-      const time = item.plan?.time ?? (item.event?.time !== undefined ? formatTime(item.event.time) : undefined)
+      const time = item.plan?.time ?? item.customTime ?? (item.event?.time !== undefined ? formatTime(item.event.time) : undefined)
       return {
         date: item.date,
         title: shortTitle(item),

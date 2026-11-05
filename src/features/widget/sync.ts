@@ -24,7 +24,7 @@ const AHEAD_DAYS = 13
 async function compute(): Promise<WidgetSummary> {
   const today = dayKey()
   const until = shiftDay(today, AHEAD_DAYS)
-  const [settings, foodLogs, waterLogs, sessions, templates, plans, activities, events] = await Promise.all([
+  const [settings, foodLogs, waterLogs, sessions, templates, plans, activities, events, eventTimes] = await Promise.all([
     db.settings.get(SETTINGS_ID),
     db.foodLogs.where('date').equals(today).toArray(),
     db.waterLogs.where('date').equals(today).toArray(),
@@ -34,6 +34,7 @@ async function compute(): Promise<WidgetSummary> {
     // Today's activities mark today's Garmin workouts done.
     db.activities.where('startTime').aboveOrEqual(parseDay(today).getTime()).toArray(),
     plannedEvents(),
+    db.eventTimes.where('date').between(today, until, true, true).toArray(),
   ])
   const workouts = alive(sessions)
   const live = alive(templates)
@@ -43,6 +44,7 @@ async function compute(): Promise<WidgetSummary> {
     sessions: workouts,
     activities: alive(activities),
     templates: live,
+    eventTimes: alive(eventTimes),
   })
   const trainingDay = workouts.some((session) => session.date === today)
   return widgetSummary({
