@@ -6,7 +6,13 @@ import { useToast } from '../../components/Toast'
 import { cx, Empty, IconButton, SkeletonLines } from '../../components/ui'
 import type { Habit } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
+import { tapFeedback } from '../../lib/haptics'
 import { describeHabit, isSuccess, setHabitValue, useHabitLogs, useHabits } from './habits'
+
+const setWithTap = (habit: Habit, date: DayKey, value: number) => {
+  tapFeedback()
+  void setHabitValue(habit, date, value)
+}
 
 /**
  * The day's check-in: a toggle for yes/no habits, a stepper for counted ones. `compact` lays them
@@ -75,7 +81,7 @@ function HabitChip({ habit, date, value }: { habit: Habit; date: DayKey; value: 
         role="checkbox"
         aria-checked={done}
         aria-label={habit.name}
-        onClick={() => void setHabitValue(habit, date, done ? 0 : 1)}
+        onClick={() => setWithTap(habit, date, done ? 0 : 1)}
         className="flex min-h-11 items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition active:scale-[0.97]"
         style={{ background: done ? `color-mix(in oklab, ${color} 16%, var(--surface-2))` : 'var(--surface-2)' }}
       >
@@ -91,11 +97,11 @@ function HabitChip({ habit, date, value }: { habit: Habit; date: DayKey; value: 
   return (
     <div className="flex min-h-11 items-center gap-0.5 rounded-xl bg-surface-2 py-1 pr-1 pl-2.5 text-sm">
       <span className="line-clamp-2 min-w-0 flex-1 leading-tight">{habit.name}</span>
-      <IconButton label={`Diminuir ${habit.name}`} className="size-7" disabled={value <= 0} onClick={() => void setHabitValue(habit, date, value - 1)}>
+      <IconButton label={`Diminuir ${habit.name}`} className="size-7" disabled={value <= 0} onClick={() => setWithTap(habit, date, value - 1)}>
         <Minus size={14} />
       </IconButton>
       <span className={cx('w-5 text-center font-semibold tabular-nums', !done && 'text-muted')}>{value}</span>
-      <IconButton label={`Aumentar ${habit.name}`} className="size-7" onClick={() => void setHabitValue(habit, date, value + 1)}>
+      <IconButton label={`Aumentar ${habit.name}`} className="size-7" onClick={() => setWithTap(habit, date, value + 1)}>
         <Plus size={14} />
       </IconButton>
     </div>
@@ -119,7 +125,7 @@ function HabitRow({ habit, date, value }: { habit: Habit; date: DayKey; value: n
           role="checkbox"
           aria-checked={done}
           aria-label={habit.name}
-          onClick={() => void setHabitValue(habit, date, done ? 0 : 1)}
+          onClick={() => setWithTap(habit, date, done ? 0 : 1)}
           className="inline-flex size-11 items-center justify-center rounded-full transition active:scale-90"
         >
           {done ? (
@@ -133,12 +139,12 @@ function HabitRow({ habit, date, value }: { habit: Habit; date: DayKey; value: n
           <IconButton
             label={`Diminuir ${habit.name}`}
             disabled={value <= 0}
-            onClick={() => void setHabitValue(habit, date, value - 1)}
+            onClick={() => setWithTap(habit, date, value - 1)}
           >
             <Minus size={18} />
           </IconButton>
           <span className={cx('w-8 text-center text-lg font-semibold tabular-nums', !done && 'text-muted')}>{value}</span>
-          <IconButton label={`Aumentar ${habit.name}`} onClick={() => void setHabitValue(habit, date, value + 1)}>
+          <IconButton label={`Aumentar ${habit.name}`} onClick={() => setWithTap(habit, date, value + 1)}>
             <Plus size={18} />
           </IconButton>
         </div>

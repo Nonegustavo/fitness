@@ -11,6 +11,7 @@ import { HabitCheckList } from '../habits/HabitCheckList'
 import { TodayJournalCard } from '../journal/TodayJournalCard'
 import { PaceBig, PaceSmall, RecordsBig, RecordsSmall, RunVolumeBig, RunVolumeSmall, StreakBig, StreakSmall } from '../running/RunningCards'
 import { TodayWorkoutsCard } from '../calendar/cards'
+import { StreaksBig, StreaksSmall } from '../streaks/StreakCards'
 import { sumMl, useWaterLogs } from '../water/water'
 import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
 import { BatteryBig, BurnBig, FoodBig, HrvBig, RaceBig, RestingHrBig, StepsBig, WeightBig } from './bigCards'
@@ -88,6 +89,7 @@ export const ELEMENT_VIEWS: Record<HomeCardId, { big: ElementView; small: Elemen
   pace: { big: PaceBig, small: PaceSmall },
   records: { big: RecordsBig, small: RecordsSmall },
   streak: { big: StreakBig, small: StreakSmall },
+  goalStreaks: { big: StreaksBig, small: StreaksSmall },
   race: { big: RaceBig, small: RaceSmall },
   body: { big: WeightBig, small: WeightSmall },
   restingHr: { big: RestingHrBig, small: RestingHrSmall },

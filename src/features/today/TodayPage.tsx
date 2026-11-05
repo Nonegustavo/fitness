@@ -2,13 +2,18 @@ import { House, Settings, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Carousel } from '../../components/Carousel'
+import { PullToRefresh } from '../../components/PullToRefresh'
+import { useToast } from '../../components/Toast'
 import { IconButton, Page } from '../../components/ui'
-import { useSettings, useToday } from '../../db/hooks'
+import { useNow, useSettings, useToday } from '../../db/hooks'
 import { formatDay } from '../../lib/dates'
+import { getSyncState, syncNow } from '../../sync/controller'
+import { syncGarmin } from '../garmin/sync'
 import { WeekCard } from '../calendar/cards'
 import { CustomizeHome } from './CustomizeHome'
 import { ELEMENT_VIEWS } from './elements'
-import { homeAreas } from './homeCards'
+import { elementInfo, homeAreas, orderForTime } from './homeCards'
+import { NowCard } from './NowCard'
 import { QuickGrid } from './tiles'
 
 /**
@@ -19,9 +24,20 @@ export default function TodayPage() {
   const today = useToday()
   const settings = useSettings()
   const [customizing, setCustomizing] = useState(false)
+  const toast = useToast()
   const areas = homeAreas(settings)
+  // Checked every 10 minutes: enough for the order of "Em foco" to follow the time of day.
+  const hour = useNow(600_000).getHours()
+  const focus = areas.smartOrder ? orderForTime(areas.focus, hour) : areas.focus
+
+  // Pulling the page down brings what's new from the server and from Garmin right away.
+  const refresh = async () => {
+    await Promise.allSettled([syncNow(), syncGarmin()])
+    toast({ message: getSyncState().phase === 'error' ? 'Não deu para sincronizar agora.' : 'Atualizado.' })
+  }
 
   return (
+    <PullToRefresh onRefresh={refresh}>
     <Page
       title="Hoje"
       icon={House}
@@ -43,13 +59,20 @@ export default function TodayPage() {
         </>
       }
     >
+      {areas.now && <NowCard today={today} />}
       {areas.week && <WeekCard today={today} />}
 
-      {areas.focus.length > 0 && (
+      {focus.length > 0 && (
         <div>
           <h2 className="mb-2 text-base font-semibold">Em foco</h2>
-          <Carousel label="Em foco">
-            {areas.focus.map((id) => {
+          <Carousel
+            label="Em foco"
+            tabs={focus.map((id) => {
+              const element = elementInfo(id)!
+              return { icon: element.icon, tone: element.tone, label: element.label }
+            })}
+          >
+            {focus.map((id) => {
               const Big = ELEMENT_VIEWS[id]?.big
               return Big && <Big key={id} today={today} />
             })}
@@ -76,5 +99,6 @@ export default function TodayPage() {
 
       {customizing && <CustomizeHome onClose={() => setCustomizing(false)} />}
     </Page>
+    </PullToRefresh>
   )
 }

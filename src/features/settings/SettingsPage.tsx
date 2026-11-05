@@ -1,7 +1,8 @@
 import { Download, LogOut, RefreshCw, Settings, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useToast } from '../../components/Toast'
-import { Button, Card, Field, IconButton, Page, Switch, TextInput } from '../../components/ui'
+import { bottomSections, SECTIONS } from '../../components/sections'
+import { Button, Card, Field, IconButton, Page, Select, Switch, TextInput } from '../../components/ui'
 import { exportBackup, importBackup } from '../../db/backup'
 import { useSettings } from '../../db/hooks'
 import { patch } from '../../db/repo'
@@ -14,6 +15,7 @@ import { SyncStatus } from './SyncStatus'
 import { PROFILE_CHARS } from '../analysis/context'
 import { isAndroidApp } from '../healthconnect/plugin'
 import { requestNotificationPermission } from '../notifications/native'
+import { leadText, WORKOUT_LEADS } from '../notifications/reminders'
 import type { SmartReminders } from '../../db/types'
 import { useSearchParams } from 'react-router'
 
@@ -23,6 +25,8 @@ export default function SettingsPage() {
       <SyncCard />
       <ProfileCard />
       {isAndroidApp() && <SmartRemindersCard />}
+      {isAndroidApp() && <WorkoutRemindersCard />}
+      <NavBarCard />
       <GarminCard />
       <HealthConnectCard />
       <SitesCard />
@@ -300,6 +304,97 @@ function ProfileCard() {
 const SMART_DEFAULTS = { weighIn: '08:30', lunch: '14:00', dinner: '21:30' } as const
 
 /** Reminders that only come when something is missing that day (Android app). */
+/** The four sections of the phone's bottom bar; the others stay under "Mais". */
+function NavBarCard() {
+  const settings = useSettings()
+  const current = bottomSections(settings.navBar).map((section) => section.to)
+  const choose = (slot: number, path: string) => {
+    const next = [...current]
+    // A section already on the bar trades places with the one it replaces.
+    const taken = next.indexOf(path)
+    if (taken >= 0) next[taken] = next[slot]
+    next[slot] = path
+    void patch(db.settings, SETTINGS_ID, { navBar: next })
+  }
+  return (
+    <Card title="Barra de baixo">
+      <p className="mb-3 text-sm text-ink-2">As quatro seções da barra do celular; as outras ficam em Mais.</p>
+      <div className="grid grid-cols-2 gap-3">
+        {current.map((path, slot) => (
+          <Field key={slot} label={`${slot + 1}ª posição`}>
+            <Select value={path} onChange={(event) => choose(slot, event.target.value)}>
+              {SECTIONS.filter((section) => section.to !== '/ajustes').map((section) => (
+                <option key={section.to} value={section.to}>
+                  {section.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ))}
+      </div>
+      {settings.navBar && (
+        <Button size="sm" variant="ghost" className="mt-3" onClick={() => void patch(db.settings, SETTINGS_ID, { navBar: undefined })}>
+          Voltar ao padrão
+        </Button>
+      )}
+    </Card>
+  )
+}
+
+/** Heads-ups before the planned workouts, and the week in numbers on Sunday night. */
+function WorkoutRemindersCard() {
+  const settings = useSettings()
+  const smart = settings.smartReminders ?? {}
+  const change = (next: SmartReminders) => void patch(db.settings, SETTINGS_ID, { smartReminders: next })
+  const turnOn = (next: SmartReminders) => {
+    void requestNotificationPermission()
+    change(next)
+  }
+  return (
+    <Card title="Treinos e semana">
+      <ul className="divide-y divide-line">
+        <li className="flex items-center gap-3 py-2">
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm">Antes dos treinos</span>
+            <span className="block text-xs text-muted">musculação e corridas programadas com horário</span>
+          </span>
+          {smart.workouts && (
+            <span className="w-32 shrink-0">
+              <Select
+                aria-label="Quanto tempo antes do treino"
+                value={String(smart.workouts)}
+                onChange={(event) => change({ ...smart, workouts: Number(event.target.value) })}
+              >
+                {WORKOUT_LEADS.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {leadText(minutes)} antes
+                  </option>
+                ))}
+              </Select>
+            </span>
+          )}
+          <Switch
+            label="Aviso antes dos treinos"
+            checked={!!smart.workouts}
+            onChange={(on) => (on ? turnOn({ ...smart, workouts: 30 }) : change({ ...smart, workouts: undefined }))}
+          />
+        </li>
+        <li className="flex items-center gap-3 py-2">
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm">Resumo da semana</span>
+            <span className="block text-xs text-muted">domingo às 20h: treinos, corrida, sono e água da semana</span>
+          </span>
+          <Switch
+            label="Resumo da semana no domingo"
+            checked={!!smart.weekly}
+            onChange={(on) => (on ? turnOn({ ...smart, weekly: true }) : change({ ...smart, weekly: undefined }))}
+          />
+        </li>
+      </ul>
+    </Card>
+  )
+}
+
 function SmartRemindersCard() {
   const settings = useSettings()
   const smart = settings.smartReminders ?? {}

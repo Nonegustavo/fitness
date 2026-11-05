@@ -164,6 +164,7 @@ export type HomeCardId =
   | 'pace'
   | 'records'
   | 'streak'
+  | 'goalStreaks'
 
 /** What the Hoje screen shows: big cards in "Em foco" (a carousel) and small ones in "Visualização rápida". */
 export interface HomeAreas {
@@ -171,6 +172,10 @@ export interface HomeAreas {
   quick: HomeCardId[]
   /** "Minha semana" above "Em foco"; on unless false. */
   week?: boolean
+  /** "Em foco" puts first what matters at this time of day; on unless false. */
+  smartOrder?: boolean
+  /** "Agora", the next step of the day, at the very top; on unless false. */
+  now?: boolean
 }
 
 /** The arrangement of the Hoje screen before the two areas (kept for the hidden cards). */
@@ -196,6 +201,8 @@ export interface Settings extends Synced {
   smartReminders?: SmartReminders
   /** The gym's bar and plates, for the plate calculator. */
   gym?: GymSetup
+  /** The four sections on the phone's bottom bar (routes), in order. */
+  navBar?: string[]
 }
 
 /** Each one is on when set: a time ("08:30") for the weigh-in and the meals, true for water. */
@@ -208,6 +215,10 @@ export interface SmartReminders {
   dinner?: string
   /** Behind the day's water pace at 11h, 15h and 19h. */
   water?: boolean
+  /** Minutes before each planned workout that has a time (gym and runs) for a heads-up. */
+  workouts?: number
+  /** On Sunday at 20h, the week that ended in numbers. */
+  weekly?: boolean
 }
 
 export interface GymSetup {

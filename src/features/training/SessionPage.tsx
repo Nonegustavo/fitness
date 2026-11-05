@@ -33,6 +33,7 @@ import {
 } from './training'
 import { useWakeLock } from './wakeLock'
 import { SessionFeedback } from './SessionFeedback'
+import { tapFeedback } from '../../lib/haptics'
 
 const asText = (value?: number) => (value === undefined ? '' : String(value).replace('.', ','))
 const parseCount = (value: string) => (/^\d+$/.test(value.trim()) ? Number(value.trim()) : undefined)
@@ -504,6 +505,7 @@ function SetRow({
       ;(type === 'time' ? durationInput : repsInput).current?.focus()
       return
     }
+    tapFeedback()
     void write({ ...done, done: true, completedAt: Date.now() })
     if (startsRest && exercise.restSec > 0) startRest(exercise.restSec, restLabel)
   }

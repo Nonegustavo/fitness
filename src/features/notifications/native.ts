@@ -3,11 +3,27 @@ import { liveQuery } from 'dexie'
 import { alive } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
 import type { Habit, HabitLog } from '../../db/types'
-import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
+import { dayKey, parseDay, shiftDay, type DayKey } from '../../lib/dates'
+import { buildAgenda } from '../calendar/agenda'
+import { plannedEvents } from '../garmin/sync'
 import { setHabitValue } from '../habits/habits'
 import { isAndroidApp } from '../healthconnect/plugin'
 import { getRestTimer, subscribeRestTimer, type RestTimer } from '../training/restTimer'
-import { HORIZON_DAYS, plannedReminders, plannedSmartReminders, SMART_DAYS, type DayStatus, type SmartReminder } from './reminders'
+import {
+  HORIZON_DAYS,
+  nextWeeklyAt,
+  plannedReminders,
+  plannedSmartReminders,
+  plannedWorkoutReminders,
+  SMART_DAYS,
+  summarizedWeek,
+  weekDigest,
+  weeklyMessage,
+  WORKOUT_DAYS,
+  type DayStatus,
+  type SmartReminder,
+  type WorkoutReminder,
+} from './reminders'
 
 const REST_ID = 1001
 
@@ -23,6 +39,14 @@ interface SmartExtra {
   date: DayKey
   route: string
 }
+
+/** A heads-up before a planned workout, or the Sunday summary: both just open a screen. */
+interface RouteExtra {
+  kind: 'workout' | 'weekly'
+  route: string
+}
+
+const WEEKLY_ID = 1002
 
 /** Habit reminders and the end of the rest timer as Android notifications. Does nothing elsewhere. */
 export function startNotifications(): void {
@@ -60,10 +84,26 @@ async function setUp() {
     importance: 4,
     vibration: true,
   })
+  await LocalNotifications.createChannel({
+    id: 'treinos',
+    name: 'Treinos programados',
+    description: 'Avisa antes dos treinos do calendário que têm horário',
+    importance: 4,
+    vibration: true,
+  })
+  await LocalNotifications.createChannel({
+    id: 'resumo',
+    name: 'Resumo da semana',
+    description: 'Domingo às 20h, a semana em números',
+    importance: 3,
+    vibration: false,
+  })
   await LocalNotifications.registerActionTypes({ types: [{ id: 'habit', actions: [{ id: 'done', title: 'Feito' }] }] })
   await LocalNotifications.addListener('localNotificationActionPerformed', (action) => void onAction(action))
   watchReminders()
   watchSmartReminders()
+  watchWorkoutReminders()
+  watchWeekly()
   watchRest()
 }
 
@@ -132,6 +172,93 @@ async function rescheduleSmart(planned: SmartReminder[], status: Map<DayKey, Day
   })
 }
 
+/** Removes the pending notifications of a kind, and schedules the new ones in their channel. */
+async function replacePending(
+  kind: RouteExtra['kind'],
+  channelId: string,
+  notifications: { id: number; at: Date; title: string; body: string; route: string }[],
+) {
+  if (!(await allowed())) return
+  const { notifications: scheduled } = await LocalNotifications.getPending()
+  const old = scheduled.filter((notification) => (notification.extra as RouteExtra | undefined)?.kind === kind)
+  if (old.length > 0) await LocalNotifications.cancel({ notifications: old.map(({ id }) => ({ id })) })
+  if (notifications.length === 0) return
+  await LocalNotifications.schedule({
+    notifications: notifications.map((notification) => ({
+      id: notification.id,
+      title: notification.title,
+      body: notification.body,
+      channelId,
+      schedule: { at: notification.at, allowWhileIdle: true },
+      autoCancel: true,
+      extra: { kind, route: notification.route } satisfies RouteExtra,
+    })),
+  })
+}
+
+/** The heads-ups follow the calendar: scheduling, moving or doing a workout updates them. */
+function watchWorkoutReminders() {
+  let pending: ReturnType<typeof setTimeout> | undefined
+  liveQuery(async () => {
+    const today = dayKey()
+    const last = shiftDay(today, WORKOUT_DAYS)
+    const [settings, plans, eventTimes, events, sessions, activities, templates] = await Promise.all([
+      db.settings.get(SETTINGS_ID),
+      db.workoutPlans.where('date').between(today, last, true, true).toArray(),
+      db.eventTimes.where('date').between(today, last, true, true).toArray(),
+      plannedEvents(),
+      db.workoutSessions.where('date').between(today, last, true, true).toArray(),
+      db.activities.where('startTime').aboveOrEqual(parseDay(today).getTime()).toArray(),
+      db.workoutTemplates.toArray(),
+    ])
+    const lead = settings?.smartReminders?.workouts
+    if (!lead) return { lead, agenda: [] }
+    const agenda = buildAgenda(today, last, today, { plans, events, sessions, activities, templates, eventTimes })
+    return { lead, agenda }
+  }).subscribe({
+    next: ({ lead, agenda }) => {
+      clearTimeout(pending)
+      pending = setTimeout(() => {
+        const planned: WorkoutReminder[] = plannedWorkoutReminders(agenda, lead, new Date())
+        void replacePending('workout', 'treinos', planned).catch((error: unknown) => console.warn(error))
+      }, 1000)
+    },
+  })
+}
+
+/**
+ * The Sunday summary: one notification, the next Sunday at 20h. Its numbers are filled in once the
+ * week is over (the app opened on Sunday); before that it only invites to look.
+ */
+function watchWeekly() {
+  let pending: ReturnType<typeof setTimeout> | undefined
+  liveQuery(async () => {
+    const at = nextWeeklyAt(new Date())
+    const week = summarizedWeek(at)
+    const [settings, sessions, activities, health, water] = await Promise.all([
+      db.settings.get(SETTINGS_ID),
+      db.workoutSessions.where('date').between(week.from, week.to, true, true).toArray(),
+      db.activities.where('startTime').aboveOrEqual(parseDay(week.from).getTime()).toArray(),
+      db.dailyHealth.where('id').between(week.from, week.to, true, true).toArray(),
+      db.waterLogs.where('date').between(week.from, week.to, true, true).toArray(),
+    ])
+    if (!settings?.smartReminders?.weekly) return { at, message: undefined }
+    const over = dayKey() > week.to
+    const digest = over
+      ? weekDigest(week.from, week.to, { sessions, activities, health, water, waterGoalMl: settings.waterGoalMl })
+      : undefined
+    return { at, message: { ...weeklyMessage(digest), route: '/semana' } }
+  }).subscribe({
+    next: ({ at, message }) => {
+      clearTimeout(pending)
+      pending = setTimeout(() => {
+        const notifications = message ? [{ id: WEEKLY_ID, at, ...message }] : []
+        void replacePending('weekly', 'resumo', notifications).catch((error: unknown) => console.warn(error))
+      }, 1000)
+    },
+  })
+}
+
 /** Reminders follow the habits and their logs: checking a habit takes today's reminder away. */
 function watchReminders() {
   let pending: ReturnType<typeof setTimeout> | undefined
@@ -182,8 +309,8 @@ async function reschedule(habits: Habit[], logs: HabitLog[]) {
 }
 
 async function onAction({ actionId, notification }: ActionPerformed) {
-  const extra = notification.extra as HabitExtra | SmartExtra | undefined
-  if (extra?.kind === 'smart') {
+  const extra = notification.extra as HabitExtra | SmartExtra | RouteExtra | undefined
+  if (extra?.kind === 'smart' || extra?.kind === 'workout' || extra?.kind === 'weekly') {
     location.hash = `#${extra.route}`
     return
   }

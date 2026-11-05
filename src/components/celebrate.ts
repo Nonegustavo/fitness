@@ -1,3 +1,5 @@
+import { successFeedback } from '../lib/haptics'
+
 /** Confetti in the section colors, for a goal met; a short buzz on phones. Nothing with reduced motion. */
 const TONES = ['training', 'food', 'water', 'habits', 'sleep', 'journal', 'analysis']
 const COUNT = 90
@@ -14,9 +16,15 @@ interface Piece {
   color: string
 }
 
+let lastAt = 0
+
+/** Whether there was a party in the last `ms` (so another one right after can skip the confetti). */
+export const celebratedWithin = (ms: number): boolean => Date.now() - lastAt < ms
+
 export function celebrate(): void {
   if (typeof window === 'undefined' || matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  navigator.vibrate?.([30, 40, 30])
+  lastAt = Date.now()
+  successFeedback()
   const style = getComputedStyle(document.documentElement)
   const colors = TONES.map((tone) => style.getPropertyValue(`--tone-${tone}`).trim() || '#2dd4bf')
 

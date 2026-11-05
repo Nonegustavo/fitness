@@ -141,6 +141,12 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] "Em foco" mostra um cartão por vez, na mesma largura do "Minha semana"; Hábitos, Água e Diário mais simples; "Semana passada" em blocos, com a diferença para a anterior
 - [x] Botão voltar do Android: fecha a janela aberta, volta para a tela anterior onde ela estava e só sai do app da primeira tela
 - [x] A análise do dia também lê a musculação programada para a semana
+- [x] "Agora" no topo do Hoje: o próximo passo do dia com um botão que faz (o treino que vai começar ou está em andamento, a pesagem da manhã, a refeição da hora, a água quando bem atrás do ritmo, os hábitos que faltam e o diário à noite; sem nada pendente, o próximo treino). Só cobra pesagem e refeições que fazem parte da rotina
+- [x] "Em foco": uma fileira com o ícone de cada cartão para ir direto a ele, e a ordem pelo horário do dia (sono e peso de manhã, alimentação no almoço, treino à tarde, hábitos e diário à noite), que dá para desligar
+- [x] Avisos no Android antes dos treinos com horário (15 min a 1 h 30 antes, musculação e corridas) e o resumo da semana no domingo às 20h, que abre a tela "Resumo da semana"
+- [x] Comemoração de recordes de corrida (tempo melhor numa distância, primeira vez numa distância, corrida mais longa) e de sequências (3, 7, 14… dias seguidos na meta de água, na de proteína e com todos os hábitos); cartão "Sequências" para o Hoje
+- [x] Vibração leve no celular ao marcar hábito, registrar água, concluir série, começar treino e programar; deslizar para o lado troca o dia em Alimentação, Hábitos e Diário; puxar o Hoje para baixo sincroniza com o servidor e o Garmin
+- [x] Barra de baixo personalizável (Ajustes → Barra de baixo): as 4 seções que aparecem; as outras ficam em "Mais"
 
 ## Observações
 

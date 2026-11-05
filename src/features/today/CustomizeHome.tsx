@@ -2,6 +2,7 @@ import { CircleMinus, CirclePlus, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { Modal } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
+import { IconTile } from '../../components/tone'
 import { Button, IconButton, Segmented, Switch } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { patch } from '../../db/repo'
@@ -25,6 +26,15 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal open title="Personalizar o Hoje" onClose={onClose}>
+      <div className="mb-2 flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">Agora</span>
+          <span className="block text-xs text-muted">
+            No topo, o próximo passo do dia (o treino que vai começar, a pesagem, a refeição, a água), com um botão
+          </span>
+        </span>
+        <Switch checked={areas.now} label="Mostrar o Agora no topo" onChange={(now) => store({ ...areas, now })} />
+      </div>
       <div className="mb-4 flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">Minha semana no topo</span>
@@ -42,6 +52,22 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
         ]}
       />
       <p className="mt-2 text-xs text-muted">{AREA_HINTS[area]} Um elemento pode estar nas duas áreas.</p>
+      {area === 'focus' && (
+        <div className="mt-3 flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">Ordem pelo horário do dia</span>
+            <span className="block text-xs text-muted">
+              De manhã, sono e peso primeiro; no almoço, a alimentação; à tarde, o treino; à noite, hábitos e diário. O
+              resto segue a sua ordem.
+            </span>
+          </span>
+          <Switch
+            checked={areas.smartOrder}
+            label="Ordenar o Em foco pelo horário do dia"
+            onChange={(smartOrder) => store({ ...areas, smartOrder })}
+          />
+        </div>
+      )}
 
       <h3 className="mt-4 text-sm font-semibold">Aparecem, nesta ordem</h3>
       {shown.length === 0 ? (
@@ -57,6 +83,7 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
           {(element, handle) => (
             <>
               <span className="-ml-2 flex">{handle}</span>
+              <IconTile icon={element.icon} tone={element.tone} />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">{element.label}</span>
                 <span className="block truncate text-xs text-muted">{element.detail}</span>
@@ -75,6 +102,7 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
           <ul className="divide-y divide-line">
             {available.map((element) => (
               <li key={element.id} className="flex items-center gap-2 py-1.5">
+                <IconTile icon={element.icon} tone={element.tone} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium">{element.label}</span>
                   <span className="block truncate text-xs text-muted">{element.detail}</span>

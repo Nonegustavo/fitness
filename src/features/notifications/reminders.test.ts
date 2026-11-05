@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { Habit, HabitLog } from '../../db/types'
-import { describeReminder, notificationId, plannedReminders } from './reminders'
+import {
+  describeReminder,
+  leadText,
+  nextWeeklyAt,
+  notificationId,
+  plannedReminders,
+  plannedWorkoutReminders,
+  summarizedWeek,
+  weekDigest,
+  weeklyMessage,
+} from './reminders'
 
 const meta = { updatedAt: 1, deleted: 0, dirty: 0 } as const
 const habit = (changes: Partial<Habit> = {}): Habit => ({
@@ -105,5 +115,99 @@ describe('plannedSmartReminders', () => {
     expect(weighIns).toHaveLength(SMART_DAYS - 1)
     expect(weighIns[0].route).toBe('/corpo?novo=peso')
     expect(plannedSmartReminders(undefined, empty, 3000, noon)).toEqual([])
+  })
+})
+
+describe('plannedWorkoutReminders', () => {
+  const now = new Date(2026, 10, 4, 10, 0)
+  const item = (changes: Partial<Parameters<typeof plannedWorkoutReminders>[0][number]> = {}) => ({
+    key: 'plan-1',
+    date: '2026-11-04',
+    kind: 'gym' as const,
+    title: 'Treino A',
+    status: 'planned' as const,
+    time: new Date(2026, 10, 4, 18, 0).getTime(),
+    ...changes,
+  })
+
+  it('warns the chosen minutes before each workout with a time, gym to Hoje and runs to the calendar', () => {
+    const run = item({ key: 'event-1', kind: 'run', title: 'Corrida 7 km', date: '2026-11-05', time: new Date(2026, 10, 5, 6, 30).getTime() })
+    const [gym, morning] = plannedWorkoutReminders([item(), run], 30, now)
+    expect(gym).toMatchObject({ title: 'Treino A às 18:00', body: 'Começa em 30 min. Toque para iniciar o treino.', route: '/' })
+    expect(gym.at).toEqual(new Date(2026, 10, 4, 17, 30))
+    expect(morning).toMatchObject({ title: 'Corrida 7 km às 06:30', route: '/calendario?dia=2026-11-05' })
+    expect(morning.at).toEqual(new Date(2026, 10, 5, 6, 0))
+  })
+
+  it('skips workouts without a time, done, rest days, past heads-ups, and everything when off', () => {
+    const skipped = [
+      item({ time: undefined }),
+      item({ status: 'done' }),
+      item({ kind: 'rest' }),
+      item({ time: new Date(2026, 10, 4, 10, 20).getTime() }),
+    ]
+    expect(plannedWorkoutReminders(skipped, 30, now)).toEqual([])
+    expect(plannedWorkoutReminders([item()], undefined, now)).toEqual([])
+  })
+
+  it('gives a stable id per workout and time', () => {
+    const [first] = plannedWorkoutReminders([item()], 30, now)
+    const [again] = plannedWorkoutReminders([item()], 60, now)
+    expect(first.id).toBe(again.id)
+  })
+
+  it('reads the lead time', () => {
+    expect([15, 60, 90, 120].map(leadText)).toEqual(['15 min', '1 hora', '1 h 30', '2 horas'])
+  })
+})
+
+describe('weekly summary', () => {
+  it('goes out on the next Sunday at 20h, today when it is Sunday before 20h', () => {
+    expect(nextWeeklyAt(new Date(2026, 10, 4, 10))).toEqual(new Date(2026, 10, 8, 20)) // Wednesday
+    expect(nextWeeklyAt(new Date(2026, 10, 8, 9))).toEqual(new Date(2026, 10, 8, 20)) // Sunday morning
+    expect(nextWeeklyAt(new Date(2026, 10, 8, 20, 30))).toEqual(new Date(2026, 10, 15, 20)) // Sunday night
+  })
+
+  it('is about the week that ended the day before', () => {
+    expect(summarizedWeek(new Date(2026, 10, 8, 20))).toEqual({ from: '2026-11-01', to: '2026-11-07' })
+  })
+
+  it('counts the week: gym, runs, sleep and the days at the water goal', () => {
+    const digest = weekDigest('2026-11-01', '2026-11-07', {
+      sessions: [
+        { date: '2026-11-02', endedAt: 1, deleted: 0 },
+        { date: '2026-11-04', endedAt: 1, deleted: 0 },
+        { date: '2026-11-05', endedAt: undefined, deleted: 0 },
+        { date: '2026-10-31', endedAt: 1, deleted: 0 },
+      ],
+      activities: [
+        { date: '2026-11-03', sport: 'running', distanceM: 7200, deleted: 0 },
+        { date: '2026-11-06', sport: 'running', distanceM: 10300, deleted: 0 },
+        { date: '2026-11-06', sport: 'walking', distanceM: 3000, deleted: 0 },
+      ],
+      health: [
+        { id: '2026-11-02', sleep: { totalSec: 7 * 3600 } as never },
+        { id: '2026-11-03', sleep: { totalSec: 8 * 3600 } as never },
+        { id: '2026-11-04' },
+      ],
+      water: [
+        { date: '2026-11-02', ml: 2000, deleted: 0 },
+        { date: '2026-11-02', ml: 1000, deleted: 0 },
+        { date: '2026-11-03', ml: 2500, deleted: 0 },
+        { date: '2026-11-04', ml: 3000, deleted: 0 },
+      ],
+      waterGoalMl: 3000,
+    })
+    expect(digest).toEqual({ workouts: 2, runs: 2, runKm: 17.5, sleepHours: 7.5, waterDays: 2 })
+    expect(weeklyMessage(digest)).toEqual({
+      title: 'Resumo da semana',
+      body: '2 treinos de força, 2 corridas (17,5 km), sono médio de 7,5 h e meta de água em 2 dias. Toque para ver a semana.',
+    })
+  })
+
+  it('says only what happened, and invites to look when the numbers are not in yet', () => {
+    expect(weeklyMessage({ workouts: 0, runs: 1, runKm: 5, waterDays: 0 }).body).toBe('1 corrida (5 km). Toque para ver a semana.')
+    expect(weeklyMessage({ workouts: 0, runs: 0, runKm: 0, waterDays: 0 }).body).toMatch(/sem registros/)
+    expect(weeklyMessage(undefined).body).toMatch(/Veja como foi a semana/)
   })
 })

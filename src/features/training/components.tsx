@@ -4,6 +4,7 @@ import { useToast } from '../../components/Toast'
 import type { WorkoutTemplate } from '../../db/types'
 import { formatClock } from '../../lib/format'
 import { findActive, startWorkout, useSessions } from './training'
+import { startFeedback } from '../../lib/haptics'
 
 /** Live "12:34" since a timestamp. */
 export function Elapsed({ since }: { since: number }) {
@@ -27,6 +28,7 @@ export function useStartWorkout(): (template?: WorkoutTemplate) => Promise<void>
       navigate(`/treinos/sessao/${active.id}`)
       return
     }
+    startFeedback()
     navigate(`/treinos/sessao/${await startWorkout(template)}`)
   }
 }

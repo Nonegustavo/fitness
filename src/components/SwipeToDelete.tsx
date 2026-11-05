@@ -59,7 +59,8 @@ export function SwipeToDelete({
   }
 
   return (
-    <Row className={cx('relative overflow-hidden', className)}>
+    // data-swipe-row: a sideways swipe here deletes, it doesn't change the day.
+    <Row data-swipe-row className={cx('relative overflow-hidden', className)}>
       <div
         aria-hidden
         className={cx(

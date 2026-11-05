@@ -28,6 +28,7 @@ import { summarize } from '../training/stats'
 import { useSessions, useTemplates } from '../training/training'
 import { suggestTemplate, type AgendaItem, type AgendaKind, type AgendaStatus } from './agenda'
 import { reschedule, schedule, setEventTime, unschedule, undoUnschedule, useAgenda, usePlans } from './plans'
+import { tapFeedback } from '../../lib/haptics'
 
 export const KIND_ICONS: Record<AgendaKind, LucideIcon> = {
   gym: Dumbbell,
@@ -249,6 +250,7 @@ function EventTimeModal({ item, onClose }: { item: AgendaItem; onClose: () => vo
   const toast = useToast()
   const [time, setTime] = useState(item.customTime ?? (item.time !== undefined ? formatTime(item.time) : ''))
   const store = async (value: string | undefined) => {
+    tapFeedback()
     await setEventTime(item.eventKey!, item.date, value)
     toast({ message: value ? `${item.title} às ${value}.` : `Horário de ${item.title} tirado.` })
     onClose()
@@ -328,6 +330,7 @@ export function PlanModal({
   const submit = async () => {
     if (!chosen || !day) return
     const name = choices.find((t) => t.id === chosen)?.name ?? 'Treino'
+    tapFeedback()
     if (plan) await reschedule(plan.id, { templateId: chosen, date: day, time: time || undefined })
     else await schedule(day, chosen, time || undefined)
     toast({ message: `${name} programado para ${day === today ? 'hoje' : formatDay(day, 'EEEE, d/MM')}.` })

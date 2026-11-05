@@ -10,6 +10,21 @@ export function useSettings(): Settings {
   return useLiveQuery(() => db.settings.get(SETTINGS_ID)) ?? fallbackSettings
 }
 
+/** The time now, moved forward every `everyMs` and when the app comes back to the foreground. */
+export function useNow(everyMs = 60_000): Date {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const refresh = () => setNow(new Date())
+    document.addEventListener('visibilitychange', refresh)
+    const timer = setInterval(refresh, everyMs)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      clearInterval(timer)
+    }
+  }, [everyMs])
+  return now
+}
+
 /** Today's day key, refreshed when the app comes back to the foreground or the clock passes midnight. */
 export function useToday(): DayKey {
   const [today, setToday] = useState(() => dayKey())

@@ -1,10 +1,7 @@
 import { CalendarRange, GlassWater, ListChecks, Moon, NotebookPen, Play, Plus, Sparkles, Utensils } from 'lucide-react'
-import { useToast } from '../../components/Toast'
 import { toneColor } from '../../components/tone'
 import { IconButton } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
-import { remove } from '../../db/repo'
-import { db } from '../../db/schema'
 import { formatTime, type DayKey } from '../../lib/dates'
 import { formatDuration, formatMl, formatNumber } from '../../lib/format'
 import { useInsight } from '../analysis/daily'
@@ -16,7 +13,8 @@ import { latestNight, sleepQuality } from '../garmin/recovery'
 import { isSuccess, useHabitLogs, useHabits } from '../habits/habits'
 import { ENERGY, levelOf, MOODS, useJournalEntry } from '../journal/journal'
 import { useStartWorkout } from '../training/components'
-import { addWater, sumMl, useContainers, useWaterLogs } from '../water/water'
+import { sumMl, useContainers, useWaterLogs } from '../water/water'
+import { useAddWater } from '../water/WaterQuickAdd'
 import { Note, SmallCard, ThinBar, TileSkeleton, useRecentHealth, Value } from './tiles'
 import { useLastWeek } from './WeeklyCard'
 
@@ -107,18 +105,11 @@ export function WaterSmall({ today }: { today: DayKey }) {
   const settings = useSettings()
   const logs = useWaterLogs(today, today)
   const containers = useContainers()
-  const toast = useToast()
+  const addWater = useAddWater()
   if (!logs) return <TileSkeleton />
   const total = sumMl(logs)
   const favorite = containers?.find((container) => container.favorite === 1)
-  const add = async () => {
-    if (!favorite) return
-    const log = await addWater(favorite.ml, favorite.id)
-    toast({
-      message: `+${formatMl(favorite.ml)} de água (${favorite.name})`,
-      action: { label: 'Desfazer', onClick: () => void remove(db.waterLogs, log.id) },
-    })
-  }
+  const add = () => favorite && addWater(favorite.ml, favorite)
   return (
     <SmallCard
       icon={GlassWater}
@@ -198,7 +189,7 @@ export function LastWeekSmall({ today }: { today: DayKey }) {
   const key = week.rows.filter((row) => row.key !== undefined).sort((a, b) => a.key! - b.key!)
   const shown = (key.length >= 3 ? key : [...key, ...week.rows.filter((row) => row.key === undefined)]).slice(0, 3)
   return (
-    <SmallCard icon={CalendarRange} tone="insights" label="Semana passada">
+    <SmallCard icon={CalendarRange} tone="insights" label="Semana passada" to="/semana">
       <dl className="space-y-1">
         {shown.map((row) => (
           <div key={row.label} className="flex items-baseline justify-between gap-2">

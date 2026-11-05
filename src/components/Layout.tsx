@@ -1,50 +1,14 @@
-import {
-  CalendarDays,
-  ChartScatter,
-  Dumbbell,
-  Ellipsis,
-  Flame,
-  Footprints,
-  GlassWater,
-  House,
-  ListChecks,
-  Moon,
-  NotebookPen,
-  Scale,
-  Settings,
-  Sparkles,
-  Utensils,
-} from 'lucide-react'
+import { Ellipsis } from 'lucide-react'
 import { Suspense, useEffect, useLayoutEffect, useRef } from 'react'
 import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { SyncStatus } from '../features/settings/SyncStatus'
+import { Celebrations } from '../features/streaks/Celebrations'
 import { RestTimerBar } from '../features/training/RestTimerBar'
+import { useSettings } from '../db/hooks'
 import { QuickLogButton } from './QuickLog'
-import { toneColor, toneStyle, type Tone } from './tone'
+import { bottomSections, SECTIONS } from './sections'
+import { toneColor, toneStyle } from './tone'
 import { cx } from './ui'
-
-/** Every section, as the desktop sidebar lists them, each with its color. */
-const SECTIONS: { to: string; label: string; icon: typeof House; tone: Tone }[] = [
-  { to: '/', label: 'Hoje', icon: House, tone: 'today' },
-  { to: '/treinos', label: 'Treinos', icon: Dumbbell, tone: 'training' },
-  { to: '/calendario', label: 'Calendário', icon: CalendarDays, tone: 'training' },
-  { to: '/corrida', label: 'Corrida', icon: Footprints, tone: 'today' },
-  { to: '/alimentacao', label: 'Alimentação', icon: Utensils, tone: 'food' },
-  { to: '/corpo', label: 'Corpo', icon: Scale, tone: 'body' },
-  { to: '/sono', label: 'Sono', icon: Moon, tone: 'sleep' },
-  { to: '/calorias', label: 'Calorias gastas', icon: Flame, tone: 'training' },
-  { to: '/analise', label: 'Análise', icon: Sparkles, tone: 'analysis' },
-  { to: '/correlacoes', label: 'Correlações', icon: ChartScatter, tone: 'insights' },
-  { to: '/agua', label: 'Água', icon: GlassWater, tone: 'water' },
-  { to: '/habitos', label: 'Hábitos', icon: ListChecks, tone: 'habits' },
-  { to: '/diario', label: 'Diário', icon: NotebookPen, tone: 'journal' },
-  { to: '/ajustes', label: 'Ajustes', icon: Settings, tone: 'settings' },
-]
-
-// The phone's bottom bar fits five: these four sections, then "Mais" for the rest.
-const BOTTOM_PATHS = ['/', '/treinos', '/alimentacao', '/corpo']
-const BOTTOM = SECTIONS.filter((section) => BOTTOM_PATHS.includes(section.to))
-const UNDER_MORE = ['/mais', ...SECTIONS.filter((section) => !BOTTOM_PATHS.includes(section.to)).map((section) => section.to)]
 
 const bottomClass = (active: boolean) =>
   cx('flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition', active ? 'text-accent-ink' : 'text-muted')
@@ -108,7 +72,12 @@ function useScrollPerScreen() {
 
 export function Layout() {
   const { pathname } = useLocation()
-  const inMore = UNDER_MORE.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+  const settings = useSettings()
+  // The four sections the user put on the bottom bar; the rest live under "Mais".
+  const bottom = bottomSections(settings.navBar)
+  // Screens reached from "Mais" that aren't sections of their own (Passos, the week's summary) count too.
+  const underMore = ['/mais', '/passos', '/semana', ...SECTIONS.filter((section) => !bottom.includes(section)).map((section) => section.to)]
+  const inMore = underMore.some((path) => pathname === path || pathname.startsWith(`${path}/`))
   useScrollPerScreen()
 
   return (
@@ -152,10 +121,11 @@ export function Layout() {
 
       <RestTimerBar />
       <QuickLogButton variant="floating" />
+      <Celebrations />
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5">
-          {BOTTOM.map(({ to, label, icon: Icon, tone }) => (
+          {bottom.map(({ to, label, short, icon: Icon, tone }) => (
             <NavLink
               key={to}
               to={to}
@@ -164,7 +134,7 @@ export function Layout() {
               style={({ isActive }) => (isActive ? { color: toneColor(tone) } : undefined)}
             >
               <Icon size={22} />
-              {label}
+              {short ?? label}
             </NavLink>
           ))}
           <NavLink to="/mais" className={bottomClass(inMore)} aria-current={inMore ? 'page' : undefined}>

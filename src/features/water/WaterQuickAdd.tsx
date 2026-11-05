@@ -13,6 +13,7 @@ import { dayKey } from '../../lib/dates'
 import { formatMl, parseDecimal } from '../../lib/format'
 import { CONTAINER_ICONS } from './containerIcons'
 import { addWater, sumMl, useContainers } from './water'
+import { tapFeedback } from '../../lib/haptics'
 
 export function WaterSummary({ totalMl, goalMl }: { totalMl: number; goalMl: number }) {
   const remaining = goalMl - totalMl
@@ -36,28 +37,35 @@ export function WaterSummary({ totalMl, goalMl }: { totalMl: number; goalMl: num
   )
 }
 
-/**
- * One-tap buttons for the favorite containers, plus a custom amount. `simple` (the Hoje card)
- * leaves out the "+" marks and the custom amount, which stays on the water screen.
- */
-export function WaterQuickAdd({ simple = false }: { simple?: boolean }) {
-  const containers = useContainers()
+/** Adds water with the usual feedback: a tap, a toast to undo it, and a small party on reaching the goal. */
+export function useAddWater(): (ml: number, container?: WaterContainer) => Promise<void> {
   const settings = useSettings()
   const toast = useToast()
-  const [customOpen, setCustomOpen] = useState(false)
-  const favorites = (containers ?? []).filter((container) => container.favorite === 1)
-
-  async function add(ml: number, container?: WaterContainer) {
+  return async (ml, container) => {
+    tapFeedback()
     const before = sumMl(alive(await db.waterLogs.where('date').equals(dayKey()).toArray()))
     const log = await addWater(ml, container?.id)
     // The glass that crosses the goal gets a small party.
     const reached = before < settings.waterGoalMl && before + ml >= settings.waterGoalMl
     if (reached) celebrate()
     toast({
-      message: reached ? `Meta de água batida! 💧 +${formatMl(ml)}` : `+${formatMl(ml)} de água`,
+      message: reached
+        ? `Meta de água batida! 💧 +${formatMl(ml)}`
+        : `+${formatMl(ml)} de água${container ? ` (${container.name.toLowerCase()})` : ''}`,
       action: { label: 'Desfazer', onClick: () => void remove(db.waterLogs, log.id) },
     })
   }
+}
+
+/**
+ * One-tap buttons for the favorite containers, plus a custom amount. `simple` (the Hoje card)
+ * leaves out the "+" marks and the custom amount, which stays on the water screen.
+ */
+export function WaterQuickAdd({ simple = false }: { simple?: boolean }) {
+  const containers = useContainers()
+  const add = useAddWater()
+  const [customOpen, setCustomOpen] = useState(false)
+  const favorites = (containers ?? []).filter((container) => container.favorite === 1)
 
   return (
     <>
