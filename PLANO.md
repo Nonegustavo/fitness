@@ -163,6 +163,7 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Câmera dentro do app: prato, código de barras ou tabela nutricional, com a opção da galeria
 - [x] Caminhadas separadas da corrida e programadas no app (com repetição semanal), treino do Garmin oculto (a prova repetida), botão + configurável e a ordem das medidas
 - [x] Cores por seção: botões, chaves, abas e links na cor de cada área
+- [x] Gráficos por dia, semana, mês ou ano (Corpo, Sono, Passos, Calorias, Alimentação, Água, Corrida e exercícios), com setas para andar no tempo e "Intervalo"; média ou total conforme a medida, dito na dica
 
 ## Observações
 
