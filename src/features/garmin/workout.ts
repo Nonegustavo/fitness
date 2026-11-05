@@ -48,7 +48,7 @@ export function toPlannedWorkout(workouts: GarminWorkout[] | null | undefined): 
 
 export type WorkoutBlock = { kind: 'step'; step: PlannedStep } | { kind: 'repeat'; times: number; steps: PlannedStep[] }
 
-const isRepeat = (step: PlannedStep) => step.durationType?.startsWith('REPEAT') ?? false
+export const isRepeat = (step: PlannedStep): boolean => step.durationType?.startsWith('REPEAT') ?? false
 
 /** Steps grouped as the watch runs them: a repeat wraps the steps from the one it points back to. */
 export function workoutBlocks(steps: PlannedStep[]): WorkoutBlock[] {
@@ -92,7 +92,8 @@ const heartRate = (value: number) => (value > 100 ? `${Math.round(value - 100)} 
 /** Power targets: up to 1000 is % of FTP, above it watts + 1000. */
 const power = (value: number) => (value > 1000 ? `${Math.round(value - 1000)} W` : `${Math.round(value)}% do FTP`)
 
-function duration(step: PlannedStep): string | undefined {
+/** How long a step lasts: "10 min", "800 m", "até apertar volta". */
+export function stepDuration(step: PlannedStep): string | undefined {
   const value = step.durationValue
   switch (step.durationType) {
     case 'TIME':
@@ -115,7 +116,7 @@ function duration(step: PlannedStep): string | undefined {
 }
 
 /** "4:30–4:40 /km", "FC 140–150 bpm", "zona 2 de FC". On foot, speeds read as pace. */
-function target(step: PlannedStep, foot: boolean): string | undefined {
+export function stepTarget(step: PlannedStep, foot: boolean): string | undefined {
   const { targetType: type, targetLow: low, targetHigh: high, targetValue: zone } = step
   if (!type || type === 'OPEN' || type === 'NO_TARGET') return undefined
   const range = (format: (v: number) => string) =>
@@ -153,6 +154,6 @@ function target(step: PlannedStep, foot: boolean): string | undefined {
 /** A step as one line: its name, then how long and how hard. */
 export function describeStep(step: PlannedStep, foot: boolean): { title: string; detail: string } {
   const title = step.name ?? (step.intensity && INTENSITY[step.intensity]) ?? 'Etapa'
-  const detail = [duration(step), target(step, foot)].filter(Boolean).join(' · ')
+  const detail = [stepDuration(step), stepTarget(step, foot)].filter(Boolean).join(' · ')
   return { title, detail }
 }

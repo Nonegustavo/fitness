@@ -46,6 +46,7 @@ import { MUSCLES } from '../training/catalog'
 import { DISCOMFORT_AREAS } from '../training/discomfort'
 import { bestE1rm, epley, needsDeload, recentEffort, setsByMuscle, stalledExercises, summarize, workingSets } from '../training/stats'
 import { setsWithRir } from './gymSets'
+import { workoutExtras } from './runExtras'
 
 /** A workout's comment (what the user told the coach), at most. */
 const NOTE_CHARS = 400
@@ -165,6 +166,7 @@ export function activityText(activity: Activity): string {
     pains(activity.discomfort),
     comment(activity.notes),
     plannedWorkout(activity),
+    ...workoutExtras(activity),
     lapsText(activity),
   ])
   return `${activity.title?.trim() || activityLabel(activity)}: ${head}${details.length ? `, ${details.join(', ')}` : ''}`

@@ -7,6 +7,7 @@ import type { Activity } from '../../db/types'
 import { formatTime, relativeDay } from '../../lib/dates'
 import { formatDuration } from '../../lib/format'
 import { activityIcon, activityLabel, formatDistance, formatSpeed, speedKind } from './activities'
+import { WeatherChip } from './WeatherView'
 
 /** Picks .fit or .zip files (one or many) and imports them. */
 export function ImportFitButton({ size = 'sm', variant = 'secondary' }: { size?: 'sm' | 'md'; variant?: 'primary' | 'secondary' }) {
@@ -71,7 +72,15 @@ export function ActivityRow({ activity, today }: { activity: Activity; today: st
           <Icon size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{activity.title ?? activityLabel(activity)}</p>
+          {/* The weather beside the name, where a long details line can't push it out of sight. */}
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <span className="truncate">{activity.title ?? activityLabel(activity)}</span>
+            {activity.weather && (
+              <span className="shrink-0 text-xs font-normal text-muted">
+                <WeatherChip activity={activity} />
+              </span>
+            )}
+          </p>
           <p className="truncate text-xs text-muted first-letter:uppercase">
             {activity.title && `${activityLabel(activity)} · `}
             {relativeDay(activity.date, today)}, {formatTime(activity.startTime)} · {details.join(' · ')}

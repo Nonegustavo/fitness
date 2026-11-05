@@ -6,6 +6,8 @@ import type { Activity, ActivityStream, WorkoutSession } from '../../db/types'
 import { formatDay } from '../../lib/dates'
 import { formatClock, formatFixed } from '../../lib/format'
 import { DISCOMFORT_AREAS } from '../training/discomfort'
+import { checkSummary, checkWorkout } from './compliance'
+import { weatherText } from './weather'
 
 /** All activities, newest first. */
 export function useActivities(): Activity[] | undefined {
@@ -87,19 +89,27 @@ export const saveActivityFeedback = (id: string, changes: Partial<Pick<Activity,
   patch(db.activities, id, changes)
 
 /**
- * The feedback as a message to paste for the coach: the workout and its day, the comment, the
- * effort (PSE) and where it hurt.
+ * The feedback as a message to paste for the coach: the workout and its day, the comment, how the
+ * planned steps went, the effort (PSE), where it hurt and the weather.
  */
 export function coachMessage(
-  activity: Pick<Activity, 'sport' | 'subSport' | 'title' | 'date' | 'notes' | 'effort' | 'discomfort'>,
+  activity: Pick<Activity, 'sport' | 'subSport' | 'title' | 'date' | 'notes' | 'effort' | 'discomfort'> &
+    Partial<Pick<Activity, 'workout' | 'laps' | 'hrZones' | 'weather'>>,
 ): string {
   const lines = [`${activity.title ?? activityLabel(activity)} (${formatDay(activity.date, 'EEE, d/MM')})`]
   const notes = activity.notes?.trim()
   if (notes) lines.push(notes)
+  const check = checkWorkout({ ...activity, laps: activity.laps ?? [] })
+  // Laps that don't line up with the steps say nothing to the coach.
+  if (check && check.status !== 'mismatch') {
+    const summary = checkSummary(check)
+    lines.push(summary.charAt(0).toUpperCase() + summary.slice(1))
+  }
   if (activity.effort) lines.push(`Esforço (PSE): ${activity.effort}/10`)
   if (activity.discomfort?.length) {
     lines.push(`Desconforto: ${activity.discomfort.map((area) => DISCOMFORT_AREAS[area] ?? area).join(', ').toLowerCase()}`)
   }
+  if (activity.weather) lines.push(`Clima: ${weatherText(activity.weather, { condition: true })}`)
   return lines.join('\n')
 }
 

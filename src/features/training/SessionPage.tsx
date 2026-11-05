@@ -30,6 +30,7 @@ import { formatDay } from '../../lib/dates'
 import { formatClock, formatDuration, formatNumber, parseClock, parseDecimal } from '../../lib/format'
 import { setPeakHeartRates, useActivityStream, useWorkoutActivity } from '../activities/activities'
 import { WorkoutWatchCard } from '../activities/WorkoutWatchCard'
+import { ShareSessionButton } from '../activities/ShareButtons'
 import { EQUIPMENT, formatComparison, formatE1rm, formatReps, formatSet, MUSCLES } from './catalog'
 import { Elapsed } from './components'
 import { ExercisePicker } from './ExercisePicker'
@@ -166,6 +167,7 @@ export default function SessionPage() {
               {records.size === 1 ? '1 recorde' : `${records.size} recordes`} de carga (1RM estimado)
             </p>
           )}
+          <ShareSessionButton session={session} exercises={exercises} records={records} />
         </Card>
       )}
 

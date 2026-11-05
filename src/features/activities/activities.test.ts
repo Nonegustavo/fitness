@@ -100,4 +100,18 @@ describe('coachMessage', () => {
     expect(coachMessage({ ...run, notes: '  ', effort: 5 })).toBe('Corrida 7 Km (quinta, 5/11)\nEsforço (PSE): 5/10')
     expect(coachMessage({ sport: 'running', date: '2026-11-05', notes: 'Leve.' })).toBe('Corrida (quinta, 5/11)\nLeve.')
   })
+
+  it('adds how the planned steps went and the weather', () => {
+    const workout = {
+      steps: [{ index: 0, intensity: 'ACTIVE', durationType: 'DISTANCE', durationValue: 5000, targetType: 'SPEED', targetLow: 1000 / 330, targetHigh: 1000 / 310 }],
+    }
+    const laps = [{ startTime: 0, elapsedSec: 1600, timerSec: 1600, distanceM: 5000, avgSpeed: 5000 / 1600 }]
+    const weather = { tempC: 29, feelsC: 32, humidity: 70, windKmh: 12, code: 0 }
+    expect(coachMessage({ ...run, notes: 'Calor.', workout, laps, weather })).toBe(
+      'Corrida 7 Km (quinta, 5/11)\nCalor.\n1 de 1 etapa no alvo\nClima: céu limpo, 29 °C, sensação 32 °C, umidade 70%, vento 12 km/h',
+    )
+    // Laps that don't line up with the steps say nothing.
+    const halves = [{ ...laps[0], distanceM: 2500 }, { ...laps[0], distanceM: 2500 }]
+    expect(coachMessage({ ...run, workout, laps: halves })).toBe('Corrida 7 Km (quinta, 5/11)')
+  })
 })

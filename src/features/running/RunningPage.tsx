@@ -8,6 +8,8 @@ import { shiftDay, weekStart } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 import { useActivities } from '../activities/activities'
 import { ActivityRow } from '../activities/components'
+import { CoachReportButton } from '../activities/CoachReport'
+import { GearLink, GearWarnings } from '../gear/GearWarning'
 import { weekSummary } from '../calendar/agenda'
 import { AgendaItems } from '../calendar/components'
 import { useAgenda } from '../calendar/plans'
@@ -49,7 +51,7 @@ export default function RunningPage() {
 
   return (
     <Page title="Corrida" icon={Footprints} tone="today" subtitle="Volume, ritmo, constância e recordes">
-      <Card icon={CalendarDays} tone="today" title="Esta semana">
+      <Card icon={CalendarDays} tone="today" title="Esta semana" action={<GearLink />}>
         <div className="grid grid-cols-3 gap-3">
           <Stat
             label="Corrida"
@@ -64,6 +66,8 @@ export default function RunningPage() {
             <AgendaItems items={thisWeek} today={today} />
           </div>
         )}
+        <GearWarnings />
+        <CoachReportButton today={today} />
       </Card>
 
       <Card icon={TrendingUp} tone="today" title="Volume">

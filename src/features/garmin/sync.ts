@@ -7,8 +7,10 @@ import type { Activity } from '../../db/types'
 import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
 import { getSyncState, onSyncStateChange } from '../../sync/controller'
 import { supabase } from '../../sync/supabase'
+import { runWeatherQueue } from '../activities/weatherQueue'
 import { garminCalendar, garminFile, garminGet, GarminError, orNull } from './api'
 import { parseCalendar, type PlannedEvent } from './calendar'
+import { keepPastEvents } from './calendarHistory'
 import { dayChunks, mergeHealth, saveHealth, type GarminDailySummary, type GarminHrv, type GarminSleep } from './health'
 import { toPlannedWorkout, type GarminWorkout } from './workout'
 
@@ -180,6 +182,7 @@ async function importHealth(from: DayKey, to: DayKey): Promise<number> {
 async function importCalendar(): Promise<void> {
   try {
     const events = parseCalendar(await garminCalendar())
+    await keepPastEvents(await plannedEvents(), events, dayKey()).catch(() => undefined)
     await db.meta.put({ key: CALENDAR_KEY, value: { fetchedAt: Date.now(), events } })
   } catch (error) {
     if (error instanceof GarminError && error.missing === 'calendar') await db.meta.delete(CALENDAR_KEY)
@@ -215,6 +218,8 @@ async function run(range: (meta: GarminMeta, today: DayKey) => [DayKey, DayKey],
     setState({ phase: 'error', progress: undefined, message, lastRunAt: meta.lastRunAt })
   } finally {
     running = false
+    // The weather of what came (and of the last 60 days, the first time), slowly in the background.
+    void runWeatherQueue()
   }
 }
 

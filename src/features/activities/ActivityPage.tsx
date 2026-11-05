@@ -1,11 +1,12 @@
 import { ChevronRight, Dumbbell, Trash2 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Confirm } from '../../components/Modal'
 import { Button, Card, Empty, Page, Stat } from '../../components/ui'
 import { formatDay, formatTime } from '../../lib/dates'
 import { formatClock, formatFixed } from '../../lib/format'
 import { PlannedWorkoutCard } from '../garmin/PlannedWorkoutCard'
+import { GearPicker } from '../gear/GearPicker'
 import { useSessions } from '../training/training'
 import {
   activityLabel,
@@ -21,6 +22,10 @@ import {
 import { ActivityFeedback } from './ActivityFeedback'
 import { HeartRateZones, LapsTable, StreamCharts } from './ActivityCharts'
 import { ActivityMap } from './ActivityMap'
+import { checkWorkout } from './compliance'
+import { ShareActivityButton } from './ShareButtons'
+import { WeatherLine } from './WeatherView'
+import { WorkoutCheckCard } from './WorkoutCheckCard'
 
 export default function ActivityPage() {
   const { id = '' } = useParams()
@@ -30,6 +35,7 @@ export default function ActivityPage() {
   const stream = useActivityStream(activity ? id : undefined)
   const sessions = useSessions()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const check = useMemo(() => (activity ? checkWorkout(activity) : undefined), [activity])
 
   const back = { to: '/treinos/atividades', label: 'Atividades' }
   if (activity === undefined) return null
@@ -92,6 +98,7 @@ export default function ActivityPage() {
       title={activity.title ?? label}
       subtitle={`${activity.title ? `${label} · ` : ''}${formatDay(activity.date)} · ${formatTime(activity.startTime)}`}
       back={back}
+      actions={<ShareActivityButton activity={activity} stream={stream} />}
     >
       <Card>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -99,8 +106,11 @@ export default function ActivityPage() {
             <Stat key={stat.label} {...stat} />
           ))}
         </div>
+        <WeatherLine activity={activity} />
         {activity.device && <p className="mt-4 text-xs text-muted">Gravado com {deviceName(activity.device)}</p>}
       </Card>
+
+      <GearPicker activity={activity} />
 
       {/* A gym workout has its own "Como foi o treino?" in the session. */}
       {!session && <ActivityFeedback key={activity.id} activity={activity} focus={params.get('comentar') === '1'} />}
@@ -119,8 +129,10 @@ export default function ActivityPage() {
       )}
 
       {activity.workout && (
-        <PlannedWorkoutCard workout={activity.workout} foot={kind === 'pace'} lapsBelow={activity.laps.length > 1} />
+        // The step-by-step comparison below replaces the hint about the laps.
+        <PlannedWorkoutCard workout={activity.workout} foot={kind === 'pace'} lapsBelow={activity.laps.length > 1 && !check} />
       )}
+      {check && <WorkoutCheckCard activity={activity} check={check} />}
 
       {stream?.track && (
         <Card title="Percurso">

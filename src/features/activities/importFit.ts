@@ -2,7 +2,9 @@ import { unzipSync } from 'fflate'
 import { notifyLocalChange } from '../../db/events'
 import { db } from '../../db/schema'
 import type { Activity } from '../../db/types'
+import { defaultGearId } from '../gear/gear'
 import { parseFit, type ParsedFit } from './fit'
+import { queueWeather, runWeatherQueue, wantsWeather } from './weatherQueue'
 
 export interface ImportResult {
   /** Ids of the activities written, in file order. */
@@ -28,13 +30,24 @@ export async function saveParsed(
   extra: Partial<Pick<Activity, 'garminId' | 'title' | 'workout'>> = {},
 ): Promise<void> {
   const now = Date.now()
+  // A new run or walk gets the default shoes; looked up first, as the gear isn't in the transaction.
+  const gearId = await defaultGearId(activity)
+  let needsWeather = false
   await db.transaction('rw', db.activities, db.activityStreams, async () => {
-    // Importing the file again keeps what the user said about the workout.
+    // Importing the file again keeps what the user said about the workout, its shoes and its weather.
     const previous = await db.activities.get(activity.id)
-    const said = previous && !previous.deleted ? { effort: previous.effort, discomfort: previous.discomfort, notes: previous.notes } : {}
-    await db.activities.put({ ...activity, ...extra, ...said, updatedAt: now, deleted: 0, dirty: 1 })
+    const kept =
+      previous && !previous.deleted
+        ? { effort: previous.effort, discomfort: previous.discomfort, notes: previous.notes, gearId: previous.gearId, weather: previous.weather }
+        : gearId
+          ? { gearId }
+          : {}
+    const row: Activity = { ...activity, ...extra, ...kept, updatedAt: now, deleted: 0, dirty: 1 }
+    await db.activities.put(row)
     await db.activityStreams.put({ ...stream, updatedAt: now, deleted: 0, dirty: 1 })
+    needsWeather = wantsWeather(row)
   })
+  if (needsWeather) await queueWeather([activity.id])
 }
 
 /**
@@ -62,6 +75,9 @@ export async function importFitFiles(files: File[]): Promise<ImportResult> {
       }
     }
   }
-  if (result.imported.length > 0) notifyLocalChange()
+  if (result.imported.length > 0) {
+    notifyLocalChange()
+    void runWeatherQueue()
+  }
   return result
 }
