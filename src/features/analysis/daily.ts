@@ -7,7 +7,7 @@ import type { ActivityStream, DailyInsight, InsightSection } from '../../db/type
 import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
 import { getSyncState, onSyncStateChange } from '../../sync/controller'
 import { supabase } from '../../sync/supabase'
-import { buildAgenda } from '../calendar/agenda'
+import { buildAgenda, visibleEvents } from '../calendar/agenda'
 import { plannedEvents } from '../garmin/sync'
 import { loadSources } from '../insights/useDailyData'
 import { isOutdoorRun } from '../running/running'
@@ -64,9 +64,11 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     db.settings.get(SETTINGS_ID),
     plannedEvents(),
     db.insights.where('id').between(shiftDay(day, -4), shiftDay(day, -1), true, true).toArray(),
+    // With the deleted rows: a deleted weekly walk's row takes its day off.
     db.workoutPlans.where('date').between(from, to, true, true).toArray(),
     db.workoutTemplates.toArray(),
-    db.eventTimes.where('date').between(from, to, true, true).toArray(),
+    // All of them, so a workout hidden beyond the next week (the race) stays out too.
+    db.eventTimes.toArray(),
     db.exercises.toArray(),
     db.measurements.toArray(),
   ])
@@ -77,23 +79,23 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     metaTime('healthConnect', 'lastImportAt'),
     metaTime('garminCalendar', 'fetchedAt'),
   ])
+  const times = alive(eventTimes)
   const agenda = buildAgenda(from, to, day, {
-    plans: alive(plans),
+    plans,
     events,
     sessions: sources.sessions,
     activities: sources.activities,
     templates: alive(templates),
-    eventTimes: alive(eventTimes),
+    eventTimes: times,
+    walkRoutine: settings?.walkRoutine,
   })
-  // The coach's workouts with the time the user planned them at, when there is one.
+  // The coach's workouts with the time the user planned them at, when there is one; the hidden ones left out.
   const timed = new Map(agenda.flatMap((item) => (item.event && item.time !== undefined ? [[item.event, item.time] as const] : [])))
-  const planned = events && events.map((event) => (timed.has(event) ? { ...event, time: timed.get(event) } : event))
-  // Scheduled templates still ahead: one done that day by a workout of the same template is left out.
-  const gymPlans = agenda.flatMap((item) =>
-    item.plan && item.status === 'planned' && item.date >= day
-      ? [{ date: item.date, name: item.title, time: item.plan.time }]
-      : [],
-  )
+  const planned = visibleEvents(events, times)?.map((event) => (timed.has(event) ? { ...event, time: timed.get(event) } : event)) ?? null
+  // Scheduled templates and walks still ahead: one done that day is left out.
+  const ahead = agenda.filter((item) => item.plan && item.status === 'planned' && item.date >= day)
+  const gymPlans = ahead.flatMap((item) => (item.kind === 'gym' ? [{ date: item.date, name: item.title, time: item.plan?.time }] : []))
+  const walkPlans = ahead.flatMap((item) => (item.kind === 'walk' ? [{ date: item.date, title: item.title, time: item.plan?.time }] : []))
   const live = alive(insights)
   const previous = live.find((insight) => insight.id === shiftDay(day, -1))
   return buildContext({
@@ -101,6 +103,7 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     settings: settings ?? { id: SETTINGS_ID, ...DEFAULT_SETTINGS, updatedAt: 0, deleted: 0, dirty: 0 },
     planned,
     gymPlans,
+    walkPlans,
     previous: withPrevious ? previous : undefined,
     insights: live,
     exercises: new Map(alive(exercises).map((exercise) => [exercise.id, exercise])),

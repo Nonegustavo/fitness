@@ -1,7 +1,8 @@
-import type { Activity, EventTime, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
+import type { Activity, EventTime, WalkRoutine, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import { dayTime, type DayKey } from '../../lib/dates'
 import { activityLabel } from '../activities/activities'
 import type { PlannedEvent } from '../garmin/calendar'
+import { isRoutineDay, routineWalks, walkTitle } from './walks'
 
 /** What an item of the calendar is, which picks its icon and color. */
 export type AgendaKind = 'gym' | 'run' | 'walk' | 'ride' | 'swim' | 'rest' | 'other'
@@ -12,7 +13,7 @@ export type AgendaKind = 'gym' | 'run' | 'walk' | 'ride' | 'swim' | 'rest' | 'ot
  */
 export type AgendaStatus = 'planned' | 'done' | 'missed' | 'active'
 
-/** One workout of a day: a template scheduled here, one from the Garmin calendar, or one done. */
+/** One workout of a day: a template or a walk scheduled here, one from the Garmin calendar, or one done. */
 export interface AgendaItem {
   key: string
   date: DayKey
@@ -22,6 +23,8 @@ export interface AgendaItem {
   /** When it starts or started: the planned time, or the start of what was done. */
   time?: number
   plan?: WorkoutPlan
+  /** A walk of the weekly routine, rather than one scheduled on its own. */
+  repeats?: boolean
   event?: PlannedEvent
   /** A Garmin workout's key, for the time the user plans it at. */
   eventKey?: string
@@ -38,6 +41,45 @@ export interface AgendaItem {
  */
 export const eventKey = (event: Pick<PlannedEvent, 'title' | 'date'>): string =>
   `t:${event.title.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()}|${event.date}`
+
+/**
+ * Each Garmin workout with its key. Two with the same name on the same day (the feed repeating
+ * one) get "#2", "#3"…, so either can have its own time or be hidden. The copies are ordered by
+ * time and description first, so each keeps its key on the next fetch.
+ */
+export function keyedEvents(events: PlannedEvent[]): { event: PlannedEvent; key: string }[] {
+  const groups = new Map<string, PlannedEvent[]>()
+  for (const event of events) {
+    const base = eventKey(event)
+    groups.set(base, [...(groups.get(base) ?? []), event])
+  }
+  const keys = new Map<PlannedEvent, string>()
+  for (const [base, group] of groups) {
+    group
+      .sort((a, b) => (a.time ?? -1) - (b.time ?? -1) || (a.description ?? '').localeCompare(b.description ?? ''))
+      .forEach((event, i) => keys.set(event, i === 0 ? base : `${base}#${i + 1}`))
+  }
+  return events.map((event) => ({ event, key: keys.get(event)! }))
+}
+
+/** The keys of the Garmin workouts the user hid (a race listed twice, say). */
+export const hiddenKeys = (times: EventTime[] | undefined): Set<string> =>
+  new Set((times ?? []).filter((time) => !time.deleted && time.hidden).map((time) => time.id))
+
+/** The Garmin calendar without the hidden workouts, which leave every list. */
+export function visibleEvents(events: PlannedEvent[] | null, times: EventTime[] | undefined): PlannedEvent[] | null {
+  if (!events) return events
+  const hidden = hiddenKeys(times)
+  return keyedEvents(events).flatMap(({ event, key }) => (hidden.has(key) ? [] : [event]))
+}
+
+/** The hidden workouts, by day, with the key that brings each one back. */
+export function hiddenEvents(events: PlannedEvent[] | null, times: EventTime[] | undefined): { event: PlannedEvent; key: string }[] {
+  const hidden = hiddenKeys(times)
+  return keyedEvents(events ?? [])
+    .filter(({ key }) => hidden.has(key))
+    .sort((a, b) => a.event.date.localeCompare(b.event.date) || (a.event.time ?? 0) - (b.event.time ?? 0))
+}
 
 /** Times saved before, keyed by the feed's UID instead of the name. */
 const isLegacyKey = (id: string) => !id.startsWith('t:')
@@ -94,38 +136,50 @@ export function activityKind(activity: Pick<Activity, 'sport' | 'subSport'>): Ag
 }
 
 export interface AgendaSources {
+  /** The scheduled workouts; deleted rows too, since a deleted weekly walk's row takes its day off. */
   plans: WorkoutPlan[]
   /** The Garmin calendar, or null when it isn't set up. */
   events: PlannedEvent[] | null
   sessions: WorkoutSession[]
   activities: Activity[]
   templates: WorkoutTemplate[]
-  /** The times the user set for the Garmin workouts. */
+  /** The times the user set for the Garmin workouts, and the ones hidden. */
   eventTimes?: EventTime[]
+  /** The walks planned every week. */
+  walkRoutine?: WalkRoutine
 }
 
 const sessionStatus = (session: WorkoutSession): AgendaStatus => (session.endedAt ? 'done' : 'active')
 
+/** The activity that started nearest a time; the day's first without one. */
+function nearest(candidates: Activity[], time: number | undefined): Activity | undefined {
+  const distance = (activity: Activity) => (time === undefined ? activity.startTime : Math.abs(activity.startTime - time))
+  return candidates.reduce<Activity | undefined>((best, activity) => (!best || distance(activity) < distance(best) ? activity : best), undefined)
+}
+
 /**
  * Everything of the days from `from` to `to` (inclusive), in order. A scheduled template counts as
  * done by a workout of that template on its day (or, failing that, a strength activity of the
- * watch); a Garmin workout, by an activity of the same kind on its day. The watch's strength
- * activity on a day with a workout in the app is that same workout, so it isn't listed twice.
+ * watch); a walk, by a walk or a hike of the watch that day; a Garmin workout, by an activity of
+ * the same kind on its day. The watch's strength activity on a day with a workout in the app is
+ * that same workout, so it isn't listed twice. Hidden Garmin workouts are left out.
  */
 export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: AgendaSources): AgendaItem[] {
   const inRange = (date: DayKey) => date >= from && date <= to
-  const templateName = (id: string) => sources.templates.find((template) => template.id === id)?.name ?? 'Ficha apagada'
+  const templateName = (id: string | undefined) => sources.templates.find((template) => template.id === id)?.name ?? 'Ficha apagada'
   const sessions = sources.sessions.filter((session) => !session.deleted && inRange(session.date))
   const activities = sources.activities.filter((activity) => !activity.deleted && inRange(activity.date))
   const usedSessions = new Set<string>()
   const usedActivities = new Set<string>()
   const items: AgendaItem[] = []
 
-  const plans = sources.plans.filter((plan) => !plan.deleted && inRange(plan.date))
+  // The weekly walk's own rows go with the routine, below.
+  const plans = sources.plans.filter((plan) => !plan.deleted && inRange(plan.date) && !isRoutineDay(plan))
   for (const plan of plans) {
+    if (plan.kind === 'walk') continue
     const base = { key: `plan-${plan.id}`, date: plan.date, kind: 'gym' as const, plan }
     const session = sessions.find(
-      (s) => s.date === plan.date && s.templateId === plan.templateId && !usedSessions.has(s.id),
+      (s) => s.date === plan.date && !!plan.templateId && s.templateId === plan.templateId && !usedSessions.has(s.id),
     )
     if (session) {
       usedSessions.add(session.id)
@@ -153,6 +207,26 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
     item.activity = activity
   }
 
+  // Walks: done by a walk or a hike that day, the one that started nearest the planned time.
+  const walks = [
+    ...plans.filter((plan) => plan.kind === 'walk').map((plan) => ({ plan, repeats: false })),
+    ...routineWalks(sources.walkRoutine, sources.plans, from, to, today).map((plan) => ({ plan, repeats: true })),
+  ].sort((a, b) => a.plan.date.localeCompare(b.plan.date) || (a.plan.time ?? '99').localeCompare(b.plan.time ?? '99'))
+  for (const { plan, repeats } of walks) {
+    const planned = plan.time ? dayTime(plan.date, plan.time) : undefined
+    const base = { key: `plan-${plan.id}`, date: plan.date, kind: 'walk' as const, title: walkTitle(plan), plan, ...(repeats && { repeats }) }
+    const activity = nearest(
+      activities.filter((a) => a.date === plan.date && activityKind(a) === 'walk' && !usedActivities.has(a.id)),
+      planned,
+    )
+    if (activity) {
+      usedActivities.add(activity.id)
+      items.push({ ...base, status: 'done', time: activity.startTime, activity })
+    } else {
+      items.push({ ...base, status: plan.date < today ? 'missed' : 'planned', time: planned })
+    }
+  }
+
   for (const session of sessions) {
     if (usedSessions.has(session.id)) continue
     items.push({
@@ -167,15 +241,15 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
   }
 
   const saved = (sources.eventTimes ?? []).filter((time) => !time.deleted).sort((a, b) => a.updatedAt - b.updatedAt)
-  const times = new Map(saved.map((time) => [time.id, time.time]))
+  const times = new Map(saved.flatMap((time) => (time.time ? [[time.id, time.time] as const] : [])))
+  const hidden = hiddenKeys(saved)
   // A time saved under an old UID key still counts for the day's only Garmin workout (the latest one set).
-  const legacy = new Map(saved.filter((time) => isLegacyKey(time.id)).map((time) => [time.date, time.time]))
+  const legacy = new Map(saved.flatMap((time) => (isLegacyKey(time.id) && time.time ? [[time.date, time.time] as const] : [])))
   const eventsOn = new Map<DayKey, number>()
   for (const event of sources.events ?? []) eventsOn.set(event.date, (eventsOn.get(event.date) ?? 0) + 1)
-  for (const event of sources.events ?? []) {
-    if (!inRange(event.date)) continue
+  for (const { event, key } of keyedEvents(sources.events ?? [])) {
+    if (!inRange(event.date) || hidden.has(key)) continue
     const kind = eventKind(event)
-    const key = eventKey(event)
     const customTime = times.get(key) ?? (eventsOn.get(event.date) === 1 ? legacy.get(event.date) : undefined)
     const base = {
       key: `event-${key}`,
@@ -253,13 +327,15 @@ export function nextRace(events: PlannedEvent[] | null, today: DayKey): PlannedE
 }
 
 export interface WeekSummary {
-  /** Workouts done or in progress (planned or not). */
+  /** Workouts done or in progress (planned or not), walks included. */
   done: number
   /** Every workout of the week: the ones done and the ones planned (rest days don't count). */
   total: number
   runKm: number
   /** The week's running as planned: the km run plus the runs still to do, when their names say. */
   plannedRunKm?: number
+  /** The km walked, kept apart from the running. */
+  walkKm: number
   /** Time of the workouts done: the watch's timer, or the gym workout's length. */
   trainedSec: number
 }
@@ -270,11 +346,13 @@ export function weekSummary(items: AgendaItem[]): WeekSummary {
   const done = workouts.filter((item) => item.status === 'done' || item.status === 'active')
   let runKm = 0
   let plannedRunKm = 0
+  let walkKm = 0
   let trainedSec = 0
   for (const item of done) {
     if (item.activity) {
       trainedSec += item.activity.timerSec
       if (item.kind === 'run' && item.activity.distanceM) runKm += item.activity.distanceM / 1000
+      if (item.kind === 'walk' && item.activity.distanceM) walkKm += item.activity.distanceM / 1000
     } else if (item.session?.endedAt) {
       trainedSec += (item.session.endedAt - item.session.startedAt) / 1000
     }
@@ -289,6 +367,7 @@ export function weekSummary(items: AgendaItem[]): WeekSummary {
     total: workouts.length,
     runKm: km(runKm),
     plannedRunKm: plannedRunKm > 0 ? km(runKm + plannedRunKm) : undefined,
+    walkKm: km(walkKm),
     trainedSec,
   }
 }
@@ -311,20 +390,21 @@ export function suggestTemplate(
 ): WorkoutTemplate | undefined {
   const rotation = templates.filter((t) => !t.deleted && !t.archived).sort((a, b) => a.order - b.order)
   if (rotation.length === 0) return undefined
-  const inRotation = (id: string | undefined) => rotation.some((template) => template.id === id)
+  const inRotation = (id: string | undefined): id is string => rotation.some((template) => template.id === id)
   let last: { at: number; templateId: string } | undefined
   const consider = (at: number, templateId: string) => {
     if (!last || at > last.at) last = { at, templateId }
   }
   for (const session of sessions) {
     if (session.deleted || !session.endedAt || session.date >= date || !inRotation(session.templateId)) continue
-    consider(session.startedAt, session.templateId!)
+    consider(session.startedAt, session.templateId)
   }
   for (const plan of plans) {
-    if (plan.deleted || plan.date >= date || plan.date < today || !inRotation(plan.templateId)) continue
+    const templateId = plan.templateId
+    if (plan.deleted || plan.date >= date || plan.date < today || !inRotation(templateId)) continue
     // Already done: the workout above stands for it.
-    if (sessions.some((s) => !s.deleted && s.date === plan.date && s.templateId === plan.templateId)) continue
-    consider(dayTime(plan.date, plan.time ?? '23:59'), plan.templateId)
+    if (sessions.some((s) => !s.deleted && s.date === plan.date && s.templateId === templateId)) continue
+    consider(dayTime(plan.date, plan.time ?? '23:59'), templateId)
   }
   if (!last) return rotation[0]
   const index = rotation.findIndex((template) => template.id === last!.templateId)

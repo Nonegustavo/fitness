@@ -202,8 +202,8 @@ export function leadText(minutes: number): string {
 
 /**
  * A heads-up `leadMin` minutes before each workout still planned that has a time: the gym ones
- * open the Hoje screen, where "Agora" has the button to start; runs open the day on the calendar,
- * with the workout's description.
+ * open the Hoje screen, where "Agora" has the button to start; runs and walks open the day on the
+ * calendar, with the workout's description. Hidden Garmin workouts never reach the agenda.
  */
 export function plannedWorkoutReminders(
   agenda: Pick<AgendaItem, 'key' | 'date' | 'kind' | 'title' | 'status' | 'time'>[],
@@ -216,13 +216,14 @@ export function plannedWorkoutReminders(
     const at = new Date(item.time - leadMin * 60_000)
     if (at <= now) return []
     const gym = item.kind === 'gym'
+    const tap = gym ? 'Toque para iniciar o treino.' : item.kind === 'walk' ? 'Toque para ver a caminhada.' : 'Toque para ver o treino.'
     return [
       {
         id: notificationId(`workout:${item.key}:${item.time}`),
         at,
         date: item.date,
         title: `${item.title} às ${formatTime(item.time)}`,
-        body: `Começa em ${leadText(leadMin)}. ${gym ? 'Toque para iniciar o treino.' : 'Toque para ver o treino.'}`,
+        body: `Começa em ${leadText(leadMin)}. ${tap}`,
         route: gym ? '/' : `/calendario?dia=${item.date}`,
       },
     ]

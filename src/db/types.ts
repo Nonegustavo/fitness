@@ -241,6 +241,8 @@ export interface WalkRoutine {
   time?: string
   targetMin?: number
   targetKm?: number
+  /** The first day it applies (the walks before it weren't planned); set again when the days change. */
+  since?: DayKey
 }
 
 /** Each one is on when set: a time ("08:30") for the weigh-in and the meals, true for water. */
@@ -490,16 +492,21 @@ export interface SessionExercise {
 export interface EventTime extends Synced {
   id: string
   date: DayKey
-  /** "07:00". */
-  time: string
+  /** "07:00"; unset when the workout is only hidden. */
+  time?: string
   /** The user hid this workout (a duplicate of another one, say); it leaves the agenda. */
   hidden?: boolean
 }
 
-/** A gym workout scheduled for a day: which template (ficha), and at what time when one was picked. */
+/**
+ * A workout scheduled for a day: a gym template (ficha) or a walk, and at what time when one was
+ * picked. The weekly walks' plans are made by the app (`walk-<date>`); a row with that id is the
+ * user's change to that day, and a deleted one takes the day off.
+ */
 export interface WorkoutPlan extends Synced {
   date: DayKey
-  templateId: string
+  /** The ficha of a gym workout; walks have none. */
+  templateId?: string
   /** "18:30". */
   time?: string
   /** A gym workout (the default) or a walk, which has no template. */

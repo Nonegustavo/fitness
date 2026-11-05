@@ -11,6 +11,7 @@ import type {
   MeasurementSite,
   PerformedSet,
   Settings,
+  WalkRoutine,
   WaterLog,
   WeightEntry,
   WorkoutSession,
@@ -20,6 +21,7 @@ import { formatClock, formatDuration, formatNumber, formatSigned } from '../../l
 import type { DayValue } from '../../lib/stats'
 import { activityLabel, matchSession } from '../activities/activities'
 import { activityKind, nextRace, weekSummary, type AgendaItem } from '../calendar/agenda'
+import { weekdaysText } from '../calendar/walks'
 import { metricSeries } from '../body/body'
 import { daysToTarget, estimateExpenditure, slopePerDay } from '../food/energy'
 import { amountLabel, goalsFor, MEAL_LABEL, MEALS, sumNutrients } from '../food/nutrition'
@@ -435,6 +437,41 @@ export function runningLines({ activities, streams, weekAgenda, events }: Runnin
   }
   const race = nextRace(events ?? null, today)
   if (race) lines.push(`- Próxima prova: ${race.title} em ${formatDay(race.date, "EEEE, d 'de' MMMM")} (daqui a ${daysBetween(today, race.date)} dias)`)
+  return lines
+}
+
+// ---------------------------------------------------------------- walking
+
+/** How many walks (and hikes) a week had, how far and how long: "2 (5,1 km, 1h02)", or "0". */
+const walkWeek = (walks: Activity[]) => {
+  if (walks.length === 0) return '0'
+  const km = walks.reduce((total, walk) => total + (walk.distanceM ?? 0), 0) / 1000
+  const seconds = walks.reduce((total, walk) => total + walk.timerSec, 0)
+  return `${walks.length} (${formatNumber(km, 1)} km, ${formatDuration(seconds * 1000)})`
+}
+
+/** The walks apart from the running: each week's count, km and time, and the weekly walk planned in the app. */
+export function walkingLines(activities: Activity[], routine: WalkRoutine | undefined, today: DayKey): string[] {
+  const current = weekStart(today)
+  const weeks = [4, 3, 2, 1, 0].map((back) => {
+    const from = shiftDay(current, -7 * back)
+    const to = shiftDay(from, 6)
+    return activities.filter((activity) => activityKind(activity) === 'walk' && activity.date >= from && activity.date <= to)
+  })
+  const lines: string[] = []
+  if (weeks.some((walks) => walks.length > 0)) {
+    lines.push(
+      `- Caminhadas por semana (4 semanas, da mais antiga; fora da corrida): ${weeks.slice(0, -1).map(walkWeek).join(' · ')}; esta semana até agora ${walkWeek(weeks[4])}`,
+    )
+  }
+  if (routine?.days.length) {
+    const goal = routine.targetKm
+      ? `, ${formatNumber(routine.targetKm, 1)} km`
+      : routine.targetMin
+        ? `, ${formatDuration(routine.targetMin * 60_000)}`
+        : ''
+    lines.push(`- Caminhada semanal programada no app: ${weekdaysText(routine.days)}${routine.time ? ` às ${routine.time}` : ''}${goal}`)
+  }
   return lines
 }
 

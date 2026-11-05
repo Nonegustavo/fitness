@@ -30,6 +30,7 @@ async function compute(): Promise<WidgetSummary> {
     db.waterLogs.where('date').equals(today).toArray(),
     db.workoutSessions.toArray(),
     db.workoutTemplates.toArray(),
+    // With the deleted rows: a deleted weekly walk's row takes its day off.
     db.workoutPlans.where('date').between(today, until, true, true).toArray(),
     // Today's activities mark today's Garmin workouts done.
     db.activities.where('startTime').aboveOrEqual(parseDay(today).getTime()).toArray(),
@@ -39,12 +40,13 @@ async function compute(): Promise<WidgetSummary> {
   const workouts = alive(sessions)
   const live = alive(templates)
   const agenda = buildAgenda(today, until, today, {
-    plans: alive(plans),
+    plans,
     events,
     sessions: workouts,
     activities: alive(activities),
     templates: live,
     eventTimes: alive(eventTimes),
+    walkRoutine: settings?.walkRoutine,
   })
   const trainingDay = workouts.some((session) => session.date === today)
   return widgetSummary({

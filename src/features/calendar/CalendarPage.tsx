@@ -1,13 +1,15 @@
 import { addMonths, endOfMonth, startOfMonth } from 'date-fns'
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
+import { useToast } from '../../components/Toast'
 import { Button, Card, cx, IconButton, Page, Skeleton } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { dayKey, dayRange, formatDay, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
-import { byDay, shortTitle, type AgendaItem } from './agenda'
+import { tapFeedback } from '../../lib/haptics'
+import { byDay, eventKind, eventTitle, shortTitle, type AgendaItem } from './agenda'
 import { AgendaIcon, AgendaLegend, DayDetails, dayTitle } from './components'
-import { useAgenda } from './plans'
+import { setEventHidden, useAgenda, useHiddenEvents } from './plans'
 
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
@@ -82,7 +84,46 @@ export default function CalendarPage() {
       <Card title={<span className="block first-letter:uppercase">{title}</span>}>
         <DayDetails key={selected} date={selected} today={today} />
       </Card>
+
+      <HiddenCard from={from} today={today} />
     </Page>
+  )
+}
+
+/** The Garmin workouts hidden from this month on (a race listed twice, say), each with a way back. */
+function HiddenCard({ from, today }: { from: DayKey; today: DayKey }) {
+  const hidden = useHiddenEvents(from)
+  const toast = useToast()
+  if (!hidden?.length) return null
+  return (
+    <Card icon={EyeOff} tone="training" title="Ocultos">
+      <p className="text-xs text-muted">Treinos do Garmin tirados da agenda, só no dia de cada um.</p>
+      <ul className="divide-y divide-line">
+        {hidden.map(({ event, key }) => {
+          const name = eventTitle(event.title)
+          return (
+            <li key={key} className="flex items-center gap-3 py-2.5">
+              <AgendaIcon kind={eventKind(event)} status="planned" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{name}</p>
+                <p className="text-xs text-muted first-letter:uppercase">{dayTitle(event.date, today)}</p>
+              </div>
+              <Button
+                size="sm"
+                aria-label={`Mostrar ${name} de novo`}
+                onClick={() => {
+                  tapFeedback()
+                  void setEventHidden(key, event.date, false)
+                  toast({ message: `${name} voltou para a agenda.` })
+                }}
+              >
+                <Eye size={14} /> Mostrar
+              </Button>
+            </li>
+          )
+        })}
+      </ul>
+    </Card>
   )
 }
 

@@ -213,7 +213,16 @@ function watchWorkoutReminders() {
     ])
     const lead = settings?.smartReminders?.workouts
     if (!lead) return { lead, agenda: [] }
-    const agenda = buildAgenda(today, last, today, { plans, events, sessions, activities, templates, eventTimes })
+    // The plans with their deleted rows (a weekly walk taken off its day), and the weekly walks.
+    const agenda = buildAgenda(today, last, today, {
+      plans,
+      events,
+      sessions,
+      activities,
+      templates,
+      eventTimes,
+      walkRoutine: settings?.walkRoutine,
+    })
     return { lead, agenda }
   }).subscribe({
     next: ({ lead, agenda }) => {

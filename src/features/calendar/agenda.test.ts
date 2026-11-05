@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import type { Activity, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
+import type { Activity, EventTime, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import { dayTime } from '../../lib/dates'
 import {
   buildAgenda,
+  eventKey,
   eventKind,
   eventKm,
   eventTitle,
+  hiddenEvents,
   isRace,
+  keyedEvents,
   nextRace,
   shortTitle,
   suggestTemplate,
+  visibleEvents,
   weekSummary,
   type AgendaSources,
 } from './agenda'
@@ -248,7 +252,161 @@ describe('weekSummary', () => {
       }),
     )
     // The plan of the week: the 6,02 km already run and the 4,97 km still to do.
-    expect(weekSummary(items)).toEqual({ done: 2, total: 4, runKm: 6.02, plannedRunKm: 10.99, trainedSec: 3600 + 2280 })
+    expect(weekSummary(items)).toEqual({ done: 2, total: 4, runKm: 6.02, plannedRunKm: 10.99, walkKm: 0, trainedSec: 3600 + 2280 })
+  })
+
+  it('counts a walk as a workout, with its km apart from the running', () => {
+    const items = buildAgenda(
+      '2026-11-01',
+      '2026-11-07',
+      TODAY,
+      sources({
+        plans: [walk('w1', '2026-11-03'), walk('w2', '2026-11-06')],
+        activities: [
+          { ...activity('a1', '2026-11-03', 'walking'), distanceM: 3200, timerSec: 2400 },
+          { ...activity('a2', '2026-11-04', 'running'), distanceM: 5000, timerSec: 1700 },
+        ],
+      }),
+    )
+    expect(weekSummary(items)).toEqual({ done: 2, total: 3, runKm: 5, walkKm: 3.2, trainedSec: 2400 + 1700 })
+  })
+})
+
+const walk = (id: string, date: string, changes: Partial<WorkoutPlan> = {}): WorkoutPlan => ({
+  id,
+  date,
+  kind: 'walk',
+  ...meta,
+  ...changes,
+})
+
+describe('walks in the agenda', () => {
+  it('is done by a walk or a hike that day, the one nearest the planned time, and never by a run or the gym', () => {
+    const items = buildAgenda(
+      '2026-11-03',
+      TODAY,
+      TODAY,
+      sources({
+        plans: [
+          walk('w1', '2026-11-03', { targetMin: 40 }),
+          walk('w2', '2026-11-04', { targetKm: 3 }),
+          walk('w3', TODAY, { time: '18:00' }),
+          plan('p1', '2026-11-04', 'legs'),
+        ],
+        activities: [
+          activity('run', '2026-11-03', 'running'),
+          activity('hike', '2026-11-04', 'hiking'),
+          activity('morning', TODAY, 'walking'),
+          { ...activity('evening', TODAY, 'walking'), startTime: dayTime(TODAY, '18:10') },
+        ],
+      }),
+    )
+    expect(items.map((item) => [item.date, item.kind, item.title, item.status, item.activity?.id])).toEqual([
+      ['2026-11-03', 'run', 'Corrida', 'done', 'run'],
+      ['2026-11-03', 'walk', 'Caminhada de 40 min', 'missed', undefined],
+      ['2026-11-04', 'walk', 'Caminhada de 3 km', 'done', 'hike'],
+      // The hike isn't the gym workout: the plan stays undone.
+      ['2026-11-04', 'gym', 'LEGS', 'missed', undefined],
+      // The morning walk is listed on its own, the evening one did the 18:00 walk.
+      [TODAY, 'walk', 'Caminhada', 'done', 'morning'],
+      [TODAY, 'walk', 'Caminhada', 'done', 'evening'],
+    ])
+    expect(items.find((item) => item.plan?.id === 'w3')?.activity?.id).toBe('evening')
+  })
+
+  it('keeps the walks out of the gym rotation', () => {
+    const history = { templates, sessions: [session('s1', '2026-11-03', 'legs')], plans: [walk('w1', TODAY)] }
+    expect(suggestTemplate('2026-11-06', TODAY, history)?.id).toBe('pull')
+  })
+})
+
+describe('the weekly walk', () => {
+  // Monday, Wednesday and Friday at 07:00, since Tuesday the 3rd.
+  const walkRoutine = { days: [1, 3, 5], time: '07:00', targetMin: 40, since: '2026-11-03' }
+  const weekly = (changes: Partial<AgendaSources> = {}) =>
+    buildAgenda('2026-11-01', '2026-11-14', TODAY, sources({ walkRoutine, ...changes })).filter((item) => item.kind === 'walk')
+
+  it('appears by itself on its weekdays from the day it started, with fixed ids', () => {
+    const items = weekly({ activities: [activity('a1', '2026-11-04', 'walking')] })
+    expect(items.map((item) => [item.date, item.status, item.key])).toEqual([
+      ['2026-11-04', 'done', 'plan-walk-2026-11-04'],
+      ['2026-11-06', 'planned', 'plan-walk-2026-11-06'],
+      ['2026-11-09', 'planned', 'plan-walk-2026-11-09'],
+      ['2026-11-11', 'planned', 'plan-walk-2026-11-11'],
+      ['2026-11-13', 'planned', 'plan-walk-2026-11-13'],
+    ])
+    expect(items[1]).toMatchObject({ title: 'Caminhada de 40 min', repeats: true, time: dayTime('2026-11-06', '07:00') })
+  })
+
+  it('takes a day changed on its own and leaves out a day taken off', () => {
+    const items = weekly({
+      plans: [
+        walk('walk-2026-11-11', '2026-11-11', { time: '18:00' }),
+        walk('walk-2026-11-13', '2026-11-13', { time: '07:00', deleted: 1 }),
+        // Not a day of the routine (a Tuesday): ignored.
+        walk('walk-2026-11-10', '2026-11-10', { time: '07:00' }),
+        // A walk on its own, apart from the routine.
+        walk('extra', '2026-11-10', { time: '19:00' }),
+      ],
+    })
+    expect(items.map((item) => [item.date, item.title, item.plan?.time, item.repeats ?? false])).toEqual([
+      ['2026-11-04', 'Caminhada de 40 min', '07:00', true],
+      ['2026-11-06', 'Caminhada de 40 min', '07:00', true],
+      ['2026-11-09', 'Caminhada de 40 min', '07:00', true],
+      ['2026-11-10', 'Caminhada', '19:00', false],
+      ['2026-11-11', 'Caminhada', '18:00', true],
+    ])
+  })
+
+  it('starts today when its first day is unknown, and is gone when there is no routine', () => {
+    expect(weekly({ walkRoutine: { days: [3, 5] } }).map((item) => item.date)).toEqual(['2026-11-06', '2026-11-11', '2026-11-13'])
+    expect(weekly({ walkRoutine: undefined })).toEqual([])
+    expect(weekly({ walkRoutine: { days: [] } })).toEqual([])
+  })
+})
+
+describe('Garmin workouts listed twice', () => {
+  const race = { date: '2026-11-08', title: 'Rústica de Morungava (6 a 8km)', time: dayTime('2026-11-08', '08:00') }
+  const fromSisrun = { ...race, description: 'Prova alvo' }
+  const base = eventKey(race)
+
+  it('get their own keys, the same on the next fetch whatever the order and the UIDs', () => {
+    const first = keyedEvents([{ ...fromSisrun, uid: 'a' }, { ...race, uid: 'b' }])
+    expect(first.map(({ event, key }) => [event.uid, key])).toEqual([
+      ['a', `${base}#2`],
+      ['b', base],
+    ])
+    const again = keyedEvents([{ ...race, uid: 'c' }, { ...fromSisrun, uid: 'd' }])
+    expect(again.map(({ event, key }) => [event.description, key])).toEqual([
+      [undefined, base],
+      ['Prova alvo', `${base}#2`],
+    ])
+    const items = buildAgenda('2026-11-08', '2026-11-08', TODAY, sources({ events: [race, fromSisrun] }))
+    expect(items.map((item) => item.key)).toEqual([`event-${base}`, `event-${base}#2`])
+  })
+
+  it('can each be hidden on their day, and leave every list until brought back', () => {
+    const hidden: EventTime[] = [{ id: `${base}#2`, date: '2026-11-08', hidden: true, ...meta }]
+    const events = [race, fromSisrun, { date: '2026-11-09', title: 'Rodagem 5 km' }]
+    const items = buildAgenda('2026-11-08', '2026-11-09', TODAY, sources({ events, eventTimes: hidden }))
+    expect(items.map((item) => [item.date, item.eventKey])).toEqual([
+      ['2026-11-08', base],
+      ['2026-11-09', 't:rodagem 5 km|2026-11-09'],
+    ])
+    expect(visibleEvents(events, hidden)).toEqual([race, events[2]])
+    expect(hiddenEvents(events, hidden)).toEqual([{ event: fromSisrun, key: `${base}#2` }])
+    // Brought back (the row deleted) or never hidden: listed again.
+    expect(visibleEvents(events, [{ ...hidden[0], deleted: 1 }])).toEqual(events)
+    expect(visibleEvents(null, hidden)).toBeNull()
+  })
+
+  it('keep the planned time of a hidden workout apart from hiding it', () => {
+    const times: EventTime[] = [
+      { id: base, date: '2026-11-08', time: '07:30', ...meta },
+      { id: `${base}#2`, date: '2026-11-08', time: '07:30', hidden: true, ...meta },
+    ]
+    const [item] = buildAgenda('2026-11-08', '2026-11-08', TODAY, sources({ events: [race, fromSisrun], eventTimes: times }))
+    expect(item).toMatchObject({ eventKey: base, customTime: '07:30', time: dayTime('2026-11-08', '07:30') })
   })
 })
 

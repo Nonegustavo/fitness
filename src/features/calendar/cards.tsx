@@ -8,7 +8,7 @@ import { dayRange, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/
 import { useStartWorkout } from '../training/components'
 import { findActive, useSessions } from '../training/training'
 import { byDay, type AgendaItem } from './agenda'
-import { AgendaIcon, AgendaItems, DayDetails, dayTitle, KIND_LABELS, KIND_TONES } from './components'
+import { AgendaIcon, AgendaItems, DayDetails, dayTitle, KIND_ICONS, KIND_LABELS, KIND_TONES } from './components'
 import { useAgenda, useTodayTemplate } from './plans'
 
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
@@ -16,6 +16,8 @@ const weekday = (date: DayKey) => WEEKDAYS[parseDay(date).getDay()]
 const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 const STATUS_LABELS = { done: 'feito', active: 'em andamento', planned: 'programado', missed: 'não feito' } as const
+// "Caminhada" is feminine.
+const WALK_STATUS_LABELS = { done: 'feita', active: 'em andamento', planned: 'programada', missed: 'não feita' } as const
 
 const calendarLink = (
   <Link to="/calendario" className="text-sm font-medium text-accent-ink">
@@ -72,7 +74,9 @@ function DayPill({
   const free = items.length === 0
   const described = free
     ? 'dia livre'
-    : items.map((item) => `${KIND_LABELS[item.kind]} ${STATUS_LABELS[item.status]}: ${item.title}`).join('; ')
+    : items
+        .map((item) => `${KIND_LABELS[item.kind]} ${(item.kind === 'walk' ? WALK_STATUS_LABELS : STATUS_LABELS)[item.status]}: ${item.title}`)
+        .join('; ')
   return (
     <button
       type="button"
@@ -106,9 +110,27 @@ export function DayMarks({ items, onAccent = false }: { items: AgendaItem[]; onA
   )
 }
 
-/** A workout as a dot in its kind's color (white on today's pill). */
+/**
+ * A workout as a dot in its kind's color (white on today's pill). A walk shows its little figure
+ * instead, faded while planned, so it never reads as a run.
+ */
 function Dot({ item, onAccent }: { item: AgendaItem; onAccent: boolean }) {
   const color = onAccent ? '#ffffff' : toneColor(KIND_TONES[item.kind])
+  if (item.kind === 'walk') {
+    const Walk = KIND_ICONS.walk
+    const missed = item.status === 'missed'
+    return (
+      <Walk
+        size={11}
+        strokeWidth={3}
+        className="shrink-0"
+        style={{
+          color: missed ? (onAccent ? 'rgb(255 255 255 / 0.45)' : 'var(--muted)') : color,
+          opacity: item.status === 'planned' ? 0.6 : 1,
+        }}
+      />
+    )
+  }
   const style: CSSProperties =
     item.status === 'missed'
       ? { background: onAccent ? 'rgb(255 255 255 / 0.45)' : 'var(--muted)' }

@@ -44,7 +44,8 @@ export default function RunningPage() {
 
   const runs = activities.filter(isRun)
   const summary = weekSummary(agenda)
-  const thisWeek = agenda.filter((item) => item.kind === 'run' || item.kind === 'walk')
+  // Only the runs: walks are workouts of their own, never mixed into the running.
+  const thisWeek = agenda.filter((item) => item.kind === 'run')
   const current = weeks.at(-1)!
   const recentPace = pooledPace(weeks.slice(-4))
   const beforePace = pooledPace(weeks.slice(-8, -4))

@@ -2,13 +2,14 @@ import {
   Activity as ActivityIcon,
   BedDouble,
   Bike,
-  CalendarPlus,
   Check,
   Clock,
   Dumbbell,
+  EyeOff,
   Footprints,
   MessageSquareText,
   Pencil,
+  PersonStanding,
   Play,
   Trash2,
   Waves,
@@ -28,13 +29,26 @@ import { useStartWorkout } from '../training/components'
 import { summarize } from '../training/stats'
 import { useSessions, useTemplates } from '../training/training'
 import { suggestTemplate, type AgendaItem, type AgendaKind, type AgendaStatus } from './agenda'
-import { reschedule, schedule, setEventTime, unschedule, undoUnschedule, useAgenda, usePlans } from './plans'
+import {
+  dropWalk,
+  reschedule,
+  schedule,
+  setEventHidden,
+  setEventTime,
+  undoDropWalk,
+  unschedule,
+  undoUnschedule,
+  useAgenda,
+  usePlans,
+} from './plans'
+import { WalkModal } from './WalkModal'
 import { tapFeedback } from '../../lib/haptics'
 
 export const KIND_ICONS: Record<AgendaKind, LucideIcon> = {
   gym: Dumbbell,
   run: Footprints,
-  walk: Footprints,
+  // Its own figure, so a walk never reads as a run.
+  walk: PersonStanding,
   ride: Bike,
   swim: Waves,
   rest: BedDouble,
@@ -115,6 +129,9 @@ export function AgendaLegend() {
         <AgendaIcon kind="run" status="planned" size="xs" /> corrida
       </span>
       <span className="flex items-center gap-1.5">
+        <AgendaIcon kind="walk" status="planned" size="xs" /> caminhada
+      </span>
+      <span className="flex items-center gap-1.5">
         <AgendaIcon kind="gym" status="missed" size="xs" /> não feito
       </span>
     </p>
@@ -123,9 +140,12 @@ export function AgendaLegend() {
 
 /** The second line of an item: when, how long, how far, or where it came from. */
 export function describeItem(item: AgendaItem): string {
+  // "Caminhada" is feminine: "feita", "programada".
+  const walk = item.kind === 'walk'
   if (item.status === 'active') return 'Em andamento'
   if (item.status === 'done') {
-    const parts = [item.time !== undefined ? `Feito às ${formatTime(item.time)}` : 'Feito']
+    const done = walk ? 'Feita' : 'Feito'
+    const parts = [item.time !== undefined ? `${done} às ${formatTime(item.time)}` : done]
     if (item.session) {
       const summary = summarize(item.session)
       if (summary.durationMs) parts.push(formatDuration(summary.durationMs))
@@ -137,10 +157,10 @@ export function describeItem(item: AgendaItem): string {
     }
     return parts.join(' · ')
   }
-  const source = item.event ? ' · pelo Garmin' : ''
-  if (item.status === 'missed') return `Não feito${source}`
+  const source = item.event ? ' · pelo Garmin' : item.repeats ? ' · toda semana' : ''
+  if (item.status === 'missed') return `${walk ? 'Não feita' : 'Não feito'}${source}`
   const when = item.plan?.time ?? (item.time !== undefined ? formatTime(item.time) : undefined)
-  const what = item.plan ? 'Programado' : KIND_LABELS[item.kind]
+  const what = item.plan ? (walk ? 'Programada' : 'Programado') : KIND_LABELS[item.kind]
   return `${what}${when ? ` às ${when}` : ''}${source}`
 }
 
@@ -149,6 +169,21 @@ export function dayTitle(date: DayKey, today: DayKey): string {
   if (date === today) return `hoje, ${formatDay(date, "d 'de' MMMM")}`
   if (date === shiftDay(today, 1)) return `amanhã, ${formatDay(date, "d 'de' MMMM")}`
   return formatDay(date)
+}
+
+/** Takes a Garmin workout off the agenda on its day, with a way back. */
+function useHideEvent() {
+  const toast = useToast()
+  return async (item: AgendaItem) => {
+    const key = item.eventKey
+    if (!key) return
+    tapFeedback()
+    await setEventHidden(key, item.date, true)
+    toast({
+      message: `Treino oculto: ${item.title}.`,
+      action: { label: 'Desfazer', onClick: () => void setEventHidden(key, item.date, false) },
+    })
+  }
 }
 
 function ItemRow({
@@ -162,13 +197,14 @@ function ItemRow({
   today: DayKey
   /** The day it's for, when the list mixes days. */
   day?: string
-  onEdit: (plan: WorkoutPlan) => void
+  onEdit: (item: AgendaItem) => void
   onTime: (item: AgendaItem) => void
 }) {
   const navigate = useNavigate()
   const toast = useToast()
   const start = useStartWorkout()
   const templates = useTemplates()
+  const hide = useHideEvent()
   const link = item.session
     ? `/treinos/sessao/${item.session.id}`
     : item.activity
@@ -176,14 +212,20 @@ function ItemRow({
       : undefined
   const plan = item.plan
   const pending = plan && (item.status === 'planned' || item.status === 'missed')
-  // A Garmin workout still ahead can get the time it's planned for.
+  // A Garmin workout still ahead can get the time it's planned for (and be hidden from that sheet);
+  // one that passed undone (the copy of a race listed twice, say) can be hidden right here.
   const timeable = item.eventKey && item.status === 'planned' && item.kind !== 'rest'
-  const template = plan && templates?.find((t) => t.id === plan.templateId)
+  const hideable = item.eventKey && item.status === 'missed'
+  const template = plan?.templateId ? templates?.find((t) => t.id === plan.templateId) : undefined
 
   const drop = () => {
     if (!plan) return
-    void unschedule(plan.id)
-    toast({ message: `${item.title} saiu do calendário.`, action: { label: 'Desfazer', onClick: () => void undoUnschedule(plan.id) } })
+    const walk = plan.kind === 'walk'
+    void (walk ? dropWalk(plan) : unschedule(plan.id))
+    toast({
+      message: `${item.title} saiu do calendário${item.repeats ? ' neste dia' : ''}.`,
+      action: { label: 'Desfazer', onClick: () => void (walk ? undoDropWalk(plan.id) : undoUnschedule(plan.id)) },
+    })
   }
 
   return (
@@ -221,6 +263,11 @@ function ItemRow({
           <Clock size={16} className={item.customTime ? 'text-accent-ink' : undefined} />
         </IconButton>
       )}
+      {hideable && (
+        <IconButton label={`Ocultar ${item.title}`} onClick={() => void hide(item)}>
+          <EyeOff size={16} />
+        </IconButton>
+      )}
       {pending && (
         <div className="flex shrink-0 items-center gap-1">
           {item.date === today && template && (
@@ -228,7 +275,7 @@ function ItemRow({
               <Play size={14} /> Iniciar
             </Button>
           )}
-          <IconButton label={`Alterar ${item.title}`} onClick={() => onEdit(plan)}>
+          <IconButton label={`Alterar ${item.title}`} onClick={() => onEdit(item)}>
             <Pencil size={16} />
           </IconButton>
           <IconButton label={`Tirar ${item.title} do calendário`} onClick={drop}>
@@ -250,8 +297,10 @@ export function itemDay(date: DayKey, today: DayKey): string {
 
 /** A list of workouts; `showDay` names the day of the ones that aren't today's. */
 export function AgendaItems({ items, today, showDay = false }: { items: AgendaItem[]; today: DayKey; showDay?: boolean }) {
-  const [editing, setEditing] = useState<WorkoutPlan>()
+  const [editing, setEditing] = useState<AgendaItem>()
   const [timing, setTiming] = useState<AgendaItem>()
+  const plan = editing?.plan
+  const close = () => setEditing(undefined)
   return (
     <>
       <ul className="divide-y divide-line">
@@ -266,15 +315,24 @@ export function AgendaItems({ items, today, showDay = false }: { items: AgendaIt
           />
         ))}
       </ul>
-      {editing && <PlanModal date={editing.date} today={today} plan={editing} onClose={() => setEditing(undefined)} />}
+      {plan &&
+        (plan.kind === 'walk' ? (
+          <WalkModal date={plan.date} today={today} plan={plan} repeats={editing.repeats} onClose={close} />
+        ) : (
+          <PlanModal date={plan.date} today={today} plan={plan} onClose={close} />
+        ))}
       {timing && <EventTimeModal item={timing} onClose={() => setTiming(undefined)} />}
     </>
   )
 }
 
-/** The time a Garmin workout (a SisRUN run) is planned for: the coach's plan only has the day. */
+/**
+ * The time a Garmin workout (a SisRUN run) is planned for: the coach's plan only has the day. Also
+ * where it can be hidden, when the feed lists it twice.
+ */
 function EventTimeModal({ item, onClose }: { item: AgendaItem; onClose: () => void }) {
   const toast = useToast()
+  const hide = useHideEvent()
   const [time, setTime] = useState(item.customTime ?? (item.time !== undefined ? formatTime(item.time) : ''))
   const store = async (value: string | undefined) => {
     tapFeedback()
@@ -302,14 +360,32 @@ function EventTimeModal({ item, onClose }: { item: AgendaItem; onClose: () => vo
           Salvar
         </Button>
       </div>
+      <div className="mt-5 border-t border-line pt-3">
+        <Button
+          variant="ghost"
+          className="w-full"
+          onClick={() => {
+            void hide(item)
+            onClose()
+          }}
+        >
+          <EyeOff size={16} /> Ocultar este treino
+        </Button>
+        <p className="mt-1 text-center text-xs text-muted">
+          Só neste dia, para um treino repetido (a mesma prova pelo Garmin e pelo SisRUN). Ele volta pela lista Ocultos do
+          Calendário.
+        </p>
+      </div>
     </Modal>
   )
 }
 
-/** A day of the calendar: what was done, what is planned, and scheduling a template there. */
+/** A day of the calendar: what was done, what is planned, and scheduling a template or a walk there. */
 export function DayDetails({ date, today }: { date: DayKey; today: DayKey }) {
   const items = useAgenda(date, date, today)
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState<'gym' | 'walk'>()
+  const close = () => setAdding(undefined)
+  const { gym: GymIcon, walk: WalkIcon } = KIND_ICONS
   return (
     <div>
       {!items ? (
@@ -320,11 +396,20 @@ export function DayDetails({ date, today }: { date: DayKey; today: DayKey }) {
         <AgendaItems items={items} today={today} />
       )}
       {date >= today && (
-        <Button className="mt-3 w-full" onClick={() => setAdding(true)}>
-          <CalendarPlus size={18} /> Programar treino de academia
-        </Button>
+        <div className="mt-3">
+          <p className="mb-1.5 text-xs font-medium text-muted">Programar neste dia</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={() => setAdding('gym')}>
+              <GymIcon size={18} /> Academia
+            </Button>
+            <Button onClick={() => setAdding('walk')}>
+              <WalkIcon size={18} /> Caminhada
+            </Button>
+          </div>
+        </div>
       )}
-      {adding && <PlanModal date={date} today={today} onClose={() => setAdding(false)} />}
+      {adding === 'gym' && <PlanModal date={date} today={today} onClose={close} />}
+      {adding === 'walk' && <WalkModal date={date} today={today} onClose={close} />}
     </div>
   )
 }

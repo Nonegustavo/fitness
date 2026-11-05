@@ -33,16 +33,26 @@ export default function BodyPage() {
   const settings = useSettings()
   const [tab, setTab] = useState<Tab>(() => {
     const aba = params.get('aba')
-    return aba === 'medidas' || aba === 'fotos' ? aba : 'peso'
+    return params.get('novo') === 'medida' ? 'medidas' : aba === 'medidas' || aba === 'fotos' ? aba : 'peso'
   })
   const [weightEditing, setWeightEditing] = useState<WeightEntry | 'new' | null>(
     params.get('novo') === 'peso' ? 'new' : null,
   )
-  const [measurementEditing, setMeasurementEditing] = useState<MeasurementEntry | 'new' | null>(null)
+  const [measurementEditing, setMeasurementEditing] = useState<MeasurementEntry | 'new' | null>(
+    params.get('novo') === 'medida' ? 'new' : null,
+  )
 
-  // The "Registrar peso" shortcut opens the form once; drop the flag so it doesn't reopen.
+  // The shortcuts (`?novo=peso`, `?novo=medida`: the "+", the reminders) open the form once, also
+  // when Corpo is already open; then the flag goes, so it doesn't reopen.
   useEffect(() => {
-    if (params.has('novo')) setParams({}, { replace: true })
+    const novo = params.get('novo')
+    if (!novo) return
+    if (novo === 'peso') setWeightEditing('new')
+    if (novo === 'medida') {
+      setTab('medidas')
+      setMeasurementEditing('new')
+    }
+    setParams({}, { replace: true })
   }, [params, setParams])
 
   return (

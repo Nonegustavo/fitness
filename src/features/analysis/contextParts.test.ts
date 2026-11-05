@@ -14,6 +14,7 @@ import {
   recoveryParts,
   sleepParts,
   strengthLines,
+  walkingLines,
   weekLines,
 } from './contextParts'
 
@@ -193,6 +194,21 @@ describe('the sections', () => {
     )
     expect(lines).toHaveLength(3)
     expect(lines[2]).toMatch(/^- 1\/11–7\/11 \(esta semana, até hoje\): musculação 1; corrida 1 \(8 km, 5:23\/km\); tempo de treino/)
+  })
+
+  it('keeps the walks apart from the running: count, km and time per week, and the weekly walk', () => {
+    const walk = (date: string, km: number, minutes: number) =>
+      run({ id: `w-${date}`, sport: 'walking', title: 'Caminhada', date, distanceM: km * 1000, timerSec: minutes * 60 })
+    const lines = walkingLines(
+      [walk('2026-10-13', 3, 40), walk('2026-11-02', 2.5, 30), walk('2026-11-04', 3.1, 41), run()],
+      { days: [1, 3, 5], time: '07:00', targetMin: 40 },
+      TODAY,
+    )
+    expect(lines).toEqual([
+      '- Caminhadas por semana (4 semanas, da mais antiga; fora da corrida): 0 · 1 (3 km, 40 min) · 0 · 0; esta semana até agora 2 (5,6 km, 1h11)',
+      '- Caminhada semanal programada no app: seg, qua e sex às 07:00, 40 min',
+    ])
+    expect(walkingLines([run()], undefined, TODAY)).toEqual([])
   })
 
   it('tracks the lifts: estimated 1RM against the 4 weeks before, sets per muscle', () => {

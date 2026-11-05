@@ -139,6 +139,18 @@ describe('plannedWorkoutReminders', () => {
     expect(morning.at).toEqual(new Date(2026, 10, 5, 6, 0))
   })
 
+  it('warns of a walk too, opening its day on the calendar', () => {
+    const walk = item({ key: 'plan-walk-2026-11-05', kind: 'walk', title: 'Caminhada de 40 min', date: '2026-11-05', time: new Date(2026, 10, 5, 7, 0).getTime() })
+    expect(plannedWorkoutReminders([walk], 15, now)).toEqual([
+      expect.objectContaining({
+        title: 'Caminhada de 40 min às 07:00',
+        body: 'Começa em 15 min. Toque para ver a caminhada.',
+        route: '/calendario?dia=2026-11-05',
+        at: new Date(2026, 10, 5, 6, 45),
+      }),
+    ])
+  })
+
   it('skips workouts without a time, done, rest days, past heads-ups, and everything when off', () => {
     const skipped = [
       item({ time: undefined }),

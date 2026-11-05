@@ -84,8 +84,25 @@ describe('buildContext', () => {
   })
 
   it('lists the workouts planned for the next week', () => {
-    expect(text).toContain('- quarta 4/11: Rodagem 8 km — Ritmo leve')
+    expect(text).toContain('## Treinos planejados (SisRUN, pelo Garmin)\n- quarta 4/11: Rodagem 8 km — Ritmo leve')
     expect(text).toContain('## Musculação programada no app\n- quinta 5/11: PULL DAY às 18:30')
+  })
+
+  it('puts the walks planned in the app among the planned workouts, by day and time', () => {
+    const withWalks = buildContext({
+      sources: world(),
+      settings,
+      planned: [{ date: shiftDay(TODAY, 1), title: 'Rodagem 8 km', time: new Date(2026, 10, 4, 6, 30).getTime() }],
+      walkPlans: [
+        { date: shiftDay(TODAY, 1), title: 'Caminhada de 40 min', time: '18:00' },
+        { date: TODAY, title: 'Caminhada' },
+      ],
+      today: TODAY,
+      now: new Date(2026, 10, 3, 7, 40),
+    })
+    expect(withWalks).toContain(
+      '## Treinos planejados (SisRUN, pelo Garmin; caminhadas programadas no app)\n- terça 3/11: Caminhada\n- quarta 4/11 às 06:30: Rodagem 8 km\n- quarta 4/11 às 18:00: Caminhada de 40 min',
+    )
   })
 
   it('stays well under the function limit', () => {

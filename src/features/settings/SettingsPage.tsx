@@ -2,6 +2,7 @@ import { Download, LogOut, RefreshCw, Settings, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useToast } from '../../components/Toast'
 import { bottomSections, SECTIONS } from '../../components/sections'
+import { SortableList } from '../../components/Sortable'
 import { Button, Card, Field, IconButton, Page, Select, Switch, TextInput } from '../../components/ui'
 import { exportBackup, importBackup } from '../../db/backup'
 import { useSettings } from '../../db/hooks'
@@ -149,12 +150,20 @@ function SitesCard() {
   return (
     <Card title="Locais de medida">
       <p className="mb-2 text-xs text-muted">
-        Remover um local só o tira do formulário; as medidas antigas continuam salvas.
+        Arraste para mudar a ordem do formulário, da tabela e do gráfico em Corpo. Remover um local só o tira do
+        formulário; as medidas antigas continuam salvas.
       </p>
-      <ul className="divide-y divide-line">
-        {sites.map((site) => (
-          <li key={site.key} className="flex items-center justify-between gap-2 py-0.5">
-            <span className="text-sm">{site.label}</span>
+      <SortableList
+        className="divide-y divide-line"
+        itemClassName="flex items-center gap-2 bg-surface py-0.5"
+        items={sites}
+        getId={(site) => site.key}
+        onReorder={(list) => void patch(db.settings, SETTINGS_ID, { measurementSites: list })}
+      >
+        {(site, handle) => (
+          <>
+            <span className="-ml-2 flex">{handle}</span>
+            <span className="min-w-0 flex-1 text-sm">{site.label}</span>
             <IconButton
               label={`Remover ${site.label}`}
               onClick={() =>
@@ -163,9 +172,9 @@ function SitesCard() {
             >
               <X size={16} />
             </IconButton>
-          </li>
-        ))}
-      </ul>
+          </>
+        )}
+      </SortableList>
       <form onSubmit={add} className="mt-2 flex gap-2">
         <TextInput value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Novo local (ex.: Antebraço)" />
         <Button type="submit" disabled={!label.trim()}>
@@ -356,7 +365,7 @@ function WorkoutRemindersCard() {
         <li className="flex items-center gap-3 py-2">
           <span className="min-w-0 flex-1">
             <span className="block text-sm">Antes dos treinos</span>
-            <span className="block text-xs text-muted">musculação e corridas programadas com horário</span>
+            <span className="block text-xs text-muted">musculação, corridas e caminhadas programadas com horário</span>
           </span>
           {smart.workouts && (
             <span className="w-32 shrink-0">

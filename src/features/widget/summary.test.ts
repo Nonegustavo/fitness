@@ -73,11 +73,14 @@ describe('widgetWorkouts', () => {
         item({ title: 'Descanso', kind: 'rest' }),
         item({ title: 'Rodagem', kind: 'run', date: '2026-11-06', event: { date: '2026-11-06', title: 'Rodagem', time: new Date(2026, 10, 6, 6, 30).getTime() } }),
         item({ title: 'PULL DAY', date: '2026-11-06', plan }),
+        item({ title: 'Caminhada de 40 min', kind: 'walk', date: '2026-11-07', plan: { id: 'walk-2026-11-07', date: '2026-11-07', kind: 'walk', time: '07:00', targetMin: 40, updatedAt: 0, deleted: 0, dirty: 0 } }),
       ]),
     ).toEqual([
       { date: '2026-11-05', title: 'PUSH DAY', kind: 'gym', active: true },
       { date: '2026-11-06', title: 'Rodagem', kind: 'run', time: '06:30' },
       { date: '2026-11-06', title: 'PULL DAY', kind: 'gym', time: '07:15' },
+      // A walk keeps its own kind, never a run's.
+      { date: '2026-11-07', title: 'Caminhada de 40 min', kind: 'walk', time: '07:00' },
     ])
   })
 })

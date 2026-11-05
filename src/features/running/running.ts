@@ -2,6 +2,7 @@ import type { Activity, ActivityStream, WorkoutSession } from '../../db/types'
 import { daysBetween, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { activityKind } from '../calendar/agenda'
 
+/** Runs only: walks and hikes are workouts of their own, never counted in the running (km, records, pace). */
 export const isRun = (activity: Pick<Activity, 'sport' | 'subSport'>): boolean => activityKind(activity) === 'run'
 
 /** Runs whose GPS distance can be trusted for records (not on a treadmill or indoors). */

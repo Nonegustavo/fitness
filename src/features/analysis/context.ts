@@ -21,6 +21,7 @@ import {
   runningLines,
   sleepParts,
   strengthLines,
+  walkingLines,
   weekLines,
   type Freshness,
 } from './contextParts'
@@ -40,6 +41,8 @@ export interface ContextInput {
   planned: PlannedEvent[] | null
   /** Templates scheduled in the app and not done yet. */
   gymPlans?: { date: DayKey; name: string; time?: string }[]
+  /** Walks scheduled in the app (once or every week) and not done yet. */
+  walkPlans?: { date: DayKey; title: string; time?: string }[]
   /** Yesterday's analysis, so today's doesn't repeat it. */
   previous?: DailyInsight
   /** The analyses of the last days, for their tips. */
@@ -153,6 +156,7 @@ export function buildContext(input: ContextInput): string {
       today,
     ),
   )
+  section(out, 'Caminhada', walkingLines(sources.activities, settings.walkRoutine, today))
   section(
     out,
     'Corpo',
@@ -186,14 +190,20 @@ export function buildContext(input: ContextInput): string {
     for (const finding of found) out.push(`- ${describe(finding)} (relação ${strengthLabel(finding)}, ${finding.n} dias)`)
   }
 
-  const ahead = (planned ?? []).filter((event) => event.date >= today && event.date <= shiftDay(today, PLANNED_DAYS))
-  if (ahead.length > 0) {
-    out.push('', '## Treinos planejados (SisRUN, pelo Garmin)')
-    for (const event of ahead) {
-      const detail = event.description ? oneLine(event.description.replace(/\s+/g, ' '), 300) : ''
-      const at = event.time !== undefined ? ` às ${formatTime(event.time)}` : ''
-      out.push(`- ${formatDay(event.date, 'EEE d/MM')}${at}: ${event.title}${detail ? ` — ${detail}` : ''}`)
-    }
+  const upcoming = (date: DayKey) => date >= today && date <= shiftDay(today, PLANNED_DAYS)
+  const ahead = (planned ?? []).filter((event) => upcoming(event.date))
+  const walks = (input.walkPlans ?? []).filter((plan) => upcoming(plan.date))
+  if (ahead.length > 0 || walks.length > 0) {
+    const origins = [ahead.length > 0 && 'SisRUN, pelo Garmin', walks.length > 0 && 'caminhadas programadas no app'].filter(Boolean)
+    out.push('', `## Treinos planejados (${origins.join('; ')})`)
+    const lines = [
+      ...ahead.map((event) => {
+        const detail = event.description ? oneLine(event.description.replace(/\s+/g, ' '), 300) : ''
+        return { date: event.date, at: event.time !== undefined ? formatTime(event.time) : undefined, text: `${event.title}${detail ? ` — ${detail}` : ''}` }
+      }),
+      ...walks.map((plan) => ({ date: plan.date, at: plan.time, text: plan.title })),
+    ].sort((a, b) => a.date.localeCompare(b.date) || (a.at ?? '99').localeCompare(b.at ?? '99'))
+    for (const line of lines) out.push(`- ${formatDay(line.date, 'EEE d/MM')}${line.at ? ` às ${line.at}` : ''}: ${line.text}`)
   }
 
   const gym = (gymPlans ?? []).filter((plan) => plan.date >= today && plan.date <= shiftDay(today, PLANNED_DAYS))
