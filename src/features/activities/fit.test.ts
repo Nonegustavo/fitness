@@ -147,8 +147,9 @@ describe('parseFit', () => {
 })
 
 describe('simplifyTrack', () => {
+  // A few seconds of work: with the machine busy it outlasted the default 5 s and failed for nothing.
   it('stays under the point budget on a winding route', () => {
     const zigzag = Array.from({ length: 5000 }, (_, i): [number, number] => [i * 0.0001, (i % 2) * 0.001])
     expect(simplifyTrack(zigzag, 1500).length).toBeLessThanOrEqual(1500)
-  })
+  }, 30_000)
 })
