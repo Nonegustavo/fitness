@@ -15,6 +15,7 @@ import type {
   JournalEntry,
   MeasurementEntry,
   MeasurementSite,
+  Pain,
   PhotoBlob,
   SavedMeal,
   Settings,
@@ -52,6 +53,7 @@ export const SYNCED_TABLES = [
   'progressPhotos',
   'workoutPlans',
   'eventTimes',
+  'pains',
 ] as const
 
 export type SyncedTableName = (typeof SYNCED_TABLES)[number]
@@ -123,6 +125,7 @@ export class FitnessDB extends Dexie {
   progressPhotos!: Table<ProgressPhoto, string>
   workoutPlans!: Table<WorkoutPlan, string>
   eventTimes!: Table<EventTime, string>
+  pains!: Table<Pain, string>
   meta!: Table<MetaRow, string>
 
   constructor(name = 'fitness') {
@@ -190,6 +193,11 @@ export class FitnessDB extends Dexie {
       })
     this.version(9)
       .stores({ eventTimes: 'id, date, dirty' })
+      .upgrade(async (tx) => {
+        await tx.table('meta').delete(PULL_CURSOR)
+      })
+    this.version(10)
+      .stores({ pains: 'id, start, dirty' })
       .upgrade(async (tx) => {
         await tx.table('meta').delete(PULL_CURSOR)
       })

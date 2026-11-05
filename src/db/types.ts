@@ -74,6 +74,12 @@ export interface Habit extends Synced {
   order: number
   /** A notification in the Android app, on the chosen weekdays, while the day isn't logged yet. */
   reminder?: HabitReminder
+  /** When in the day it's usually done ("07:30"), which orders the day's list. */
+  time?: string
+  /** A key of the habit palette. */
+  color?: string
+  /** A key of the habit icons. */
+  icon?: string
 }
 
 export interface HabitReminder {
@@ -89,6 +95,24 @@ export interface HabitLog extends Synced {
   habitId: string
   date: DayKey
   value: number
+  /** 1 when the user said they won't do it that day (rain for "sun in the morning"): neither done nor missed. */
+  skipped?: 0 | 1
+  /** Why it was skipped, in the user's words. */
+  note?: string
+}
+
+/**
+ * A pain or discomfort told in the diary, in the user's words ("canela direita"), with how bad it was
+ * (1–10). It goes on from day to day with the last score until the user removes it.
+ */
+export interface Pain extends Synced {
+  name: string
+  /** The first day it hurt. */
+  start: DayKey
+  /** The last day it hurt; unset while it still does. */
+  end?: DayKey
+  /** The score from each day it was given on; the days in between keep the one before. */
+  scores: Record<DayKey, number>
 }
 
 export interface MeasurementSite {
@@ -203,6 +227,20 @@ export interface Settings extends Synced {
   gym?: GymSetup
   /** The four sections on the phone's bottom bar (routes), in order. */
   navBar?: string[]
+  /** What the "+" offers to log, in order (ids of the quick log items). */
+  quickLog?: string[]
+  /** Walks scheduled every week on these days, as plans the app makes for each date. */
+  walkRoutine?: WalkRoutine
+}
+
+/** A walk planned every week: on which weekdays, when, and how long or how far. */
+export interface WalkRoutine {
+  /** 0 = Sunday … 6 = Saturday. */
+  days: number[]
+  /** "07:00". */
+  time?: string
+  targetMin?: number
+  targetKm?: number
 }
 
 /** Each one is on when set: a time ("08:30") for the weigh-in and the meals, true for water. */
@@ -279,6 +317,8 @@ export interface Food extends Synced {
   ingredients?: RecipeIngredient[]
   /** For recipes: the weight once ready, when it differs from the ingredients' sum (water lost or absorbed). */
   yieldGrams?: number
+  /** The product's picture from Open Food Facts, for foods read by barcode. */
+  imageUrl?: string
 }
 
 export interface RecipeIngredient {
@@ -317,8 +357,12 @@ export interface FoodPref extends Synced {
   favorite: 0 | 1
   lastGrams?: number
   lastUsedAt?: number
-  /** A 1-tap shortcut on the food screen (supplements, the daily coffee), with its amount. */
+  /** A 1-tap shortcut on the food screen (supplements, the daily coffee), with its amount. No longer offered. */
   quick?: QuickAmount
+  /** The user's photo of the food (a photo store id), shown before its name in the lists. */
+  photoId?: string
+  /** The food's emoji, chosen by the user or suggested by the AI; shown when there's no photo. */
+  emoji?: string
 }
 
 export interface QuickAmount {
@@ -397,6 +441,8 @@ export interface TemplateExercise {
   key: string
   exerciseId: string
   restSec: number
+  /** The rest after a warm-up set; DEFAULT_WARMUP_REST_SEC when unset. */
+  warmupRestSec?: number
   notes?: string
   sets: PlannedSet[]
   /** Done alternating with the next exercise (bi-set): the rest comes after the pair. */
@@ -429,6 +475,8 @@ export interface SessionExercise {
   key: string
   exerciseId: string
   restSec: number
+  /** The rest after a warm-up set; DEFAULT_WARMUP_REST_SEC when unset. */
+  warmupRestSec?: number
   notes?: string
   sets: PerformedSet[]
   /** Done alternating with the next exercise (bi-set): the rest comes after the pair. */
@@ -444,6 +492,8 @@ export interface EventTime extends Synced {
   date: DayKey
   /** "07:00". */
   time: string
+  /** The user hid this workout (a duplicate of another one, say); it leaves the agenda. */
+  hidden?: boolean
 }
 
 /** A gym workout scheduled for a day: which template (ficha), and at what time when one was picked. */
@@ -452,6 +502,11 @@ export interface WorkoutPlan extends Synced {
   templateId: string
   /** "18:30". */
   time?: string
+  /** A gym workout (the default) or a walk, which has no template. */
+  kind?: 'gym' | 'walk'
+  /** For walks: how long and how far, when planned. */
+  targetMin?: number
+  targetKm?: number
 }
 
 export interface WorkoutSession extends Synced {

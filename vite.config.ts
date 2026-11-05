@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -40,5 +41,7 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     environment: 'node',
+    // Worktrees of parallel sessions live under .claude/ and carry their own copy of the tests.
+    exclude: [...configDefaults.exclude, '.claude/**'],
   },
 }))

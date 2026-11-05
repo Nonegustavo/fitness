@@ -7,6 +7,7 @@ import type {
   PerformedSet,
   PlannedSet,
   SessionExercise,
+  SetKind,
   WorkoutSession,
   WorkoutTemplate,
 } from '../../db/types'
@@ -15,6 +16,8 @@ import { newId } from '../../lib/ids'
 import { lastPerformance } from './stats'
 
 export const DEFAULT_REST_SEC = 90
+/** The rest after a warm-up set, when the exercise doesn't say: warm-ups are light. */
+export const DEFAULT_WARMUP_REST_SEC = 60
 
 /** The library, without deleted exercises, by name. */
 export function useExercises(): Exercise[] | undefined {
@@ -58,6 +61,7 @@ export async function startWorkout(template?: WorkoutTemplate): Promise<string> 
       key: newId(),
       exerciseId: exercise.exerciseId,
       restSec: exercise.restSec,
+      warmupRestSec: exercise.warmupRestSec,
       notes: exercise.notes,
       sets: setsFromPlan(exercise.sets),
       supersetWithNext: exercise.supersetWithNext,
@@ -72,7 +76,13 @@ export function newSessionExercise(exerciseId: string, sessions: WorkoutSession[
   const sets: PerformedSet[] = last
     ? last.exercise.sets.filter((set) => set.done).map((set) => ({ key: newId(), kind: set.kind, done: false }))
     : Array.from({ length: 3 }, () => ({ key: newId(), kind: 'normal' as const, done: false }))
-  return { key: newId(), exerciseId, restSec: last?.exercise.restSec ?? DEFAULT_REST_SEC, sets }
+  return {
+    key: newId(),
+    exerciseId,
+    restSec: last?.exercise.restSec ?? DEFAULT_REST_SEC,
+    warmupRestSec: last?.exercise.warmupRestSec,
+    sets,
+  }
 }
 
 export const updateSession = (id: string, change: (session: WorkoutSession) => WorkoutSession) =>
@@ -124,6 +134,29 @@ export const deleteWorkout = (id: string) => remove(db.workoutSessions, id)
  */
 export const restsAfter = (exercises: SessionExercise[], index: number): boolean =>
   !exercises[index]?.supersetWithNext || index === exercises.length - 1
+
+/** The rest of a set of an exercise: shorter after a warm-up. */
+export const restOf = (exercise: Pick<SessionExercise, 'restSec' | 'warmupRestSec'>, kind: SetKind): number =>
+  kind === 'warmup' ? (exercise.warmupRestSec ?? DEFAULT_WARMUP_REST_SEC) : exercise.restSec
+
+/**
+ * Seconds of rest once this set of the exercise at `index` is checked: none in the middle of a bi-set,
+ * where the next exercise comes right away, and the warm-up rest after a warm-up set.
+ */
+export const restSecAfter = (exercises: SessionExercise[], index: number, kind: SetKind): number =>
+  restsAfter(exercises, index) && exercises[index] ? restOf(exercises[index], kind) : 0
+
+/** Checks a set off with the amounts it was done with, now (or when the watch or the notification says). */
+export const completeSet = (
+  sessionId: string,
+  exerciseKey: string,
+  setKey: string,
+  values: Pick<PerformedSet, 'weightKg' | 'reps' | 'durationSec'>,
+  at = Date.now(),
+) =>
+  updateSession(sessionId, (session) =>
+    changeSet(session, exerciseKey, setKey, (set) => ({ ...set, ...values, done: true, completedAt: at })),
+  )
 
 /** The weight still to lift moved by a step, on every working set not done yet. */
 export function shiftLoad(exercise: SessionExercise, step: number, from: number): SessionExercise {
