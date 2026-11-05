@@ -115,6 +115,8 @@ O app Android também avisa por notificação: os lembretes dos hábitos (marcad
 - Produtos por código de barras: [Open Food Facts](https://world.openfoodfacts.org), base aberta sob a licença ODbL.
 - Atividades: arquivos .FIT lidos com o [FIT SDK](https://developer.garmin.com/fit) da Garmin. No site do Garmin Connect, abra a atividade, clique na engrenagem e escolha **Exportar original**; o app aceita o .zip baixado.
 - Mapas: © colaboradores do [OpenStreetMap](https://www.openstreetmap.org/copyright), desenhados com [Leaflet](https://leafletjs.com).
+- Clima das corridas e caminhadas: [Open-Meteo](https://open-meteo.com) (gratuito para uso não comercial). O app manda só a posição do início, arredondada para uns 1 km, e a data.
+- Fotos e passos dos exercícios: [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (Unlicense), carregados na hora pelo jsDelivr, sem copiar as imagens para o app. As fotos vêm de fontes de licença incerta: servem para uso pessoal, não para redistribuir. Os passos em português foram escritos para o app.
 
 ## Como funciona
 

@@ -163,6 +163,17 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Câmera dentro do app: prato, código de barras ou tabela nutricional, com a opção da galeria
 - [x] Caminhadas separadas da corrida e programadas no app (com repetição semanal), treino do Garmin oculto (a prova repetida), botão + configurável e a ordem das medidas
 - [x] Cores por seção: botões, chaves, abas e links na cor de cada área
+- [x] Carga de treino e forma (TRIMP pelas zonas de FC, condicionamento de 42 dias, cansaço de 7, forma e ACWR com aviso de subida brusca), no card "Carga e forma" da Corrida e no Hoje
+- [x] Prontidão do dia (0 a 100) com sono, VFC, FC de repouso, carga e dores ativas, no "Em foco"
+- [x] Previsões de prova (Riegel) e VO2max estimado (VDOT) nos Recordes, e a previsão no cartão da próxima prova
+- [x] Planejado × feito em cada etapa do treino do treinador, também na mensagem para ele
+- [x] Tênis: quilometragem de cada par, o padrão para corridas e caminhadas e o aviso perto do limite
+- [x] Clima de cada corrida e caminhada (Open-Meteo), na atividade, nas listas e na análise do dia
+- [x] Relatório da semana para o treinador e imagem para compartilhar a corrida ou o treino
+- [x] Musculação: aquecimento sugerido, cronômetro nas séries de tempo, RIR por série e fotos e passos dos exercícios (free-exercise-db)
+- [x] Check-in semanal das metas de alimentação a partir do gasto estimado e da meta de peso
+- [x] Hábitos semanais ("3 vezes por semana") e força do hábito (0 a 100%)
+- [x] Retrospectiva do ano (Mais → Retrospectiva e aviso no Hoje em dezembro)
 - [x] Gráficos por dia, semana, mês ou ano (Corpo, Sono, Passos, Calorias, Alimentação, Água, Corrida e exercícios), com setas para andar no tempo e "Intervalo"; média ou total conforme a medida, dito na dica
 
 ## Observações
