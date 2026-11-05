@@ -3,6 +3,7 @@ import {
   BedDouble,
   Bike,
   Check,
+  ChevronRight,
   Clock,
   Dumbbell,
   EyeOff,
@@ -27,8 +28,11 @@ import { formatClock, formatDuration } from '../../lib/format'
 import { formatDistance } from '../activities/activities'
 import { useStartWorkout } from '../training/components'
 import { summarize } from '../training/stats'
+import { TemplateSheet } from '../training/TemplateDetails'
 import { useSessions, useTemplates } from '../training/training'
 import { suggestTemplate, type AgendaItem, type AgendaKind, type AgendaStatus } from './agenda'
+import { EventDetails } from './EventDetails'
+import { descriptionPreview } from './eventText'
 import {
   dropWalk,
   reschedule,
@@ -192,6 +196,7 @@ function ItemRow({
   day,
   onEdit,
   onTime,
+  onDetails,
 }: {
   item: AgendaItem
   today: DayKey
@@ -199,6 +204,7 @@ function ItemRow({
   day?: string
   onEdit: (item: AgendaItem) => void
   onTime: (item: AgendaItem) => void
+  onDetails: (item: AgendaItem) => void
 }) {
   const navigate = useNavigate()
   const toast = useToast()
@@ -217,6 +223,10 @@ function ItemRow({
   const timeable = item.eventKey && item.status === 'planned' && item.kind !== 'rest'
   const hideable = item.eventKey && item.status === 'missed'
   const template = plan?.templateId ? templates?.find((t) => t.id === plan.templateId) : undefined
+  // What isn't done yet opens its ficha: a gym workout's template, a Garmin workout's steps (a rest
+  // day only when the coach wrote something for it). What was done opens its own page instead.
+  const details = !link && (!!plan?.templateId || (!!item.event && (item.kind !== 'rest' || !!item.event.description)))
+  const preview = item.event?.description && item.status !== 'done' ? descriptionPreview(item.event.description) : ''
 
   const drop = () => {
     if (!plan) return
@@ -228,31 +238,47 @@ function ItemRow({
     })
   }
 
+  // Spans, not paragraphs: the text sits inside a button when it opens the ficha.
+  const text = (
+    <>
+      {day && <span className="block text-xs font-semibold text-accent-ink">{day}</span>}
+      {link ? (
+        <Link to={link} className="block truncate text-sm font-medium hover:text-accent-ink">
+          {item.title}
+        </Link>
+      ) : (
+        <span className={cx('flex min-w-0 items-center gap-0.5 text-sm font-medium', item.status === 'missed' && 'text-ink-2')}>
+          <span className={cx('truncate', item.status === 'missed' && 'line-through')}>{item.title}</span>
+          {details && <ChevronRight size={15} aria-hidden className="shrink-0 text-muted" />}
+        </span>
+      )}
+      <span className="block text-xs text-muted">{describeItem(item)}</span>
+      {item.activity?.notes?.trim() && (
+        <span className="mt-0.5 flex items-start gap-1 text-xs text-ink-2">
+          <MessageSquareText size={12} aria-label="Comentário" className="mt-0.5 shrink-0" />
+          <span className="line-clamp-2">{item.activity.notes}</span>
+        </span>
+      )}
+      {preview && <span className="mt-0.5 line-clamp-2 text-xs text-ink-2">{preview}</span>}
+    </>
+  )
+
   return (
     <li className="flex items-start gap-3 py-2.5">
       <AgendaIcon kind={item.kind} status={item.status} size="md" />
-      <div className="min-w-0 flex-1">
-        {day && <p className="text-xs font-semibold text-accent-ink">{day}</p>}
-        {link ? (
-          <Link to={link} className="block truncate text-sm font-medium hover:text-accent-ink">
-            {item.title}
-          </Link>
-        ) : (
-          <p className={cx('truncate text-sm font-medium', item.status === 'missed' && 'text-ink-2 line-through')}>
-            {item.title}
-          </p>
-        )}
-        <p className="text-xs text-muted">{describeItem(item)}</p>
-        {item.activity?.notes?.trim() && (
-          <p className="mt-0.5 flex items-start gap-1 text-xs text-ink-2">
-            <MessageSquareText size={12} aria-label="Comentário" className="mt-0.5 shrink-0" />
-            <span className="line-clamp-2">{item.activity.notes}</span>
-          </p>
-        )}
-        {item.event?.description && item.status !== 'done' && (
-          <p className="mt-0.5 line-clamp-3 text-xs whitespace-pre-line text-ink-2">{item.event.description}</p>
-        )}
-      </div>
+      {details ? (
+        <button
+          type="button"
+          onClick={() => onDetails(item)}
+          aria-haspopup="dialog"
+          className="relative min-w-0 flex-1 rounded-lg text-left transition hover:text-accent-ink active:opacity-70"
+        >
+          {text}
+          <span className="sr-only">{plan?.templateId ? 'Ver a ficha' : 'Ver os detalhes'}</span>
+        </button>
+      ) : (
+        <div className="min-w-0 flex-1">{text}</div>
+      )}
       {item.status === 'active' && item.session && (
         <Button size="sm" variant="primary" onClick={() => navigate(`/treinos/sessao/${item.session!.id}`)}>
           Continuar
@@ -299,6 +325,7 @@ export function itemDay(date: DayKey, today: DayKey): string {
 export function AgendaItems({ items, today, showDay = false }: { items: AgendaItem[]; today: DayKey; showDay?: boolean }) {
   const [editing, setEditing] = useState<AgendaItem>()
   const [timing, setTiming] = useState<AgendaItem>()
+  const [viewing, setViewing] = useState<AgendaItem>()
   const plan = editing?.plan
   const close = () => setEditing(undefined)
   return (
@@ -312,6 +339,7 @@ export function AgendaItems({ items, today, showDay = false }: { items: AgendaIt
             day={showDay && item.date !== today ? itemDay(item.date, today) : undefined}
             onEdit={setEditing}
             onTime={setTiming}
+            onDetails={setViewing}
           />
         ))}
       </ul>
@@ -322,7 +350,46 @@ export function AgendaItems({ items, today, showDay = false }: { items: AgendaIt
           <PlanModal date={plan.date} today={today} plan={plan} onClose={close} />
         ))}
       {timing && <EventTimeModal item={timing} onClose={() => setTiming(undefined)} />}
+      {viewing && <ItemDetails item={viewing} today={today} onClose={() => setViewing(undefined)} />}
     </>
+  )
+}
+
+/** When a workout is: "sexta-feira, 7 de novembro · às 07:00 · pelo Garmin", and whether it was missed. */
+function whenLine(item: AgendaItem, today: DayKey): string {
+  const walk = item.kind === 'walk'
+  return [
+    dayTitle(item.date, today),
+    item.time !== undefined && `às ${formatTime(item.time)}`,
+    item.event && 'pelo Garmin',
+    item.status === 'missed' && (walk ? 'não feita' : 'não feito'),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/**
+ * The ficha of a workout not done yet: a scheduled template's exercises (with Iniciar on its day), or
+ * what the Garmin calendar says of a coach's workout.
+ */
+function ItemDetails({ item, today, onClose }: { item: AgendaItem; today: DayKey; onClose: () => void }) {
+  const templateId = item.plan?.templateId
+  if (templateId) {
+    return (
+      <TemplateSheet
+        templateId={templateId}
+        subtitle={whenLine(item, today)}
+        canStart={item.date === today && item.status === 'planned'}
+        onClose={onClose}
+      />
+    )
+  }
+  if (!item.event) return null
+  return (
+    <Modal open title={item.title} onClose={onClose}>
+      <p className="-mt-1 mb-4 text-xs text-muted first-letter:uppercase">{whenLine(item, today)}</p>
+      <EventDetails event={item.event} kind={item.kind} />
+    </Modal>
   )
 }
 

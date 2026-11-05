@@ -300,15 +300,30 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
 const NUMBER = String.raw`(\d+(?:[.,]\d+)?)`
 const KM_RANGE = new RegExp(String.raw`${NUMBER}\s*(?:-|–|a|até)\s*${NUMBER}\s*km`, 'i')
 const KM = new RegExp(String.raw`${NUMBER}\s*km`, 'i')
+// SisRUN sometimes leaves the unit out ("Corrida 3,725 - 4,48", "Fartlek 5,59"). Only decimals with a
+// comma ending the name count, so "10x400 m" or a year never reads as kilometers.
+const BARE_RANGE = /(\d+,\d+)\s*(?:-|–|a|até)\s*(\d+(?:,\d+)?)\s*$/i
+const BARE = /(?:^|\s)(\d+,\d+)\s*$/
 const decimal = (text: string) => parseFloat(text.replace(',', '.'))
 
-/** The distance in a workout's name: "4,48 - 4,97 Km" counts the longer end, "7 Km" is 7, "(6 a 8km)" is 8. */
-export function eventKm(title: string): number | undefined {
-  const range = KM_RANGE.exec(title)
-  if (range) return decimal(range[2])
-  const single = KM.exec(title)
-  return single ? decimal(single[1]) : undefined
+/**
+ * The distance in a workout's name, as a range: "4,48 - 4,97 Km", "(6 a 8km)", "7 Km" (7 to 7), and
+ * SisRUN's "3,725 - 4,48" or "5,59" without the unit.
+ */
+export function eventDistance(title: string): { low: number; high: number } | undefined {
+  const range = KM_RANGE.exec(title) ?? BARE_RANGE.exec(title)
+  if (range) {
+    const [a, b] = [decimal(range[1]), decimal(range[2])]
+    return { low: Math.min(a, b), high: Math.max(a, b) }
+  }
+  const single = KM.exec(title) ?? BARE.exec(title)
+  if (!single) return undefined
+  const km = decimal(single[1])
+  return { low: km, high: km }
 }
+
+/** The distance in a workout's name: "4,48 - 4,97 Km" counts the longer end, "7 Km" is 7, "(6 a 8km)" is 8. */
+export const eventKm = (title: string): number | undefined => eventDistance(title)?.high
 
 /**
  * A race the user put in the Garmin calendar: not one of SisRUN's workouts (those start with the

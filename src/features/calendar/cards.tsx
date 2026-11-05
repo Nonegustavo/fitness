@@ -1,4 +1,4 @@
-import { CalendarDays, Dumbbell, Play } from 'lucide-react'
+import { CalendarDays, ChevronRight, Dumbbell, Play } from 'lucide-react'
 import { useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 import { Modal } from '../../components/Modal'
@@ -6,6 +6,7 @@ import { toneColor } from '../../components/tone'
 import { Button, Card, cx, Empty, SkeletonCard, SkeletonLines } from '../../components/ui'
 import { dayRange, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { useStartWorkout } from '../training/components'
+import { TemplateSheet } from '../training/TemplateDetails'
 import { findActive, useSessions } from '../training/training'
 import { byDay, type AgendaItem } from './agenda'
 import { AgendaIcon, AgendaItems, DayDetails, dayTitle, KIND_ICONS, KIND_LABELS, KIND_TONES } from './components'
@@ -153,6 +154,7 @@ export function TodayWorkoutsCard({ today }: { today: DayKey }) {
   const todays = useTodayTemplate(today)
   const sessions = useSessions()
   const start = useStartWorkout()
+  const [viewing, setViewing] = useState(false)
   if (!agenda || !sessions) return <SkeletonCard lines={3} />
   const workouts = agenda.filter((item) => item.kind !== 'rest')
   const todayItems = workouts.filter((item) => item.date === today)
@@ -169,14 +171,31 @@ export function TodayWorkoutsCard({ today }: { today: DayKey }) {
       {!findActive(sessions) && !gymToday && todays && (
         <div className="mt-2 flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2">
           <AgendaIcon kind="gym" status="planned" />
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-ink-2">Próxima ficha da sequência</p>
-            <p className="truncate text-sm font-medium">{todays.template.name}</p>
-          </div>
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            onClick={() => setViewing(true)}
+            className="relative min-w-0 flex-1 text-left transition hover:text-accent-ink active:opacity-70"
+          >
+            <span className="block text-xs text-ink-2">Próxima ficha da sequência</span>
+            <span className="flex min-w-0 items-center gap-0.5 text-sm font-medium">
+              <span className="truncate">{todays.template.name}</span>
+              <ChevronRight size={15} aria-hidden className="shrink-0 text-muted" />
+            </span>
+            <span className="sr-only">Ver a ficha</span>
+          </button>
           <Button size="sm" variant="primary" onClick={() => void start(todays.template)}>
             <Play size={14} /> Iniciar
           </Button>
         </div>
+      )}
+      {viewing && todays && (
+        <TemplateSheet
+          templateId={todays.template.id}
+          subtitle="Próxima ficha da sequência"
+          canStart={!findActive(sessions)}
+          onClose={() => setViewing(false)}
+        />
       )}
     </Card>
   )
