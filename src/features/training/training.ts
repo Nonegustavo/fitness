@@ -117,16 +117,23 @@ export function changeSet(
   }))
 }
 
-/** Ends the workout, keeping only the sets that were done. */
-export function finishWorkout(id: string) {
-  return updateSession(id, (session) => ({
+/**
+ * The workout with only the sets that were done. An exercise left with none goes away without leaving
+ * its bi-set partner linked to the next exercise.
+ */
+export function keepDone(session: WorkoutSession): WorkoutSession {
+  const done = {
     ...session,
-    endedAt: Date.now(),
-    exercises: session.exercises
-      .map((exercise) => ({ ...exercise, sets: exercise.sets.filter((set) => set.done) }))
-      .filter((exercise) => exercise.sets.length > 0),
-  }))
+    exercises: session.exercises.map((exercise) => ({ ...exercise, sets: exercise.sets.filter((set) => set.done) })),
+  }
+  return done.exercises
+    .filter((exercise) => exercise.sets.length === 0)
+    .reduce((current, empty) => removeExercise(current, empty.key), done)
 }
+
+/** Ends the workout, keeping only the sets that were done. */
+export const finishWorkout = (id: string) =>
+  updateSession(id, (session) => ({ ...keepDone(session), endedAt: Date.now() }))
 
 export const deleteWorkout = (id: string) => remove(db.workoutSessions, id)
 

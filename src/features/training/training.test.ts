@@ -4,6 +4,7 @@ import {
   addSet,
   DEFAULT_WARMUP_REST_SEC,
   exerciseBlocks,
+  keepDone,
   matchTemplate,
   removeExercise,
   reorderExercises,
@@ -173,5 +174,28 @@ describe('sets and exercises during a workout', () => {
     // The first of a pair: the second one stays as it was.
     expect(notation(removeExercise(session(workout('a+b c')), 'a').exercises)).toBe('b c')
     expect(removeExercise(session(workout('a b')), 'z').exercises).toHaveLength(2)
+  })
+})
+
+describe('finishing a workout', () => {
+  it('drops the sets not done, and an emptied exercise without leaving its partner linked', () => {
+    const set = (key: string, done: boolean): PerformedSet => ({ key, kind: 'normal', done })
+    const [a, b, c] = workout('a+b c')
+    const finished = keepDone({
+      id: 's',
+      name: 'A',
+      date: '2026-11-05',
+      startedAt: 0,
+      exercises: [
+        { ...a, sets: [set('a1', true), set('a2', false)] },
+        { ...b, sets: [set('b1', false)] },
+        { ...c, sets: [set('c1', true)] },
+      ],
+      updatedAt: 0,
+      deleted: 0,
+      dirty: 0,
+    })
+    expect(notation(finished.exercises)).toBe('a c')
+    expect(finished.exercises[0].sets.map((s) => s.key)).toEqual(['a1'])
   })
 })

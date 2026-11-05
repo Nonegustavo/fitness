@@ -708,7 +708,7 @@ function SetRow({
       className={cx(
         'grid items-center gap-x-2 gap-y-0.5 rounded-xl px-1 py-1 transition',
         columns,
-        set.done && 'bg-series-1/10',
+        set.done && 'bg-accent/10',
       )}
     >
       <span className={cx('text-center text-sm font-semibold', set.kind === 'warmup' && 'text-muted')}>{label}</span>
@@ -753,7 +753,7 @@ function SetRow({
         onClick={toggle}
         className={cx(
           'flex size-10 items-center justify-center rounded-lg transition active:scale-90',
-          set.done ? 'bg-series-1 text-white' : 'bg-surface-2 text-muted hover:text-ink',
+          set.done ? 'bg-accent text-white' : 'bg-surface-2 text-muted hover:text-ink',
         )}
       >
         <Check size={20} />
