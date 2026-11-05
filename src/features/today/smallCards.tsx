@@ -10,7 +10,8 @@ import { KIND_ICONS, KIND_TONES } from '../calendar/components'
 import { useAgenda, useTodayTemplate } from '../calendar/plans'
 import { goalsFor, sumNutrients, useFoodLogs, useTrainingDays } from '../food/nutrition'
 import { latestNight, sleepQuality } from '../garmin/recovery'
-import { isSuccess, useHabitLogs, useHabits } from '../habits/habits'
+import { dayGoals } from '../habits/day'
+import { useHabitLogs, useHabits } from '../habits/habits'
 import { ENERGY, levelOf, MOODS, useJournalEntry } from '../journal/journal'
 import { useStartWorkout } from '../training/components'
 import { sumMl, useContainers, useWaterLogs } from '../water/water'
@@ -135,15 +136,17 @@ export function HabitsSmall({ today }: { today: DayKey }) {
   const habits = useHabits()
   const logs = useHabitLogs(today, today)
   if (!habits || !logs) return <TileSkeleton />
-  const goals = habits.filter((habit) => habit.archived === 0 && habit.polarity === 'good')
-  if (goals.length === 0) return null
-  const values = new Map(logs.map((log) => [log.habitId, log.value]))
-  const done = goals.filter((habit) => isSuccess(habit, values.get(habit.id))).length
+  const active = habits.filter((habit) => habit.archived === 0)
+  if (!active.some((habit) => habit.polarity === 'good')) return null
+  // The day's goals leave out the habits skipped today ("Hoje não vou fazer").
+  const goals = dayGoals(active, new Map(logs.map((log) => [log.habitId, log])))
+  const done = goals.done.length
+  const total = goals.required.length
   return (
     <SmallCard icon={ListChecks} tone="habits" label="Hábitos" to="/habitos">
-      <Value value={`${done}/${goals.length}`} />
-      <ThinBar value={done} max={goals.length} color={toneColor('habits')} />
-      <Note>{done === goals.length ? 'tudo feito hoje 🎉' : `faltam ${goals.length - done}`}</Note>
+      <Value value={total === 0 ? '—' : `${done}/${total}`} />
+      <ThinBar value={done} max={Math.max(total, 1)} color={toneColor('habits')} />
+      <Note>{total === 0 ? 'pulados hoje' : done === total ? 'tudo feito hoje 🎉' : `faltam ${total - done}`}</Note>
     </SmallCard>
   )
 }

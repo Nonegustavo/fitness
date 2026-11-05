@@ -22,7 +22,8 @@ import { useWeights } from '../body/body'
 import { KIND_ICONS, KIND_TONES } from '../calendar/components'
 import { useAgenda, useTodayTemplate } from '../calendar/plans'
 import { useFoodLogs } from '../food/nutrition'
-import { habitLogId, isSuccess, useHabitLogs, useHabits } from '../habits/habits'
+import { dayGoals } from '../habits/day'
+import { useHabitLogs, useHabits } from '../habits/habits'
 import { useJournalEntry } from '../journal/journal'
 import { isRun } from '../running/running'
 import { useStartWorkout } from '../training/components'
@@ -79,7 +80,8 @@ export function NowCard({ today }: { today: DayKey }) {
 
   const lastWeek = shiftDay(today, -7)
   const glass = containers?.find((container) => container.favorite === 1)
-  const values = new Map(habitLogs.map((log) => [log.id, log.value]))
+  // Today's log of each habit: a skipped one isn't asked for.
+  const habitDay = new Map(habitLogs.filter((log) => log.date === today).map((log) => [log.habitId, log]))
   const active = findActive(sessions)
   // The latest run of the day that has no comment or effort yet.
   const run = todaysActivities
@@ -98,10 +100,10 @@ export function NowCard({ today }: { today: DayKey }) {
       waterMl: sumMl(waterLogs),
       waterGoalMl: settings.waterGoalMl,
       glassMl: glass?.ml ?? 250,
-      habitsLeft: habits
-        .filter((habit) => habit.archived === 0 && habit.polarity === 'good' && habit.startDate <= today)
-        .filter((habit) => !isSuccess(habit, values.get(habitLogId(habit.id, today))))
-        .map((habit) => habit.name),
+      habitsLeft: dayGoals(
+        habits.filter((habit) => habit.archived === 0 && habit.startDate <= today),
+        habitDay,
+      ).left.map((habit) => habit.name),
       journaled: journal !== null,
       uncommented: run && { id: run.id, title: run.title ?? activityLabel(run), endedAt: run.startTime + run.elapsedSec * 1000 },
       smart: settings.smartReminders,
