@@ -18,6 +18,21 @@ export const MEALS: { key: MealKey; label: string }[] = [
 
 export const MEAL_LABEL = Object.fromEntries(MEALS.map((meal) => [meal.key, meal.label])) as Record<MealKey, string>
 
+/**
+ * A day's meals as the food screen lists them: the latest on top (from "Ceia" up to "Café da manhã"),
+ * with the empty ones next to each other in one group (they show as thin rows).
+ */
+export function groupMeals(logs: FoodLog[]): { meals: MealKey[]; entries: FoodLog[] }[] {
+  const groups: { meals: MealKey[]; entries: FoodLog[] }[] = []
+  for (const { key } of [...MEALS].reverse()) {
+    const entries = logs.filter((log) => log.meal === key)
+    const last = groups.at(-1)
+    if (entries.length === 0 && last && last.entries.length === 0) last.meals.push(key)
+    else groups.push({ meals: [key], entries })
+  }
+  return groups
+}
+
 /** The meal that usually happens at this time of day. */
 export function mealAt(date: Date): MealKey {
   const minutes = date.getHours() * 60 + date.getMinutes()

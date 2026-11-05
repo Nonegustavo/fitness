@@ -1,16 +1,20 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { LoaderCircle, Pencil, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Modal } from '../../components/Modal'
 import { Button, Field, IconButton, Select, Switch, TextInput } from '../../components/ui'
+import { db } from '../../db/schema'
 import type { MealKey } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
-import { fromCustom, logFood } from './foods'
+import { FoodAvatar } from './FoodAvatar'
+import { fromCustom, logFood, useFoodPrefs } from './foods'
 import { MacroLine } from './MacroViews'
 import { MEALS } from './nutrition'
 import {
   analyzeMacros,
   analyzePhoto,
+  findAiFood,
   itemsToText,
   macroKcal,
   preparePhoto,
@@ -73,6 +77,9 @@ export function PhotoReview({
   const [meal, setMeal] = useState(initialMeal)
   const [keep, setKeep] = useState(true)
   const [saving, setSaving] = useState(false)
+  // An item already among the AI foods shows that food's photo or emoji.
+  const foods = useLiveQuery(() => db.foods.toArray())
+  const prefs = useFoodPrefs()
 
   async function calculate(list: string) {
     setError(undefined)
@@ -207,9 +214,11 @@ export function PhotoReview({
           <ul className="space-y-2">
             {rows.map((row) => {
               const amount = withGrams(row.item, row.grams)
+              const known = findAiFood(foods ?? [], row.item.name)
               return (
                 <li key={row.key} className="rounded-xl border border-line p-3">
                   <div className="flex items-center gap-2">
+                    <FoodAvatar name={row.item.name} pref={known && prefs.get(known.id)} emoji={row.item.emoji} size="sm" />
                     <p className="min-w-0 flex-1 truncate font-medium">{row.item.name}</p>
                     <TextInput
                       inputMode="numeric"

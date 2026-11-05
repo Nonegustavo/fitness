@@ -1,12 +1,14 @@
 // Supabase Edge Function: identifies the foods in a plate photo, or in a description of the meal,
 // and estimates their weight with Claude; or, from the list of what was eaten (one item per line with
-// its amount), works out the grams and macros of each item. The Anthropic key lives in the project's
-// secrets (ANTHROPIC_API_KEY), never in the app, and only the logged-in owner of the project can call it.
+// its amount), works out the grams and macros of each item; or picks an emoji for each food of a list.
+// The Anthropic key lives in the project's secrets (ANTHROPIC_API_KEY), never in the app, and only the
+// logged-in owner of the project can call it.
 //
 // Requests (POST, JSON):
 // - {image, mediaType, hint?}: a plate photo → {items: [{name, search, grams, confidence}], notes}
 // - {text}: a description of the meal → the same answer
-// - {text, mode: 'macros'}: the list of what was eaten → {items: [{name, grams, carbs, protein, fat}], notes}
+// - {text, mode: 'macros'}: the list of what was eaten → {items: [{name, grams, carbs, protein, fat, emoji}], notes}
+// - {names, mode: 'emoji'}: up to 300 food names → {emojis: [...]}, one per name in the same order ('' when unsure)
 import Anthropic from 'npm:@anthropic-ai/sdk@1.3.0'
 
 const CORS = {
@@ -61,6 +63,7 @@ const MACROS_SYSTEM = `Você calcula os macronutrientes de uma refeição para u
 - "name": o nome do alimento como a pessoa escreveu, sem a quantidade; corrija só a grafia, com a primeira letra maiúscula ("Arroz branco", "Bife acebolado").
 - "grams": o peso do item como foi comido, em gramas. Quando a quantidade vier em gramas, use esse número; em ml, use os ml. Converta medidas caseiras pelas porções comuns no Brasil (1 concha de feijão, 1 colher de sopa de arroz, 1 fatia de pão de forma, 1 ovo…). Sem quantidade, use uma porção comum.
 - "carbs", "protein" e "fat": os gramas de carboidratos, proteína e gorduras nessa quantidade, com uma casa decimal. Use valores típicos do alimento no Brasil, no preparo que a pessoa disse ou no mais comum para ele (cozido, grelhado, frito…).
+- "emoji": um único emoji que represente o alimento como ele costuma ser visto (🍚 arroz, 🫘 feijão, 🍗 frango, 🥗 salada). Vazio quando nenhum servir bem.
 - "notes": uma frase curta sobre o que você supôs e muda os números (óleo do preparo, tipo de preparo, tamanho da porção). Vazio se não houver.
 
 Se a lista não tiver nenhum alimento, devolva "items" vazio e diga isso em "notes".`
@@ -78,8 +81,9 @@ const MACROS_SCHEMA = {
           carbs: { type: 'number' },
           protein: { type: 'number' },
           fat: { type: 'number' },
+          emoji: { type: 'string' },
         },
-        required: ['name', 'grams', 'carbs', 'protein', 'fat'],
+        required: ['name', 'grams', 'carbs', 'protein', 'fat', 'emoji'],
         additionalProperties: false,
       },
     },
@@ -87,6 +91,47 @@ const MACROS_SCHEMA = {
   },
   required: ['items', 'notes'],
   additionalProperties: false,
+}
+
+const EMOJI_SYSTEM = `Você escolhe emojis para os alimentos de um app pessoal de nutrição no Brasil. A pessoa manda uma lista numerada com os nomes dos alimentos dela, como aparecem no app (às vezes com a marca ou o preparo).
+
+- Devolva em "emojis" um item para cada nome da lista, na mesma ordem: "n" é o número do nome na lista e "emoji" é o emoji dele.
+- O emoji é um só, de comida ou bebida, e representa o alimento como ele costuma ser visto: 🍚 arroz, 🫘 feijão, 🍗 frango, 🥩 carne, 🥛 leite ou iogurte, 🧀 queijo, 🍞 pão, 🥤 refrigerante ou shake, 💊 suplemento em cápsula.
+- Quando nenhum emoji servir bem ou o nome não deixar claro o que é, devolva "emoji" vazio nesse item.`
+
+// Numbered, so an item the model skips doesn't shift the ones after it onto the wrong foods.
+const EMOJI_SCHEMA = {
+  type: 'object',
+  properties: {
+    emojis: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { n: { type: 'integer' }, emoji: { type: 'string' } },
+        required: ['n', 'emoji'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['emojis'],
+  additionalProperties: false,
+}
+
+/** A request for emojis asks for at most this many names, each cut to this length. */
+const MAX_NAMES = 300
+const MAX_NAME_LENGTH = 80
+
+/** The numbered answer as the app wants it: one emoji per name, in the order sent ('' for any left out). */
+function emojisInOrder(answer: unknown, count: number): { emojis: string[] } {
+  const emojis = Array.from({ length: count }, () => '')
+  const items = (answer as { emojis?: unknown } | null)?.emojis
+  for (const item of Array.isArray(items) ? items : []) {
+    const { n, emoji } = (item ?? {}) as { n?: unknown; emoji?: unknown }
+    if (Number.isInteger(n) && (n as number) >= 1 && (n as number) <= count && typeof emoji === 'string') {
+      emojis[(n as number) - 1] = emoji.trim()
+    }
+  }
+  return { emojis }
 }
 
 /** What one request asks Claude: the instructions, the answer's shape, how hard to think, and the meal. */
@@ -97,11 +142,30 @@ interface Analysis {
   text: string
   /** The plate photo, sent before the text. */
   image?: { data: string; mediaType: MediaType }
+  /** Turns Claude's answer into what the app gets, when they differ. */
+  finish?: (answer: unknown) => unknown
 }
 
 /** The analysis a request body asks for (see the top of the file), or why it can't be done. */
 function analysisFor(body: Record<string, unknown>): Analysis | string {
-  const { image, mediaType, hint, text, mode } = body
+  const { image, mediaType, hint, text, mode, names } = body
+  if (mode === 'emoji') {
+    // Every name keeps its place, even an empty one, so the answer lines up with the list sent.
+    const list = Array.isArray(names)
+      ? names
+          .slice(0, MAX_NAMES)
+          .map((name) => (typeof name === 'string' ? name.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH) : ''))
+      : []
+    if (!list.some(Boolean)) return 'Envie os nomes dos alimentos.'
+    const numbered = list.map((name, i) => `${i + 1}. ${name || '(sem nome)'}`).join('\n')
+    return {
+      system: EMOJI_SYSTEM,
+      schema: EMOJI_SCHEMA,
+      effort: 'low',
+      text: `Os ${list.length} alimentos:\n${numbered}`,
+      finish: (answer) => emojisInOrder(answer, list.length),
+    }
+  }
   if (mode === 'macros') {
     const list = typeof text === 'string' ? text.trim().slice(0, 2000) : ''
     if (!list) return 'Envie a lista do que foi comido, um item por linha.'
@@ -180,7 +244,8 @@ Deno.serve(async (req) => {
     if (response.stop_reason === 'max_tokens') return json({ error: 'A análise ficou incompleta. Tente de novo.' }, 502)
     const output = response.content.find((block) => block.type === 'text')
     if (!output || output.type !== 'text') return json({ error: 'Resposta vazia da análise.' }, 502)
-    return json(JSON.parse(output.text))
+    const answer: unknown = JSON.parse(output.text)
+    return json(analysis.finish ? analysis.finish(answer) : answer)
   } catch (error) {
     if (error instanceof Anthropic.RateLimitError) return json({ error: 'Muitas análises seguidas. Tente em instantes.' }, 429)
     if (error instanceof Anthropic.AuthenticationError) {

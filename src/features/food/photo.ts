@@ -3,7 +3,8 @@ import { patch, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Food, Nutrients } from '../../db/types'
 import { supabase } from '../../sync/supabase'
-import { normalize } from './foods'
+import { cleanEmoji } from './emoji'
+import { normalize, suggestEmoji } from './foods'
 import { kcalFromMacros } from './nutrition'
 
 export type Confidence = 'alta' | 'media' | 'baixa'
@@ -52,6 +53,8 @@ export interface MacroItem {
   carbs: number
   protein: number
   fat: number
+  /** The emoji Claude picked for it, when it picked one. */
+  emoji?: string
 }
 
 export interface MacroAnalysis {
@@ -75,7 +78,8 @@ export function parseMacros(value: unknown): MacroAnalysis {
       const grams = amount(item.grams)
       const [carbs, protein, fat] = [item.carbs, item.protein, item.fat].map(amount)
       if (!name || !grams || carbs === undefined || protein === undefined || fat === undefined) return []
-      return [{ name, grams: Math.max(Math.round(grams), 1), carbs, protein, fat }]
+      const emoji = cleanEmoji(item.emoji)
+      return [{ name, grams: Math.max(Math.round(grams), 1), carbs, protein, fat, ...(emoji ? { emoji } : {}) }]
     }),
   }
 }
@@ -108,14 +112,16 @@ export function findAiFood(foods: Food[], name: string): Food | undefined {
 
 /**
  * Keeps an analyzed item in the user's base: the AI food with the same name gets the new values, or a new
- * one is created. Logs copy their values, so updating a food doesn't change what was logged before.
+ * one is created, with the item's emoji when it has none yet. Logs copy their values, so updating a food
+ * doesn't change what was logged before.
  */
 export async function saveAiFood(item: MacroItem): Promise<Food> {
   const per100 = per100Of(item)
   const known = findAiFood(await db.foods.toArray(), item.name)
-  if (!known) return await save(db.foods, { name: item.name, per100, source: 'ai' })
-  await patch(db.foods, known.id, { per100 })
-  return { ...known, per100 }
+  const food = known ? { ...known, per100 } : await save(db.foods, { name: item.name, per100, source: 'ai' })
+  if (known) await patch(db.foods, known.id, { per100 })
+  if (item.emoji) await suggestEmoji(food.id, item.emoji)
+  return food
 }
 
 // Enough detail to tell the foods apart; Opus 5.5 would read up to 2576 px, at about twice the image tokens.
@@ -147,7 +153,7 @@ export async function preparePhoto(file: Blob, maxSide = MAX_SIDE): Promise<Prep
 export type MealSource = { kind: 'photo'; file: Blob } | { kind: 'text'; text: string }
 
 /** Calls one of the project's functions (supabase/functions); the error message comes from the function. */
-export async function callFunction(name: string, body: Record<string, string>): Promise<unknown> {
+export async function callFunction(name: string, body: Record<string, unknown>): Promise<unknown> {
   if (!supabase) throw new Error('Configure a sincronização para usar a análise.')
   const { data, error } = await supabase.functions.invoke(name, { body })
   if (error instanceof FunctionsHttpError) {

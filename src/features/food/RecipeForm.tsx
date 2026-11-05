@@ -7,6 +7,7 @@ import { db } from '../../db/schema'
 import type { Food, Nutrients, RecipeIngredient } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { newId } from '../../lib/ids'
+import { FoodAvatar } from './FoodAvatar'
 import { buildIndex, searchFoods, useFoodCatalog, useFoodPrefs, weighed, type FoodItem } from './foods'
 import { multiply } from './nutrition'
 import { ingredientsWeight, recipePer100, recipeTotal } from './recipes'
@@ -39,6 +40,7 @@ export function RecipeForm({
   // A recipe can't go inside itself.
   // Ingredients go in by weight, so foods measured in portions stay out.
   const index = useMemo(() => buildIndex(weighed(catalog).filter((item) => item.id !== recipe?.id)), [catalog, recipe?.id])
+  const images = useMemo(() => new Map(catalog.flatMap((item) => (item.imageUrl ? [[item.id, item.imageUrl] as const] : []))), [catalog])
   const [name, setName] = useState(recipe?.name ?? '')
   const [rows, setRows] = useState<Row[]>(() => (recipe?.ingredients ?? []).map(toRow))
   const [readyText, setReadyText] = useState(recipe?.yieldGrams ? asText(recipe.yieldGrams) : '')
@@ -120,6 +122,12 @@ export function RecipeForm({
             <ul className="divide-y divide-line">
               {rows.map((row) => (
                 <li key={row.key} className="flex items-center gap-2 py-1.5">
+                  <FoodAvatar
+                    name={row.ingredient.name}
+                    pref={prefs.get(row.ingredient.foodId)}
+                    imageUrl={images.get(row.ingredient.foodId)}
+                    size="sm"
+                  />
                   <span className="min-w-0 flex-1 truncate text-sm">{row.ingredient.name}</span>
                   <DecimalInput
                     aria-label={`Gramas de ${row.ingredient.name}`}
@@ -155,6 +163,7 @@ export function RecipeForm({
                     onClick={() => add(item)}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-surface-2"
                   >
+                    <FoodAvatar name={item.name} pref={prefs.get(item.id)} imageUrl={item.imageUrl} size="sm" />
                     <span className="min-w-0 flex-1 truncate text-sm">{item.name}</span>
                     <span className="shrink-0 text-xs text-muted">{formatNumber(item.per100.kcal, 0)} kcal/100 g</span>
                   </button>

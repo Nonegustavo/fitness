@@ -1,4 +1,4 @@
-import { Bookmark, ChevronRight, Copy, Dumbbell, Flame, Pencil, Plus, Repeat, Target, Trash2, Utensils, Zap } from 'lucide-react'
+import { Bookmark, ChevronRight, Copy, Dumbbell, Flame, Pencil, Plus, Target, Trash2, Utensils } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { DailyBars } from '../../components/DailyBars'
@@ -10,17 +10,18 @@ import { Button, Card, DecimalInput, Field, Page, Select, SkeletonCard, Skeleton
 import { useSettings, useToday } from '../../db/hooks'
 import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { FoodLog, MacroGoals, MealKey, Nutrients, QuickAmount } from '../../db/types'
+import type { FoodLog, MacroGoals, MealKey, Nutrients } from '../../db/types'
 import { dayRange, dayTime, formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { useDailyHealth } from '../garmin/recovery'
-import { logFood, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
+import { logFood, useFoodCatalog, useFoodPrefs } from './foods'
 import { closeTheDay, remainingOf, type Suggestion } from './closeDay'
 import { GoalsModal } from './GoalsModal'
 import { useExpenditure } from './useExpenditure'
-import { amountLabel, goalsFor, mealAt, multiply, OPTIONAL_NUTRIENTS, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
+import { amountLabel, goalsFor, groupMeals, mealAt, multiply, OPTIONAL_NUTRIENTS, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
 import { MacroBalance, MacroGrams, MacroLine, OtherNutrients, SplitBar } from './MacroViews'
-import { NutritionSummary } from './NutritionSummary'
+import { DayProgress } from './DayProgress'
+import { FoodAvatar, useFoodLooks, type FoodLook } from './FoodAvatar'
 import { PhotoThumb } from './PhotoThumb'
 
 const kcal = (value: number) => `${formatNumber(value, 0)} kcal`
@@ -32,12 +33,12 @@ export default function FoodPage() {
   const [params, setParams] = useSearchParams()
   const date = params.get('data') ?? today
   const settings = useSettings()
-  const logs = useFoodLogs(shiftDay(date, -1), date)
+  const logs = useFoodLogs(date, date)
   const trainingDay = useTrainingDays(date, date)?.has(date) ?? false
+  const looks = useFoodLooks()
   const [goalsOpen, setGoalsOpen] = useState(false)
 
-  const dayLogs = (logs ?? []).filter((log) => log.date === date)
-  const yesterday = (logs ?? []).filter((log) => log.date !== date)
+  const dayLogs = logs ?? []
   const totals = sumNutrients(dayLogs.map((log) => log.nutrients))
   const goals = goalsFor(settings, trainingDay)
   async function copyDay() {
@@ -64,21 +65,20 @@ export default function FoodPage() {
             <Dumbbell size={14} /> Dia de treino{settings.nutrition?.training ? ': metas de treino' : ''}
           </p>
         )}
-        {logs ? <NutritionSummary totals={totals} goals={goals} /> : <SkeletonLines lines={5} />}
-        {dayLogs.length > 0 && (
-          <div className="mt-3 border-t border-line pt-3">
-            <OtherNutrients nutrients={totals} day kcalGoal={goals?.kcal} />
-          </div>
+        {logs ? (
+          <DayProgress totals={totals} goals={goals} date={date} today={today}>
+            {!goals && <p className="mt-3 text-xs text-muted">Defina as metas de calorias e macros em Metas.</p>}
+            <EnergyLine date={date} today={today} />
+          </DayProgress>
+        ) : (
+          <SkeletonLines lines={5} />
         )}
-        <EnergyLine date={date} today={today} />
         {date !== today && dayLogs.length > 0 && (
           <Button size="sm" variant="ghost" className="mt-2" onClick={() => void copyDay()}>
             <Copy size={16} /> Copiar o dia todo para hoje
           </Button>
         )}
       </Card>
-
-      <QuickBar date={date} />
 
       {logs && date === today && goals && <CloseDayCard date={date} eaten={totals} goals={goals} />}
 
@@ -91,14 +91,13 @@ export default function FoodPage() {
             date={date}
             entries={group.entries}
             goals={goals}
+            looks={looks}
             onAdd={() => navigate(`/alimentacao/adicionar?refeicao=${group.meals[0]}&data=${date}`)}
           />
         ) : (
           <EmptyMeals
             key={group.meals.join()}
             meals={group.meals}
-            date={date}
-            yesterday={yesterday}
             onAdd={(meal) => navigate(`/alimentacao/adicionar?refeicao=${meal}&data=${date}`)}
           />
         ),
@@ -110,43 +109,6 @@ export default function FoodPage() {
 
       {goalsOpen && <GoalsModal onClose={() => setGoalsOpen(false)} />}
     </Page>
-  )
-}
-
-/** The 1-tap shortcuts: each logs its food and amount in the meal of this time of day. */
-function QuickBar({ date }: { date: DayKey }) {
-  const toast = useToast()
-  const prefs = useFoodPrefs()
-  const catalog = useFoodCatalog()
-  const quick = useMemo(() => {
-    const byId = new Map(catalog.map((item) => [item.id, item]))
-    return [...prefs.values()]
-      .flatMap((pref) => {
-        const item = pref.quick && byId.get(pref.id)
-        return item && pref.quick ? [{ item, quick: pref.quick }] : []
-      })
-      .sort((a, b) => a.item.name.localeCompare(b.item.name, 'pt-BR'))
-  }, [prefs, catalog])
-  if (quick.length === 0) return null
-
-  async function add(item: FoodItem, quick: QuickAmount) {
-    const log = await logFood(item, quick.grams, { meal: mealAt(new Date()), date, portion: quick.portion })
-    toast({
-      message: `${item.name} · ${MEAL_LABEL[log.meal]}`,
-      action: { label: 'Desfazer', onClick: () => void remove(db.foodLogs, log.id) },
-    })
-  }
-
-  return (
-    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:px-0" aria-label="Atalhos de 1 toque">
-      {quick.map(({ item, quick }) => (
-        <Button key={item.id} size="sm" className="shrink-0" onClick={() => void add(item, quick)}>
-          <Zap size={14} className="text-accent-ink" aria-hidden />
-          <span className="max-w-40 truncate">{item.name.split(',')[0]}</span>
-          <span className="text-muted">{amountLabel(quick.grams, item.unit, quick.portion).split(' · ')[0]}</span>
-        </Button>
-      ))}
-    </div>
   )
 }
 
@@ -248,59 +210,18 @@ function EnergyLine({ date, today }: { date: DayKey; today: DayKey }) {
   )
 }
 
-/** The meals in order, with the empty ones next to each other grouped (they show as thin rows). */
-function groupMeals(logs: FoodLog[]): { meals: MealKey[]; entries: FoodLog[] }[] {
-  const groups: { meals: MealKey[]; entries: FoodLog[] }[] = []
-  for (const { key } of MEALS) {
-    const entries = logs.filter((log) => log.meal === key)
-    const last = groups.at(-1)
-    if (entries.length === 0 && last && last.entries.length === 0) last.meals.push(key)
-    else groups.push({ meals: [key], entries })
-  }
-  return groups
-}
-
-/** Meals with nothing logged: one line each, with "+" and yesterday's to repeat. */
-function EmptyMeals({
-  meals,
-  date,
-  yesterday,
-  onAdd,
-}: {
-  meals: MealKey[]
-  date: DayKey
-  yesterday: FoodLog[]
-  onAdd: (meal: MealKey) => void
-}) {
-  const toast = useToast()
+/** Meals with nothing logged: one line each, with "+". */
+function EmptyMeals({ meals, onAdd }: { meals: MealKey[]; onAdd: (meal: MealKey) => void }) {
   return (
     <ul className="divide-y divide-line rounded-2xl border border-line bg-surface px-4">
-      {meals.map((meal) => {
-        const before = yesterday.filter((log) => log.meal === meal)
-        return (
-          <li key={meal} className="flex min-h-12 items-center gap-2 py-1.5">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-ink-2">{MEAL_LABEL[meal]}</p>
-              {before.length > 0 && (
-                <button
-                  type="button"
-                  className="flex max-w-full items-center gap-1 text-xs text-accent-ink"
-                  onClick={async () => {
-                    await logItems(before, meal, date)
-                    toast({ message: `${MEAL_LABEL[meal]} de ontem repetido` })
-                  }}
-                >
-                  <Repeat size={12} className="shrink-0" />
-                  <span className="truncate">Repetir ontem: {before.map((log) => log.name.split(',')[0]).join(', ')}</span>
-                </button>
-              )}
-            </div>
-            <Button size="sm" variant="ghost" aria-label={`Adicionar em ${MEAL_LABEL[meal]}`} onClick={() => onAdd(meal)}>
-              <Plus size={16} /> Adicionar
-            </Button>
-          </li>
-        )
-      })}
+      {meals.map((meal) => (
+        <li key={meal} className="flex min-h-12 items-center gap-2 py-1.5">
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-2">{MEAL_LABEL[meal]}</p>
+          <Button size="sm" variant="ghost" aria-label={`Adicionar em ${MEAL_LABEL[meal]}`} onClick={() => onAdd(meal)}>
+            <Plus size={16} /> Adicionar
+          </Button>
+        </li>
+      ))}
     </ul>
   )
 }
@@ -310,27 +231,21 @@ function MealCard({
   date,
   entries,
   goals,
+  looks,
   onAdd,
 }: {
   meal: MealKey
   date: DayKey
   entries: FoodLog[]
   goals?: MacroGoals
+  looks: (foodId: string) => FoodLook
   onAdd: () => void
 }) {
-  const toast = useToast()
-  const today = useToday()
   const removeWithUndo = useRemoveWithUndo()
   const [editing, setEditing] = useState<FoodLog | null>(null)
-  const [saving, setSaving] = useState(false)
   const [viewing, setViewing] = useState(false)
   const total = sumNutrients(entries.map((entry) => entry.nutrients))
   const photoIds = [...new Set(entries.flatMap((entry) => (entry.photoId ? [entry.photoId] : [])))]
-
-  async function copyToToday() {
-    await logItems(entries, meal, today)
-    toast({ message: `${MEAL_LABEL[meal]} copiado para hoje` })
-  }
 
   return (
     <Card
@@ -366,6 +281,7 @@ function MealCard({
           {entries.map((entry) => (
             <SwipeToDelete key={entry.id} onDelete={() => removeWithUndo(db.foodLogs, entry.id, `${entry.name} removido`)}>
               <button type="button" onClick={() => setEditing(entry)} className="flex w-full items-center gap-3 py-2 text-left">
+                <FoodAvatar name={entry.name} {...looks(entry.foodId)} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm">{entry.name}</p>
                   <p className="flex flex-wrap gap-x-2 text-xs text-muted">
@@ -378,23 +294,15 @@ function MealCard({
             </SwipeToDelete>
           ))}
         </ul>
-        <div className="mt-1 flex flex-wrap gap-1">
-          <Button size="sm" variant="ghost" onClick={() => setSaving(true)}>
-            <Bookmark size={16} /> Salvar como refeição
-          </Button>
-          {date !== today && (
-            <Button size="sm" variant="ghost" onClick={() => void copyToToday()}>
-              <Copy size={16} /> Copiar para hoje
-            </Button>
-          )}
-        </div>
       </>
       {editing && <EntryModal entry={editing} goals={goals} onClose={() => setEditing(null)} />}
       {viewing && (
         <MealModal
           meal={meal}
+          date={date}
           entries={entries}
           goals={goals}
+          looks={looks}
           onClose={() => setViewing(false)}
           onEdit={(entry) => {
             setViewing(false)
@@ -402,25 +310,34 @@ function MealCard({
           }}
         />
       )}
-      {saving && <SaveMealModal meal={meal} date={date} entries={entries} onClose={() => setSaving(false)} />}
     </Card>
   )
 }
 
-/** A meal at a glance: its calories and macros against the day's goal, and where its energy comes from. */
+/**
+ * A meal at a glance: its calories and macros against the day's goal and where its energy comes from,
+ * with what can be done to the whole meal (its time and amounts, saving it, copying it to today).
+ */
 function MealModal({
   meal,
+  date,
   entries,
   goals,
+  looks,
   onClose,
   onEdit,
 }: {
   meal: MealKey
+  date: DayKey
   entries: FoodLog[]
   goals?: MacroGoals
+  looks: (foodId: string) => FoodLook
   onClose: () => void
   onEdit: (entry: FoodLog) => void
 }) {
+  const toast = useToast()
+  const today = useToday()
+  const [saving, setSaving] = useState(false)
   const [amounts, setAmounts] = useState<Record<string, string> | null>(null)
   const [clock, setClock] = useState(() => formatTime(Math.min(...entries.map((entry) => entry.time))))
 
@@ -446,6 +363,12 @@ function MealModal({
     setAmounts(null)
   }
 
+  async function copyToToday() {
+    await logItems(entries, meal, today)
+    toast({ message: `${MEAL_LABEL[meal]} copiado para hoje` })
+    onClose()
+  }
+
   return (
     <Modal open title={`${MEAL_LABEL[meal]} · ${kcal(total.kcal)}`} onClose={onClose}>
       <div className="space-y-4">
@@ -455,7 +378,7 @@ function MealModal({
             <TextInput type="time" value={clock} onChange={(e) => void changeClock(e.target.value)} />
           </span>
         </label>
-        <MacroBalance nutrients={total} goals={goals} />
+        <MacroBalance nutrients={total} />
         <MacroGrams nutrients={total} goals={goals} />
         <OtherNutrients nutrients={total} />
         <ul className="divide-y divide-line">
@@ -463,6 +386,7 @@ function MealModal({
             <li key={entry.id}>
               {amounts ? (
                 <div className="flex items-center gap-3 py-2">
+                  <FoodAvatar name={entry.name} {...looks(entry.foodId)} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">{entry.name}</p>
                     <p className="text-xs text-muted tabular-nums">
@@ -479,16 +403,19 @@ function MealModal({
                   </div>
                 </div>
               ) : (
-                <button type="button" onClick={() => onEdit(entries[i])} className="w-full py-2 text-left">
-                  <div className="flex items-center gap-3">
-                    <p className="min-w-0 flex-1 truncate text-sm">{entry.name}</p>
-                    <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
+                <button type="button" onClick={() => onEdit(entries[i])} className="flex w-full items-start gap-3 py-2 text-left">
+                  <FoodAvatar name={entry.name} {...looks(entry.foodId)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-3">
+                      <p className="min-w-0 flex-1 truncate text-sm">{entry.name}</p>
+                      <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
+                    </div>
+                    <p className="flex flex-wrap gap-x-2 text-xs text-muted">
+                      <span>{amountLabel(entry.grams, entry.unit, entry.portion)}</span>
+                      <MacroLine nutrients={entry.nutrients} />
+                    </p>
+                    <SplitBar nutrients={entry.nutrients} className="mt-1.5 h-1" />
                   </div>
-                  <p className="flex flex-wrap gap-x-2 text-xs text-muted">
-                    <span>{amountLabel(entry.grams, entry.unit, entry.portion)}</span>
-                    <MacroLine nutrients={entry.nutrients} />
-                  </p>
-                  <SplitBar nutrients={entry.nutrients} className="mt-1.5 h-1" />
                 </button>
               )}
             </li>
@@ -502,14 +429,27 @@ function MealModal({
             </Button>
           </div>
         ) : (
-          <Button
-            className="w-full"
-            onClick={() => setAmounts(Object.fromEntries(entries.map((entry) => [entry.id, amountText(entry)])))}
-          >
-            <Pencil size={16} /> Editar quantidades
-          </Button>
+          <div className="space-y-1">
+            <Button
+              className="w-full"
+              onClick={() => setAmounts(Object.fromEntries(entries.map((entry) => [entry.id, amountText(entry)])))}
+            >
+              <Pencil size={16} /> Editar quantidades
+            </Button>
+            <div className="flex flex-wrap gap-1">
+              <Button size="sm" variant="ghost" onClick={() => setSaving(true)}>
+                <Bookmark size={16} /> Salvar como refeição
+              </Button>
+              {date !== today && (
+                <Button size="sm" variant="ghost" onClick={() => void copyToToday()}>
+                  <Copy size={16} /> Copiar para hoje
+                </Button>
+              )}
+            </div>
+          </div>
         )}
       </div>
+      {saving && <SaveMealModal meal={meal} date={date} entries={entries} onClose={() => setSaving(false)} />}
     </Modal>
   )
 }
@@ -660,7 +600,7 @@ function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGo
         ) : (
           <div className="space-y-3">
             <MacroGrams nutrients={current} goals={goals} />
-            <MacroBalance nutrients={current} goals={goals} />
+            <MacroBalance nutrients={current} />
             <button type="button" className="text-sm font-medium text-accent-ink" onClick={() => setEditingValues(true)}>
               Corrigir valores
             </button>

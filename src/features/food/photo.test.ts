@@ -84,6 +84,20 @@ describe('macros step', () => {
     expect(parseMacros({ items: 'x', notes: 3 })).toEqual({ items: [], notes: '' })
   })
 
+  it('keeps the emoji of each item when it is one', () => {
+    const [rice, beans, egg] = parseMacros({
+      items: [
+        { name: 'Arroz', grams: 150, carbs: 42, protein: 4, fat: 0.4, emoji: '🍚' },
+        { name: 'Feijão', grams: 86, carbs: 12, protein: 4, fat: 0.4, emoji: 'feijão' },
+        { name: 'Ovo', grams: 50, carbs: 0.5, protein: 6, fat: 5, emoji: '' },
+      ],
+      notes: '',
+    }).items
+    expect(rice.emoji).toBe('🍚')
+    expect(beans).not.toHaveProperty('emoji')
+    expect(egg).not.toHaveProperty('emoji')
+  })
+
   it('counts the energy from the macros, 4/4/9 kcal per gram, rounded', () => {
     expect(macroKcal(rice)).toBe(188)
     expect(macroKcal({ carbs: 0.2, protein: 0.1, fat: 0.1 })).toBe(2)
@@ -140,7 +154,14 @@ describe('AI foods', () => {
   })
 
   describe('saveAiFood', () => {
-    beforeEach(() => db.foods.clear())
+    beforeEach(() => Promise.all([db.foods.clear(), db.foodPrefs.clear()]))
+
+    it('gives the food the emoji of the analysis, never over one it has', async () => {
+      const food = await saveAiFood({ ...rice, emoji: '🍚' })
+      expect((await db.foodPrefs.get(food.id))?.emoji).toBe('🍚')
+      await saveAiFood({ ...rice, emoji: '🍛' })
+      expect((await db.foodPrefs.get(food.id))?.emoji).toBe('🍚')
+    })
 
     it('creates the food once, then gives it the new values', async () => {
       const first = await saveAiFood(rice)

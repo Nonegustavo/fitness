@@ -1,9 +1,9 @@
-import { Activity, BatteryMedium, Flame, Footprints, HeartPulse, Plus, Scale, Target, Utensils } from 'lucide-react'
+import { Activity, BatteryMedium, Flame, Footprints, HeartPulse, Scale, Target, Utensils } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link } from 'react-router'
 import { MiniBars, RangeBars, Sparkline } from '../../components/MiniCharts'
 import { toneColor } from '../../components/tone'
-import { Button, Card, SkeletonCard } from '../../components/ui'
+import { Card, SkeletonCard } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import type { DailyHealth } from '../../db/types'
 import { dayRange, daysBetween, formatDay, formatTime, parseDay, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
@@ -12,7 +12,8 @@ import { changeOver } from '../../lib/stats'
 import { useActivities } from '../activities/activities'
 import { metricSeries, useWeights } from '../body/body'
 import { eventKm, eventTitle } from '../calendar/agenda'
-import { goalsFor, mealAt, sumNutrients, useFoodLogs, useTrainingDays } from '../food/nutrition'
+import { DayProgress } from '../food/DayProgress'
+import { goalsFor, sumNutrients, useFoodLogs, useTrainingDays } from '../food/nutrition'
 import { hrvStatus } from '../garmin/recovery'
 import { weeklyVolume } from '../running/running'
 import { ActiveRestBar, average, useNextRace, useRecentHealth } from './tiles'
@@ -60,67 +61,17 @@ function perDay<T>(rows: DailyHealth[], days: DayKey[], pick: (row: DailyHealth)
   })
 }
 
-const MACROS = [
-  { key: 'carbs', label: 'Carboidratos', color: 'var(--macro-carbs)' },
-  { key: 'protein', label: 'Proteína', color: 'var(--macro-protein)' },
-  { key: 'fat', label: 'Gorduras', color: 'var(--macro-fat)' },
-] as const
-
-/** The day's food for "Em foco": calories against the goal, a bar per macro, and adding a food. */
+/** The day's food for "Em foco": the same summary as on top of the food screen. */
 export function FoodBig({ today }: { today: DayKey }) {
-  const navigate = useNavigate()
   const settings = useSettings()
   const logs = useFoodLogs(today, today)
   const trainingDay = useTrainingDays(today, today)?.has(today) ?? false
   if (!logs) return <SkeletonCard lines={5} />
   const totals = sumNutrients(logs.map((log) => log.nutrients))
-  const goals = goalsFor(settings, trainingDay)
-  const left = goals ? goals.kcal - totals.kcal : undefined
   return (
     <Card icon={Utensils} tone="food" title="Alimentação" action={detailsLink('/alimentacao', 'Refeições')}>
-      <p className="text-3xl leading-none font-semibold tabular-nums">
-        {formatNumber(totals.kcal, 0)}
-        <span className="ml-1.5 text-sm font-normal text-ink-2">
-          kcal{goals && ` de ${formatNumber(goals.kcal, 0)} · ${left! >= 0 ? `faltam ${formatNumber(left!, 0)}` : `${formatNumber(-left!, 0)} acima`}`}
-        </span>
-      </p>
-      {goals && <Bar value={totals.kcal} max={goals.kcal} color={toneColor('food')} />}
-      <ul className="mt-3 space-y-1.5">
-        {MACROS.map(({ key, label, color }) => (
-          <li key={key}>
-            <p className="flex justify-between text-xs">
-              <span className="text-ink-2">{label}</span>
-              <span className="tabular-nums">
-                {formatNumber(totals[key], 0)}
-                {goals && `/${formatNumber(goals[key], 0)}`} g
-              </span>
-            </p>
-            {goals && <Bar value={totals[key]} max={goals[key]} color={color} thin />}
-          </li>
-        ))}
-      </ul>
-      <Button
-        size="sm"
-        variant="primary"
-        className="mt-3 w-full"
-        onClick={() => navigate(`/alimentacao/adicionar?refeicao=${mealAt(new Date())}`)}
-      >
-        <Plus size={16} /> Adicionar alimento
-      </Button>
+      <DayProgress totals={totals} goals={goalsFor(settings, trainingDay)} date={today} today={today} />
     </Card>
-  )
-}
-
-function Bar({ value, max, color, thin = false }: { value: number; max: number; color: string; thin?: boolean }) {
-  const share = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0
-  return (
-    <span
-      aria-hidden
-      className={thin ? 'mt-0.5 block h-1 overflow-hidden rounded-full' : 'mt-2 block h-2 overflow-hidden rounded-full'}
-      style={{ background: `color-mix(in oklab, ${color} 22%, var(--surface-2))` }}
-    >
-      <span className="block h-full rounded-full" style={{ width: `${share * 100}%`, background: color }} />
-    </span>
   )
 }
 

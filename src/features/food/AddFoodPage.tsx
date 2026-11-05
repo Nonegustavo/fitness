@@ -1,5 +1,5 @@
-import { Camera, CookingPot, MessageSquareText, Plus, ScanBarcode, ScanText, Star, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { Camera, CookingPot, MessageSquareText, Plus, ScanBarcode, ScanText, Star, Trash2, Utensils, type LucideIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Modal } from '../../components/Modal'
 import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
@@ -12,7 +12,10 @@ import type { FoodLog, FoodPref, MealKey, SavedMeal } from '../../db/types'
 import { formatTime, shiftDay } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import { useSyncState } from '../../sync/controller'
+import { suggestFoodEmojis } from './aiEmojis'
 import { BarcodeScanner } from './BarcodeScanner'
+import { CameraCapture } from './Camera'
+import { FoodAvatar } from './FoodAvatar'
 import { FoodForm, type FoodDraft } from './FoodForm'
 import { buildIndex, fromCustom, logFood, recentForMeal, searchFoods, usualAmount, TACO_SOURCE, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
 import { amountLabel, logItems, MEAL_LABEL, mealAt, MEALS, nutrientsFor, sumNutrients, useFoodLogs, useSavedMeals } from './nutrition'
@@ -22,7 +25,10 @@ import { PhotoReview } from './PhotoReview'
 import { PortionModal } from './PortionModal'
 import { RecipeForm } from './RecipeForm'
 
-type Tab = 'recent' | 'favorites' | 'meals'
+type Tab = 'favorites' | 'meals' | 'recent'
+
+/** What the camera button photographs: the plate, a barcode, or a nutrition table. */
+type CameraMode = 'plate' | 'barcode' | 'label'
 
 const isMeal = (value: string | null): value is MealKey => MEALS.some((meal) => meal.key === value)
 
@@ -30,28 +36,44 @@ export default function AddFoodPage() {
   const toast = useToast()
   const removeWithUndo = useRemoveWithUndo()
   const today = useToday()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const date = params.get('data') ?? today
   const requested = params.get('refeicao')
   const [meal, setMeal] = useState<MealKey>(isMeal(requested) ? requested : mealAt(new Date()))
   // When it was eaten; null follows the clock (logged now).
   const [time, setTime] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [tab, setTab] = useState<Tab>('recent')
+  const [tab, setTab] = useState<Tab>('favorites')
   const [selected, setSelected] = useState<FoodItem | null>(null)
   const [draft, setDraft] = useState<FoodDraft | null>(null)
-  const [scanning, setScanning] = useState(false)
   const [review, setReview] = useState<MealSource | null>(null)
   const [describing, setDescribing] = useState(false)
   const [creatingRecipe, setCreatingRecipe] = useState(false)
-  const [analysisHelp, setAnalysisHelp] = useState(false)
-  const search = useRef<HTMLInputElement>(null)
-  const photoInput = useRef<HTMLInputElement>(null)
-  const labelInput = useRef<HTMLInputElement>(null)
-  const [labelFile, setLabelFile] = useState<File | null>(null)
+  const [labelPhoto, setLabelPhoto] = useState<Blob | null>(null)
   const sync = useSyncState()
   // The analysis runs in a Supabase function, so it needs the sync set up and a login.
   const canAnalyze = sync.configured && !!sync.email
+  // "?camera=prato" (the "+" menu's plate photo) opens the camera right away. The login is checked once
+  // the photo is taken: right after the app opens, it may not be known yet.
+  const fromMenu = params.get('camera') === 'prato'
+  const [choosing, setChoosing] = useState(false)
+  const [camera, setCamera] = useState<CameraMode | null>(fromMenu ? 'plate' : null)
+  const [analysisHelp, setAnalysisHelp] = useState(false)
+
+  useEffect(() => {
+    suggestFoodEmojis()
+    // Once: going back to this page later shouldn't open the camera again.
+    if (fromMenu) {
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current)
+          next.delete('camera')
+          return next
+        },
+        { replace: true },
+      )
+    }
+  }, [])
 
   const catalog = useFoodCatalog()
   const prefs = useFoodPrefs()
@@ -74,13 +96,13 @@ export default function AddFoodPage() {
   const favorites = fromPrefs((p) => p.favorite === 1, (a, b) => (byId.get(a.id)?.name ?? '').localeCompare(byId.get(b.id)?.name ?? ''))
   const recipes = catalog.filter((item) => item.source === 'recipe').sort((a, b) => a.name.localeCompare(b.name))
 
+  // The search keeps no focus: the keyboard only comes up when the field is tapped.
   const onLogged = (log: FoodLog) => {
     toast({
       message: `${log.name} · ${amountLabel(log.grams, log.unit, log.portion).split(' · ')[0]} · ${MEAL_LABEL[log.meal]}`,
       action: { label: 'Desfazer', onClick: () => void remove(db.foodLogs, log.id) },
     })
     setQuery('')
-    search.current?.focus()
   }
 
   /** The "+" of a list: the usual amount, without opening the food. */
@@ -91,7 +113,7 @@ export default function AddFoodPage() {
 
   const onBarcode = useCallback(
     async (code: string) => {
-      setScanning(false)
+      setCamera(null)
       const known = await db.foods.where('barcode').equals(code).filter((food) => food.deleted === 0).first()
       if (known) {
         setSelected(fromCustom(known))
@@ -114,6 +136,13 @@ export default function AddFoodPage() {
     [toast],
   )
 
+  /** The camera for what was picked; the plate and the label are read by Claude, which needs the login. */
+  function openCamera(mode: CameraMode) {
+    setChoosing(false)
+    if (mode !== 'barcode' && !canAnalyze) setAnalysisHelp(true)
+    else setCamera(mode)
+  }
+
   async function addSavedMeal(saved: SavedMeal) {
     await logItems(saved.items, meal, date, time ?? undefined)
     toast({ message: `${saved.name} · ${MEAL_LABEL[meal]}` })
@@ -131,21 +160,12 @@ export default function AddFoodPage() {
       <Card>
         <div className="flex gap-2">
           <TextInput
-            ref={search}
             type="search"
-            autoFocus
             placeholder="Buscar: arroz, frango grelhado…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <IconButton label="Ler código de barras" className="size-11 border border-line" onClick={() => setScanning(true)}>
-            <ScanBarcode size={20} />
-          </IconButton>
-          <IconButton
-            label="Foto do prato"
-            className="size-11 border border-line"
-            onClick={() => (canAnalyze ? photoInput.current?.click() : setAnalysisHelp(true))}
-          >
+          <IconButton label="Câmera: prato, código de barras ou tabela" className="size-11 border border-line" onClick={() => setChoosing(true)}>
             <Camera size={20} />
           </IconButton>
           <IconButton
@@ -155,17 +175,6 @@ export default function AddFoodPage() {
           >
             <MessageSquareText size={20} />
           </IconButton>
-          <input
-            ref={photoInput}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              if (file) setReview({ kind: 'photo', file })
-              event.target.value = ''
-            }}
-          />
         </div>
         <div className="mt-3 grid grid-cols-[1fr_8.5rem] gap-3">
           <Field label="Refeição">
@@ -201,20 +210,12 @@ export default function AddFoodPage() {
             value={tab}
             onChange={setTab}
             options={[
-              { value: 'recent', label: 'Recentes' },
               { value: 'favorites', label: 'Favoritos' },
               { value: 'meals', label: 'Refeições' },
+              { value: 'recent', label: 'Recentes' },
             ]}
           />
           <div className="mt-3">
-            {tab === 'recent' && (
-              <>
-                {recent.length > 0 && (
-                  <p className="mb-1 text-xs text-muted">Os mais comuns no {MEAL_LABEL[meal].toLowerCase()} primeiro.</p>
-                )}
-                {list(recent, 'Os alimentos que você registrar aparecem aqui.')}
-              </>
-            )}
             {tab === 'favorites' && list(favorites, 'Toque na estrela de um alimento para favoritá-lo.')}
             {tab === 'meals' && (
               <>
@@ -241,10 +242,18 @@ export default function AddFoodPage() {
                     })}
                   </ul>
                 ) : (
-                  <Empty>Use “Salvar como refeição” numa refeição do dia para reaproveitá-la aqui.</Empty>
+                  <Empty>Abra uma refeição do dia e toque em “Salvar como refeição” para reaproveitá-la aqui.</Empty>
                 )}
                 <h3 className="mt-4 mb-1 text-sm font-semibold text-ink-2">Receitas</h3>
                 {list(recipes, 'Monte uma receita com os ingredientes e registre por porção ou em gramas.')}
+              </>
+            )}
+            {tab === 'recent' && (
+              <>
+                {recent.length > 0 && (
+                  <p className="mb-1 text-xs text-muted">Os mais comuns no {MEAL_LABEL[meal].toLowerCase()} primeiro.</p>
+                )}
+                {list(recent, 'Os alimentos que você registrar aparecem aqui.')}
               </>
             )}
           </div>
@@ -255,25 +264,6 @@ export default function AddFoodPage() {
             <Button size="sm" variant="ghost" onClick={() => setCreatingRecipe(true)}>
               <CookingPot size={16} /> Criar receita
             </Button>
-            {canAnalyze && (
-              <Button size="sm" variant="ghost" onClick={() => labelInput.current?.click()}>
-                <ScanText size={16} /> Ler tabela nutricional
-              </Button>
-            )}
-            <input
-              ref={labelInput}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                if (file) {
-                  setLabelFile(file)
-                  setDraft({})
-                }
-                event.target.value = ''
-              }}
-            />
           </div>
         </Card>
       )}
@@ -289,9 +279,7 @@ export default function AddFoodPage() {
           initialMeal={meal}
           date={date}
           time={time ?? undefined}
-          lastGrams={prefs.get(selected.id)?.lastGrams}
-          favorite={prefs.get(selected.id)?.favorite === 1}
-          quick={prefs.get(selected.id)?.quick}
+          pref={prefs.get(selected.id)}
           onClose={() => setSelected(null)}
           onLogged={onLogged}
           onEdited={setSelected}
@@ -312,15 +300,40 @@ export default function AddFoodPage() {
       {draft && (
         <FoodForm
           initial={draft}
-          labelPhoto={labelFile ?? undefined}
+          labelPhoto={labelPhoto ?? undefined}
           onClose={() => {
             setDraft(null)
-            setLabelFile(null)
+            setLabelPhoto(null)
           }}
           onSaved={(food) => setSelected(fromCustom(food))}
         />
       )}
-      {scanning && <BarcodeScanner onClose={() => setScanning(false)} onDetected={onBarcode} />}
+      {choosing && <CameraChoice onChoose={openCamera} onClose={() => setChoosing(false)} />}
+      {camera === 'plate' && (
+        <CameraCapture
+          title="Foto do prato"
+          hint="O prato inteiro, de cima."
+          onClose={() => setCamera(null)}
+          onCapture={(file) => {
+            setCamera(null)
+            if (canAnalyze) setReview({ kind: 'photo', file })
+            else setAnalysisHelp(true)
+          }}
+        />
+      )}
+      {camera === 'label' && (
+        <CameraCapture
+          title="Tabela nutricional"
+          hint="A tabela inteira, reta e com luz."
+          onClose={() => setCamera(null)}
+          onCapture={(file) => {
+            setCamera(null)
+            setLabelPhoto(file)
+            setDraft({})
+          }}
+        />
+      )}
+      {camera === 'barcode' && <BarcodeScanner onClose={() => setCamera(null)} onDetected={onBarcode} />}
       {review && (
         <PhotoReview
           source={review}
@@ -345,6 +358,39 @@ export default function AddFoodPage() {
         </Modal>
       )}
     </Page>
+  )
+}
+
+const CAMERA_CHOICES: { mode: CameraMode; label: string; detail: string; icon: LucideIcon }[] = [
+  { mode: 'plate', label: 'Prato', detail: 'A IA lista os alimentos e os gramas', icon: Utensils },
+  { mode: 'barcode', label: 'Código de barras', detail: 'O produto no Open Food Facts', icon: ScanBarcode },
+  { mode: 'label', label: 'Tabela nutricional', detail: 'A IA lê os valores da embalagem', icon: ScanText },
+]
+
+/** What to photograph: each choice opens the in-app camera for it. */
+function CameraChoice({ onChoose, onClose }: { onChoose: (mode: CameraMode) => void; onClose: () => void }) {
+  return (
+    <Modal open title="Câmera" onClose={onClose}>
+      <ul className="space-y-2">
+        {CAMERA_CHOICES.map(({ mode, label, detail, icon: Icon }) => (
+          <li key={mode}>
+            <button
+              type="button"
+              onClick={() => onChoose(mode)}
+              className="flex w-full items-center gap-3 rounded-xl bg-surface-2 p-3 text-left transition hover:brightness-110 active:scale-[0.98]"
+            >
+              <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface text-ink-2">
+                <Icon size={20} aria-hidden />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{label}</span>
+                <span className="block truncate text-xs text-muted">{detail}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Modal>
   )
 }
 
@@ -409,6 +455,7 @@ function FoodList({
         return (
           <li key={item.id} className="flex items-center gap-1">
             <button type="button" onClick={() => onSelect(item)} className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left">
+              <FoodAvatar name={item.name} pref={pref} imageUrl={item.imageUrl} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{item.name}</p>
                 <p className="truncate text-xs text-muted">{item.detail}</p>

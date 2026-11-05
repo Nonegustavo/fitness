@@ -7,6 +7,9 @@ import { db } from '../../db/schema'
 import type { Food, FoodUnit, Nutrients, Portion } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { useSyncState } from '../../sync/controller'
+import { CameraCapture } from './Camera'
+import { updatePref } from './foods'
+import { LookButton, type Look } from './LookEditor'
 import { fillFromLabel, readLabel } from './label'
 import { MacroBalance } from './MacroViews'
 import { kcalFromMacros, multiply } from './nutrition'
@@ -24,6 +27,8 @@ export interface FoodDraft {
   source?: Food['source']
   /** A TACO food being replaced by the user's own version of it. */
   basedOn?: string
+  /** The product's picture from Open Food Facts. */
+  imageUrl?: string
 }
 
 const FIELDS = [
@@ -49,13 +54,16 @@ export function FoodForm({
   food,
   initial,
   labelPhoto,
+  look: startLook,
   onClose,
   onSaved,
 }: {
   food?: Food | null
   initial?: FoodDraft
   /** A photo of the package's nutrition table, read as soon as the form opens. */
-  labelPhoto?: File
+  labelPhoto?: Blob
+  /** The food's photo and emoji as they are (a TACO food's, for the user's version of it). */
+  look?: Look
   onClose: () => void
   onSaved?: (food: Food) => void
 }) {
@@ -69,6 +77,7 @@ export function FoodForm({
         unit: food.unit,
         source: food.source,
         basedOn: food.basedOn,
+        imageUrl: food.imageUrl,
         // Shown per portion again, as it was typed.
         ...(food.labelPerPortion && food.portions?.[0] && food.unit !== 'portion'
           ? { per100: multiply(food.per100, food.portions[0].grams / 100), perPortion: true }
@@ -87,15 +96,17 @@ export function FoodForm({
   )
   const [portionLabel, setPortionLabel] = useState(start.portion?.label ?? '')
   const [portionGrams, setPortionGrams] = useState(asText(start.portion?.grams))
+  // Saved with the food, in its prefs; the photo itself is kept as soon as it's taken.
+  const [look, setLook] = useState<Look>({ photoId: startLook?.photoId, emoji: startLook?.emoji })
   const sync = useSyncState()
   const canRead = sync.configured && !!sync.email && !inPortions
-  const labelInput = useRef<HTMLInputElement>(null)
+  const [camera, setCamera] = useState(false)
   const [reading, setReading] = useState(false)
   const [labelNotes, setLabelNotes] = useState<string[]>([])
   const [labelError, setLabelError] = useState<string>()
 
   /** Fills the form from a photo of the nutrition table; nothing is saved until "Salvar". */
-  async function applyLabel(file: File) {
+  async function applyLabel(file: Blob) {
     setReading(true)
     setLabelError(undefined)
     setLabelNotes([])
@@ -206,13 +217,14 @@ export function FoodForm({
       labelPerPortion: perPortion || undefined,
       source: start.source ?? 'custom',
       basedOn: start.basedOn,
+      imageUrl: start.imageUrl,
     })
-    // A new version of a TACO food keeps its favorite star and last amount.
-    if (!food && start.basedOn) {
-      const pref = await db.foodPrefs.get(start.basedOn)
-      if (pref && !pref.deleted) {
-        await save(db.foodPrefs, { id: saved.id, favorite: pref.favorite, lastGrams: pref.lastGrams, lastUsedAt: pref.lastUsedAt })
-      }
+    // A new version of a TACO food keeps its favorite star, last amount, photo and emoji.
+    const base = !food && start.basedOn ? await db.foodPrefs.get(start.basedOn) : undefined
+    if (base && !base.deleted) {
+      await updatePref(saved.id, { favorite: base.favorite, lastGrams: base.lastGrams, lastUsedAt: base.lastUsedAt, ...look })
+    } else if (look.photoId !== startLook?.photoId || look.emoji !== startLook?.emoji) {
+      await updatePref(saved.id, look)
     }
     onSaved?.(saved)
     onClose()
@@ -240,22 +252,11 @@ export function FoodForm({
           <div className="rounded-xl bg-surface-2 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-ink-2">Tem a embalagem aí?</span>
-              <Button size="sm" disabled={reading} onClick={() => labelInput.current?.click()}>
+              <Button size="sm" disabled={reading} onClick={() => setCamera(true)}>
                 {reading ? <LoaderCircle size={16} className="animate-spin" /> : <ScanText size={16} />}
                 {reading ? 'Lendo a tabela…' : 'Ler a tabela por foto'}
               </Button>
             </div>
-            <input
-              ref={labelInput}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                if (file) void applyLabel(file)
-                event.target.value = ''
-              }}
-            />
             {labelError && <p className="mt-2 text-xs text-critical">{labelError}</p>}
             {labelNotes.length > 0 && (
               <ul className="mt-2 space-y-1 text-xs text-ink-2">
@@ -269,9 +270,19 @@ export function FoodForm({
             )}
           </div>
         )}
-        <Field label="Nome">
-          <TextInput autoFocus={!start.name && !labelPhoto} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Pão de forma integral" />
-        </Field>
+        <div className="flex items-end gap-3">
+          <LookButton
+            name={name.trim() || 'Novo alimento'}
+            look={look}
+            imageUrl={start.imageUrl}
+            onChange={(change) => setLook((current) => ({ ...current, ...change }))}
+          />
+          <div className="min-w-0 flex-1">
+            <Field label="Nome">
+              <TextInput autoFocus={!start.name && !labelPhoto} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Pão de forma integral" />
+            </Field>
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Marca">
             <TextInput value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Opcional" />
@@ -341,6 +352,17 @@ export function FoodForm({
           </Button>
         </div>
       </form>
+      {camera && (
+        <CameraCapture
+          title="Tabela nutricional"
+          hint="A tabela inteira, reta e com luz."
+          onCapture={(picture) => {
+            setCamera(false)
+            void applyLabel(picture)
+          }}
+          onClose={() => setCamera(false)}
+        />
+      )}
     </Modal>
   )
 }

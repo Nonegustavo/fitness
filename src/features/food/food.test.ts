@@ -1,9 +1,21 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
-import { save } from '../../db/repo'
+import { patch, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { FoodPref, Settings } from '../../db/types'
-import { buildIndex, fromCustom, searchFoods, TACO_FOODS, weighed, weighedVersion, weighFood } from './foods'
+import {
+  buildIndex,
+  fromCustom,
+  logFood,
+  searchFoods,
+  suggestEmoji,
+  TACO_FOODS,
+  toggleFavorite,
+  updatePref,
+  weighed,
+  weighedVersion,
+  weighFood,
+} from './foods'
 import { amountLabel, goalsFor, kcalFromMacros, mealAt, nutrientsFor, scale, sumNutrients } from './nutrition'
 import { parseProduct } from './openFoodFacts'
 
@@ -113,14 +125,14 @@ describe('a food measured in portions, logged in grams', () => {
     expect(weighedVersion({ ...food, portions: [{ label: 'porção', grams: 30 }] }, 45).portions).toEqual([{ label: 'porção', grams: 45 }])
   })
 
-  it('saves the weight in the food, and its shortcut and last amount become grams', async () => {
+  it('saves the weight in the food, and its last amount becomes grams', async () => {
     const bread = await save(db.foods, {
       name: 'Pão de forma',
       per100: { kcal: 120, protein: 5, carbs: 21, fat: 1.8 },
       unit: 'portion',
       source: 'health-connect',
     })
-    await save(db.foodPrefs, { id: bread.id, favorite: 1, lastGrams: 2, quick: { grams: 1 } })
+    await save(db.foodPrefs, { id: bread.id, favorite: 1, lastGrams: 2, quick: { grams: 1 }, emoji: '🍞' })
     const item = await weighFood(fromCustom(bread), 50)
     expect(item).toMatchObject({ id: bread.id, unit: undefined, portions: [{ label: 'porção', grams: 50 }] })
 
@@ -128,11 +140,54 @@ describe('a food measured in portions, logged in grams', () => {
     expect(stored && 'unit' in stored).toBe(false)
     expect(stored).toMatchObject({ source: 'health-connect', dirty: 1, portions: [{ label: 'porção', grams: 50 }] })
     expect(stored?.per100.kcal).toBeCloseTo(240)
-    expect(await db.foodPrefs.get(bread.id)).toMatchObject({
-      favorite: 1,
-      lastGrams: 100,
-      quick: { grams: 50, portion: { label: 'porção', grams: 50 } },
+    // The old 1-tap shortcut is no longer offered: its data stays as it was.
+    expect(await db.foodPrefs.get(bread.id)).toMatchObject({ favorite: 1, lastGrams: 100, quick: { grams: 1 }, emoji: '🍞' })
+  })
+})
+
+describe('editing a food', () => {
+  it('never changes what was logged before', async () => {
+    const yogurt = await save(db.foods, {
+      name: 'Iogurte natural',
+      per100: { kcal: 61, protein: 3.5, carbs: 4.7, fat: 3.2 },
+      source: 'custom',
     })
+    const log = await logFood(fromCustom(yogurt), 170, { meal: 'breakfast', date: '2026-11-04', time: '08:00' })
+
+    // A new name and values (the food form saves the whole food again), then the patch of an analysis.
+    await save(db.foods, { ...yogurt, name: 'Iogurte grego', per100: { kcal: 120, protein: 9, carbs: 5, fat: 7 } })
+    await patch(db.foods, yogurt.id, { per100: { kcal: 90, protein: 6, carbs: 5, fat: 5 } })
+
+    const stored = await db.foodLogs.get(log.id)
+    expect(stored?.name).toBe('Iogurte natural')
+    expect(stored?.grams).toBe(170)
+    expect(stored?.nutrients.kcal).toBeCloseTo(103.7)
+    expect(stored?.nutrients.protein).toBeCloseTo(5.95)
+  })
+})
+
+describe('food prefs', () => {
+  it('keep every other field when one changes', async () => {
+    await save(db.foodPrefs, { id: 'taco:1', favorite: 0, lastGrams: 150, quick: { grams: 1 }, photoId: 'photo', emoji: '🍚' })
+    await toggleFavorite('taco:1')
+    expect(await db.foodPrefs.get('taco:1')).toMatchObject({
+      favorite: 1,
+      lastGrams: 150,
+      quick: { grams: 1 },
+      photoId: 'photo',
+      emoji: '🍚',
+    })
+    await updatePref('taco:1', { photoId: undefined })
+    expect(await db.foodPrefs.get('taco:1')).toMatchObject({ favorite: 1, photoId: undefined, emoji: '🍚' })
+  })
+
+  it('take a suggested emoji only when the food has none, an empty one included', async () => {
+    await suggestEmoji('taco:2', '🫘')
+    await suggestEmoji('taco:2', '🍲')
+    expect((await db.foodPrefs.get('taco:2'))?.emoji).toBe('🫘')
+    await save(db.foodPrefs, { id: 'taco:3', favorite: 1, emoji: '' })
+    await suggestEmoji('taco:3', '🥩')
+    expect(await db.foodPrefs.get('taco:3')).toMatchObject({ favorite: 1, emoji: '' })
   })
 })
 
@@ -156,6 +211,15 @@ describe('parseProduct', () => {
       per100: { kcal: 61, protein: 3.5, carbs: 4.7, fat: 3.2, fiber: undefined },
       portion: { label: '1 porção (170 g)', grams: 170 },
     })
+  })
+
+  it('reads the small front picture, or a larger one, only over https', () => {
+    const nutriments = { 'energy-kcal_100g': 61, proteins_100g: 3.5, carbohydrates_100g: 4.7, fat_100g: 3.2 }
+    const small = 'https://images.openfoodfacts.org/images/products/789/front_pt.4.200.jpg'
+    const large = 'https://images.openfoodfacts.org/images/products/789/front_pt.4.400.jpg'
+    expect(parseProduct({ nutriments, image_front_small_url: small, image_front_url: large })?.imageUrl).toBe(small)
+    expect(parseProduct({ nutriments, image_front_url: large })?.imageUrl).toBe(large)
+    expect(parseProduct({ nutriments, image_url: 'http://example.com/a.jpg' })?.imageUrl).toBeUndefined()
   })
 
   it('falls back to kJ and rejects products without macros', () => {

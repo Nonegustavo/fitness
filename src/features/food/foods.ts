@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo } from 'react'
 import { alive, patch, save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { Food, FoodLog, FoodPref, FoodUnit, MealKey, Nutrients, Portion, QuickAmount } from '../../db/types'
+import type { Food, FoodLog, FoodPref, FoodUnit, MealKey, Nutrients, Portion, Synced } from '../../db/types'
 import { dayTime, formatTime, type DayKey } from '../../lib/dates'
 import { multiply, nutrientsFor } from './nutrition'
 import tacoData from './taco.json'
@@ -21,6 +21,8 @@ export interface FoodItem {
   portions: Portion[]
   unit?: FoodUnit
   source: 'taco' | Food['source']
+  /** The product's picture, for foods read by barcode. */
+  imageUrl?: string
 }
 
 type TacoRow = [id: number, name: string, category: number, kcal: number, protein: number, carbs: number, fat: number, fiber: number | null]
@@ -52,6 +54,7 @@ export function fromCustom(food: Food): FoodItem {
     portions: food.portions ?? [],
     unit: food.unit,
     source: food.source,
+    imageUrl: food.imageUrl,
   }
 }
 
@@ -82,18 +85,15 @@ export function weighedVersion(
 
 /**
  * Saves what one portion of a food measured in portions weighs, so it's measured in grams from then on
- * (see weighedVersion). Its 1-tap shortcut and last amount, counted in portions, become the same amounts
- * in grams. Logs keep their own values and unit, so the past doesn't change.
+ * (see weighedVersion). Its last amount, counted in portions, becomes the same amount in grams. Logs keep
+ * their own values and unit, so the past doesn't change.
  */
 export async function weighFood(item: FoodItem, portionGrams: number): Promise<FoodItem> {
   const change = weighedVersion(item, portionGrams)
   await patch(db.foods, item.id, change)
   const pref = await db.foodPrefs.get(item.id)
-  if (pref && !pref.deleted && (pref.quick || pref.lastGrams !== undefined)) {
-    await updatePref(item.id, {
-      lastGrams: pref.lastGrams === undefined ? undefined : pref.lastGrams * portionGrams,
-      quick: pref.quick && { grams: pref.quick.grams * portionGrams, portion: change.portions[0] },
-    })
+  if (pref && !pref.deleted && pref.lastGrams !== undefined) {
+    await updatePref(item.id, { lastGrams: pref.lastGrams * portionGrams })
   }
   return { ...item, ...change }
 }
@@ -194,18 +194,11 @@ export function usualAmount(item: FoodItem, lastGrams?: number): { grams: number
   return { grams: lastGrams ?? (item.unit === 'portion' ? 1 : (portion?.grams ?? 100)), portion }
 }
 
-/** Changes some of a food's preferences, keeping the rest. */
-async function updatePref(foodId: string, change: Partial<Omit<FoodPref, 'id'>>): Promise<void> {
+/** Changes some of a food's preferences, keeping the rest (old fields included, such as the shortcut). */
+export async function updatePref(foodId: string, change: Partial<Omit<FoodPref, keyof Synced>>): Promise<void> {
   const pref = await db.foodPrefs.get(foodId)
-  const current = pref && !pref.deleted ? pref : undefined
-  await save(db.foodPrefs, {
-    id: foodId,
-    favorite: current?.favorite ?? 0,
-    lastGrams: current?.lastGrams,
-    lastUsedAt: current?.lastUsedAt,
-    quick: current?.quick,
-    ...change,
-  })
+  const current: Partial<FoodPref> = pref && !pref.deleted ? pref : {}
+  await save(db.foodPrefs, { favorite: 0, ...current, ...change, id: foodId })
 }
 
 export async function toggleFavorite(foodId: string): Promise<void> {
@@ -213,8 +206,15 @@ export async function toggleFavorite(foodId: string): Promise<void> {
   await updatePref(foodId, { favorite: pref?.favorite && !pref.deleted ? 0 : 1 })
 }
 
-/** Makes a food a 1-tap shortcut with this amount, or removes the shortcut. */
-export const setQuick = (foodId: string, quick: QuickAmount | undefined): Promise<void> => updatePref(foodId, { quick })
+/**
+ * Gives a food the emoji suggested for it (by the analysis), unless it already has one, maybe chosen by
+ * the user. An empty one is kept too: it says the food was asked about, and the name's guess shows.
+ */
+export async function suggestEmoji(foodId: string, emoji: string): Promise<void> {
+  const pref = await db.foodPrefs.get(foodId)
+  if (pref && !pref.deleted && pref.emoji !== undefined) return
+  await updatePref(foodId, { emoji })
+}
 
 /**
  * Foods for a meal: the ones eaten most often in that meal lately first (breakfast foods in the

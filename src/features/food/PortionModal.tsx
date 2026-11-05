@@ -1,13 +1,14 @@
-import { Pencil, Star, Zap } from 'lucide-react'
+import { Pencil, Star } from 'lucide-react'
 import { useState } from 'react'
 import { Modal } from '../../components/Modal'
-import { Button, cx, DecimalInput, Field, Segmented, Select, Switch } from '../../components/ui'
+import { Button, cx, DecimalInput, Field, Segmented, Select } from '../../components/ui'
 import { db } from '../../db/schema'
-import type { Food, FoodLog, MealKey, QuickAmount } from '../../db/types'
+import type { Food, FoodLog, FoodPref, MealKey } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { FoodForm } from './FoodForm'
-import { fromCustom, logFood, setQuick, toggleFavorite, weighFood, type FoodItem } from './foods'
+import { LookButton } from './LookEditor'
+import { fromCustom, logFood, toggleFavorite, updatePref, weighFood, type FoodItem } from './foods'
 import { MacroBalance, MacroGrams, MacroLine, OtherNutrients } from './MacroViews'
 import { amountLabel, MEALS, nutrientsFor, portionCount, useDayGoals } from './nutrition'
 import { RecipeForm } from './RecipeForm'
@@ -28,15 +29,14 @@ const QUICK_PORTIONS = [0.5, 1, 1.5, 2]
 /**
  * How much of a food (grams, or portions for a food without a weight), in which meal; shows the nutrients
  * as you type. A food without a weight can be logged in grams too, once you say what a portion weighs.
+ * Its photo and emoji are changed here too, for any food.
  */
 export function PortionModal({
   item,
   initialMeal,
   date,
   time,
-  lastGrams,
-  favorite,
-  quick,
+  pref,
   onClose,
   onLogged,
   onEdited,
@@ -46,15 +46,15 @@ export function PortionModal({
   date: DayKey
   /** When it was eaten ("12:30"); now when unset. */
   time?: string
-  lastGrams?: number
-  favorite: boolean
-  /** The 1-tap shortcut's amount, when the food is one. */
-  quick?: QuickAmount
+  /** The food's preferences: favorite, last amount, photo and emoji. */
+  pref?: FoodPref
   onClose: () => void
   onLogged: (log: FoodLog) => void
   /** The food as saved after an edit (or the user's new version of a TACO food). */
   onEdited?: (item: FoodItem) => void
 }) {
+  const lastGrams = pref?.lastGrams
+  const favorite = pref?.favorite === 1
   const inPortions = item.unit === 'portion'
   // A food with a weight and a portion ("1 fatia", 25 g) is counted in portions, or in grams on request.
   const portion = inPortions ? undefined : item.portions[0]
@@ -127,18 +127,21 @@ export function PortionModal({
 
   return (
     <Modal open title={item.name} onClose={onClose}>
-      <p className="-mt-1 mb-4 flex flex-wrap gap-x-2 text-xs text-muted">
-        <span>
-          {SOURCE[item.source]} ·{' '}
-          {inPortions
-            ? `por porção${portionWeight ? ` (${formatNumber(portionWeight)} g)` : ''}`
-            : portion && byPortion
-              ? `por ${portion.label} (${formatNumber(portion.grams)} g)`
-              : 'por 100 g'}
-          : {formatNumber(reference.kcal, 0)} kcal
-        </span>
-        <MacroLine nutrients={reference} />
-      </p>
+      <div className="-mt-1 mb-4 flex items-center gap-3">
+        <LookButton name={item.name} look={pref} imageUrl={item.imageUrl} onChange={(change) => void updatePref(item.id, change)} />
+        <p className="flex min-w-0 flex-1 flex-wrap gap-x-2 text-xs text-muted">
+          <span>
+            {SOURCE[item.source]} ·{' '}
+            {inPortions
+              ? `por porção${portionWeight ? ` (${formatNumber(portionWeight)} g)` : ''}`
+              : portion && byPortion
+                ? `por ${portion.label} (${formatNumber(portion.grams)} g)`
+                : 'por 100 g'}
+            : {formatNumber(reference.kcal, 0)} kcal
+          </span>
+          <MacroLine nutrients={reference} />
+        </p>
+      </div>
       {(portion || inPortions) && (
         <div className="mb-3">
           <Segmented
@@ -222,7 +225,7 @@ export function PortionModal({
       <div className="mt-4 space-y-3">
         <MacroGrams nutrients={amount} goals={goals} />
         <OtherNutrients nutrients={amount} />
-        {valid && <MacroBalance nutrients={amount} goals={goals} />}
+        {valid && <MacroBalance nutrients={amount} />}
       </div>
 
       <div className="mt-4">
@@ -236,28 +239,6 @@ export function PortionModal({
           </Select>
         </Field>
       </div>
-
-      <label className="mt-4 flex items-center justify-between gap-3 text-sm">
-        <span className="flex items-center gap-2">
-          <Zap size={16} className="text-accent-ink" aria-hidden />
-          <span>
-            Atalho de 1 toque
-            <span className="block text-xs text-muted">
-              {quick
-                ? `Na tela de alimentação, com ${amountLabel(quick.grams, item.unit, quick.portion)}`
-                : 'Para suplementos e o que se repete todo dia, com esta quantidade'}
-            </span>
-          </span>
-        </span>
-        <Switch
-          label="Atalho de 1 toque"
-          checked={!!quick}
-          disabled={!quick && !valid}
-          onChange={(on) =>
-            void setQuick(item.id, on && valid ? { grams, portion: byPortion ? portion : undefined } : undefined)
-          }
-        />
-      </label>
 
       <div className="mt-4 flex gap-2">
         <Button onClick={() => void editFood()} title={item.source === 'taco' ? 'Criar sua versão deste alimento' : undefined}>
@@ -274,6 +255,7 @@ export function PortionModal({
           <FoodForm
             food={editing.food}
             initial={editing.food ? undefined : { name: item.name, per100: item.per100, source: 'custom', basedOn: item.id }}
+            look={pref}
             onClose={() => setEditing(null)}
             onSaved={edited}
           />

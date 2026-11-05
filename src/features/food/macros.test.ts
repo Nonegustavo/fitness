@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { balanceOf, macroShares, mostAbove, roundShares } from './macros'
+import { macroShares, roundShares } from './macros'
 import { amountLabel, portionCount } from './nutrition'
 
 describe('macroShares', () => {
@@ -15,20 +15,6 @@ describe('macroShares', () => {
   it('rounds to whole percentages that add up to 100', () => {
     const rounded = roundShares({ carbs: 1 / 3, protein: 1 / 3, fat: 1 / 3 })
     expect(rounded.carbs + rounded.protein + rounded.fat).toBe(100)
-  })
-})
-
-describe('balanceOf', () => {
-  const goal = macroShares({ carbs: 240, protein: 180, fat: 80 })!
-
-  it('reads a meal with the goal split as balanced', () => {
-    expect(balanceOf(macroShares({ carbs: 48, protein: 36, fat: 16 })!, goal)).toBe('balanced')
-  })
-
-  it('says which macro is above the plan', () => {
-    const bread = macroShares({ carbs: 21, protein: 5, fat: 2 })!
-    expect(balanceOf(bread, goal)).toBe('off')
-    expect(mostAbove(bread, goal)).toBe('carbs')
   })
 })
 

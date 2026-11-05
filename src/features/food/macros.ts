@@ -1,4 +1,4 @@
-import type { MacroGoals, Nutrients } from '../../db/types'
+import type { Nutrients } from '../../db/types'
 
 export type MacroKey = 'carbs' | 'protein' | 'fat'
 
@@ -36,26 +36,3 @@ export function roundShares(shares: MacroShares): MacroShares {
   }
   return { carbs: floors[0], protein: floors[1], fat: floors[2] }
 }
-
-/**
- * How far a meal's split is from the goal's: the largest gap, in percentage points, between the
- * share of a macro in the meal and in the goal.
- */
-export function shareGap(meal: MacroShares, goal: MacroShares): number {
-  return Math.max(...MACROS.map(({ key }) => Math.abs(meal[key] - goal[key]))) * 100
-}
-
-export type Balance = 'balanced' | 'close' | 'off'
-
-/** Up to 8 points from the goal's split reads as balanced, up to 15 as close. */
-export const balanceOf = (meal: MacroShares, goal: MacroShares): Balance => {
-  const gap = shareGap(meal, goal)
-  return gap <= 8 ? 'balanced' : gap <= 15 ? 'close' : 'off'
-}
-
-/** The macro furthest above the goal's share, to say what tipped the balance. */
-export function mostAbove(meal: MacroShares, goal: MacroShares): MacroKey {
-  return MACROS.reduce((best, { key }) => (meal[key] - goal[key] > meal[best] - goal[best] ? key : best), 'carbs' as MacroKey)
-}
-
-export const goalShares = (goals: MacroGoals): MacroShares | undefined => macroShares(goals)

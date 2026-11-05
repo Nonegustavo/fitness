@@ -10,22 +10,32 @@ const BUCKET = 'fotos'
 // Enough to recognize the plate later, at a fraction of the camera's file size.
 const KEEP_SIDE = 1280
 
-/** Shrinks a photo, keeps it on the device and queues it for the server. Returns its id. */
-export async function keepPhoto(file: Blob): Promise<string> {
-  const blob = await shrink(file)
+/**
+ * Shrinks a photo, keeps it on the device and queues it for the server. Returns its id. With `square`,
+ * only the middle of the picture is kept, as a square of that side at most (a food's photo).
+ */
+export async function keepPhoto(file: Blob, { square }: { square?: number } = {}): Promise<string> {
+  const blob = await shrink(file, square)
   const id = newId()
   await db.photos.put({ id, blob, createdAt: Date.now(), pending: 1 })
   void uploadPendingPhotos()
   return id
 }
 
-async function shrink(file: Blob): Promise<Blob> {
+async function shrink(file: Blob, square?: number): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-  const scale = Math.min(1, KEEP_SIDE / Math.max(bitmap.width, bitmap.height))
   const canvas = document.createElement('canvas')
-  canvas.width = Math.round(bitmap.width * scale)
-  canvas.height = Math.round(bitmap.height * scale)
-  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  if (square) {
+    const side = Math.min(bitmap.width, bitmap.height)
+    canvas.width = canvas.height = Math.min(square, side)
+    const [x, y] = [(bitmap.width - side) / 2, (bitmap.height - side) / 2]
+    canvas.getContext('2d')!.drawImage(bitmap, x, y, side, side, 0, 0, canvas.width, canvas.height)
+  } else {
+    const scale = Math.min(1, KEEP_SIDE / Math.max(bitmap.width, bitmap.height))
+    canvas.width = Math.round(bitmap.width * scale)
+    canvas.height = Math.round(bitmap.height * scale)
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  }
   bitmap.close()
   return await new Promise((resolve, reject) =>
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Não foi possível guardar a foto.'))), 'image/jpeg', 0.8),

@@ -5,14 +5,21 @@ export interface ScannedProduct {
   brand?: string
   per100: Nutrients
   portion?: Portion
+  /** The product's front picture, small (about 200 px), shown before its name. */
+  imageUrl?: string
 }
 
-const FIELDS = 'product_name,product_name_pt,brands,nutriments,serving_quantity,serving_size'
+const FIELDS =
+  'product_name,product_name_pt,brands,nutriments,serving_quantity,serving_size,image_front_small_url,image_front_url,image_url'
 
 const toNumber = (value: unknown): number | undefined => {
   const n = typeof value === 'string' ? Number(value.replace(',', '.')) : value
   return typeof n === 'number' && Number.isFinite(n) ? n : undefined
 }
+
+/** An https address, or nothing: the picture is loaded by the app as is. */
+const httpsUrl = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.startsWith('https://') ? value : undefined
 
 const sodiumMg = (grams?: number) => (grams === undefined ? undefined : grams * 1000)
 
@@ -45,6 +52,7 @@ export function parseProduct(product: Record<string, unknown>): ScannedProduct |
       sodium: sodiumMg(toNumber(n['sodium_100g'])),
     },
     portion: servingGrams ? { label: servingLabel ? `1 porção (${servingLabel})` : '1 porção', grams: servingGrams } : undefined,
+    imageUrl: httpsUrl(product.image_front_small_url) ?? httpsUrl(product.image_front_url) ?? httpsUrl(product.image_url),
   }
 }
 

@@ -1,25 +1,28 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
 import { Button, TextInput } from '../../components/ui'
+import { GalleryButton, useRearCamera } from './Camera'
 
-const canScan = typeof window !== 'undefined' && 'BarcodeDetector' in window && !!navigator.mediaDevices
+const canDetect = typeof window !== 'undefined' && 'BarcodeDetector' in window
+const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e']
+// A smaller picture keeps the detection quick.
+const SCAN_VIDEO: MediaTrackConstraints = { facingMode: { ideal: 'environment' } }
 
 /**
- * Reads a product barcode with the camera (Chrome on Android), or takes it typed in.
- * `onDetected` should be stable (useCallback): the camera restarts when it changes.
+ * Reads a product barcode with the camera (Chrome on Android), from a picture in the gallery, or typed in.
+ * `onDetected` should be stable (useCallback): the scanning restarts when it changes.
  */
 export function BarcodeScanner({ onClose, onDetected }: { onClose: () => void; onDetected: (code: string) => void }) {
   const video = useRef<HTMLVideoElement>(null)
-  const [error, setError] = useState<string>()
+  const camera = useRearCamera(video, SCAN_VIDEO, canDetect)
+  const detector = useMemo(() => (canDetect ? new BarcodeDetector({ formats: FORMATS }) : undefined), [])
+  const [note, setNote] = useState<string>()
   const [typed, setTyped] = useState('')
 
   useEffect(() => {
-    if (!canScan) return
+    if (!detector || !camera.ready) return
     let stopped = false
-    let stream: MediaStream | undefined
     let timer: ReturnType<typeof setTimeout> | undefined
-    const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] })
-
     const scan = async () => {
       if (stopped || !video.current) return
       try {
@@ -34,27 +37,26 @@ export function BarcodeScanner({ onClose, onDetected }: { onClose: () => void; o
       }
       timer = setTimeout(() => void scan(), 250)
     }
-
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-      .then(async (media) => {
-        if (stopped || !video.current) {
-          media.getTracks().forEach((track) => track.stop())
-          return
-        }
-        stream = media
-        video.current.srcObject = media
-        await video.current.play()
-        void scan()
-      })
-      .catch(() => setError('Não foi possível abrir a câmera. Digite o código abaixo.'))
-
+    void scan()
     return () => {
       stopped = true
       clearTimeout(timer)
-      stream?.getTracks().forEach((track) => track.stop())
     }
-  }, [onDetected])
+  }, [detector, camera.ready, onDetected])
+
+  async function fromPicture(file: File) {
+    if (!detector) return
+    setNote(undefined)
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+      const [code] = await detector.detect(bitmap)
+      bitmap.close()
+      if (code?.rawValue) onDetected(code.rawValue)
+      else setNote('Nenhum código de barras nessa foto. Tente outra, mais de perto.')
+    } catch {
+      setNote('Não foi possível ler essa foto.')
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -64,15 +66,23 @@ export function BarcodeScanner({ onClose, onDetected }: { onClose: () => void; o
 
   return (
     <Modal open title="Código de barras" onClose={onClose}>
-      {canScan && !error ? (
+      {canDetect && !camera.error ? (
         <div className="relative overflow-hidden rounded-xl bg-black">
           <video ref={video} muted playsInline className="aspect-[4/3] w-full object-cover" />
           <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 -translate-y-1/2 bg-critical/80" />
         </div>
       ) : (
         <p className="rounded-xl bg-surface-2 p-3 text-sm text-ink-2">
-          {error ?? 'Este navegador não lê códigos pela câmera (no celular Android, use o Chrome). Digite os números do código.'}
+          {camera.error
+            ? `${camera.error} Escolha a foto do código na galeria ou digite os números.`
+            : 'Este navegador não lê códigos pela câmera (no celular Android, use o Chrome). Digite os números do código.'}
         </p>
+      )}
+      {canDetect && (
+        <div className="mt-2">
+          <GalleryButton onPick={(file) => void fromPicture(file)} />
+          {note && <p className="mt-1 text-xs text-critical">{note}</p>}
+        </div>
       )}
       <form onSubmit={submit} className="mt-3 flex gap-2">
         <TextInput
