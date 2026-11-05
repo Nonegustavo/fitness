@@ -76,7 +76,7 @@ export function Layout() {
   // The four sections the user put on the bottom bar; the rest live under "Mais".
   const bottom = bottomSections(settings.navBar)
   // Screens reached from "Mais" that aren't sections of their own (Passos, the week's summary) count too.
-  const underMore = ['/mais', '/passos', '/semana', ...SECTIONS.filter((section) => !bottom.includes(section)).map((section) => section.to)]
+  const underMore = ['/mais', '/passos', '/semana', '/retrospectiva', ...SECTIONS.filter((section) => !bottom.includes(section)).map((section) => section.to)]
   const inMore = underMore.some((path) => pathname === path || pathname.startsWith(`${path}/`))
   // The controls of a screen take its section's color, the "+" and the bars around it included.
   const sectionTone = toneForPath(pathname)

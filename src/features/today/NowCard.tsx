@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
+  CalendarCheck,
   ChevronRight,
   GlassWater,
   ListChecks,
@@ -21,7 +22,9 @@ import { activityLabel } from '../activities/activities'
 import { useWeights } from '../body/body'
 import { KIND_ICONS, KIND_TONES } from '../calendar/components'
 import { useAgenda, useTodayTemplate } from '../calendar/plans'
+import { pendingGoals, pendingProposal } from '../food/checkIn'
 import { useFoodLogs } from '../food/nutrition'
+import { useCheckIn } from '../food/useCheckIn'
 import { dayGoals } from '../habits/day'
 import { useHabitLogs, useHabits } from '../habits/habits'
 import { useJournalEntry } from '../journal/journal'
@@ -39,6 +42,7 @@ const LOOKS: Record<Exclude<NowStep['kind'], 'workout' | 'upcoming'>, { icon: Lu
   habits: { icon: ListChecks, tone: 'habits' },
   journal: { icon: NotebookPen, tone: 'journal' },
   comment: { icon: MessageSquareText, tone: 'today' },
+  checkIn: { icon: CalendarCheck, tone: 'food' },
 }
 
 const look = (step: NowStep) =>
@@ -71,6 +75,8 @@ export function NowCard({ today }: { today: DayKey }) {
     async () => alive(await db.activities.where('startTime').aboveOrEqual(parseDay(today).getTime()).toArray()),
     [today],
   )
+  // Read only on Sunday and Monday, the days "Agora" brings the week's check-in up.
+  const checkIn = useCheckIn('week', now.getDay() <= 1)
   const start = useStartWorkout()
   const addWater = useAddWater()
 
@@ -107,6 +113,7 @@ export function NowCard({ today }: { today: DayKey }) {
       journaled: journal !== null,
       uncommented: run && { id: run.id, title: run.title ?? activityLabel(run), endedAt: run.startTime + run.elapsedSec * 1000 },
       smart: settings.smartReminders,
+      checkIn: checkIn && pendingGoals(pendingProposal(checkIn.checkIn, checkIn.decision)),
     },
     now,
   )

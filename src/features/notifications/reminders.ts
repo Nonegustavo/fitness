@@ -1,7 +1,8 @@
 import type { Activity, DailyHealth, Habit, HabitLog, MealKey, SmartReminders, WaterLog, WorkoutSession } from '../../db/types'
 import { dayKey, formatTime, shiftDay, weekStart, type DayKey } from '../../lib/dates'
-import { formatNumber } from '../../lib/format'
+import { formatNumber, formatSigned } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
+import type { PendingGoals } from '../food/checkIn'
 import { daysByHabit, habitLogId, habitTime, isSkipped, isSuccess, NO_DAYS, weeklyTimes, weekResult } from '../habits/habits'
 
 /** Reminders go this far ahead, so they keep coming even if the app isn't opened for a while. */
@@ -294,20 +295,27 @@ export function weekDigest(from: DayKey, to: DayKey, s: DigestSources): WeekDige
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
+/** The week's check-in in the summary: new nutrition targets waiting on the food screen. */
+const goalsText = ({ kcal, delta }: PendingGoals) =>
+  delta !== 0
+    ? `Novas metas de alimentação para a semana: ${formatNumber(kcal, 0)} kcal por dia (${formatSigned(delta, 0)}), para revisar em Alimentação.`
+    : 'Metas de alimentação da semana: proteína e gorduras ajustadas ao seu peso, para revisar em Alimentação.'
+
 /**
- * The Sunday notification: the week in one sentence. Without the numbers (the week wasn't over
- * when it was scheduled), an invitation to look.
+ * The Sunday notification: the week in one sentence, and the new nutrition targets when the week's
+ * check-in has some. Without the numbers (the week wasn't over when it was scheduled), an invitation to look.
  */
-export function weeklyMessage(digest: WeekDigest | undefined): { title: string; body: string } {
+export function weeklyMessage(digest: WeekDigest | undefined, goals?: PendingGoals): { title: string; body: string } {
   const title = 'Resumo da semana'
   if (!digest) return { title, body: 'Veja como foi a semana: treinos, corrida, sono e água.' }
+  const goalsLine = goals ? ` ${goalsText(goals)}` : ''
   const parts = [
     digest.workouts > 0 && plural(digest.workouts, 'treino de força', 'treinos de força'),
     digest.runs > 0 && `${plural(digest.runs, 'corrida', 'corridas')} (${formatNumber(digest.runKm, 1)} km)`,
     digest.sleepHours !== undefined && `sono médio de ${formatNumber(digest.sleepHours, 1)} h`,
     digest.waterDays > 0 && `meta de água em ${plural(digest.waterDays, 'dia', 'dias')}`,
   ].filter((part): part is string => Boolean(part))
-  if (parts.length === 0) return { title, body: 'Uma semana sem registros. Que tal planejar a próxima no calendário?' }
+  if (parts.length === 0) return { title, body: `Uma semana sem registros. Que tal planejar a próxima no calendário?${goalsLine}` }
   const sentence = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} e ${parts.at(-1)}`
-  return { title, body: `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}. Toque para ver a semana.` }
+  return { title, body: `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.${goalsLine} Toque para ver a semana.` }
 }

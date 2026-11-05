@@ -5,7 +5,13 @@ import type { DayValue } from '../../lib/stats'
 export const KCAL_PER_KG = 7700
 
 /** Days with less than this logged look like forgotten logs, not real intake, and are left out. */
-const MIN_LOGGED_KCAL = 1000
+export const MIN_LOGGED_KCAL = 1000
+
+/** The weeks the estimate looks back over. */
+export const ESTIMATE_DAYS = 28
+
+/** What makes the estimate more than a rough guess: days with logs and weigh-ins in its window. */
+export const CONFIDENT = { loggedDays: 18, weighIns: 12 }
 
 export interface Expenditure {
   /** Estimated daily expenditure (TDEE), in kcal. */
@@ -48,7 +54,7 @@ export function estimateExpenditure(
   intakeByDay: Map<DayKey, number>,
   weightTrend: DayValue[],
   today: DayKey,
-  windowDays = 28,
+  windowDays = ESTIMATE_DAYS,
 ): Expenditure | undefined {
   const to = shiftDay(today, -1)
   const from = shiftDay(today, -windowDays)
@@ -68,7 +74,7 @@ export function estimateExpenditure(
     loggedDays: intakes.length,
     weighIns: weights.length,
     windowDays,
-    confidence: intakes.length >= 18 && weights.length >= 12 ? 'ok' : 'low',
+    confidence: intakes.length >= CONFIDENT.loggedDays && weights.length >= CONFIDENT.weighIns ? 'ok' : 'low',
   }
 }
 

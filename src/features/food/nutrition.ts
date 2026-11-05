@@ -103,7 +103,7 @@ export const kcalFromMacros = (macros: Pick<Nutrients, 'protein' | 'carbs' | 'fa
   macros.protein * 4 + macros.carbs * 4 + macros.fat * 9
 
 /** The day's targets: the training-day set on days with a workout, when there is one. */
-export function goalsFor(settings: Settings, trainingDay: boolean): MacroGoals | undefined {
+export function goalsFor(settings: Pick<Settings, 'nutrition'>, trainingDay: boolean): MacroGoals | undefined {
   const goals = settings.nutrition
   if (!goals) return undefined
   return trainingDay && goals.training ? goals.training : goals.normal

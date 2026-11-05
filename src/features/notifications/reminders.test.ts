@@ -251,4 +251,12 @@ describe('weekly summary', () => {
     expect(weeklyMessage({ workouts: 0, runs: 0, runKm: 0, waterDays: 0 }).body).toMatch(/sem registros/)
     expect(weeklyMessage(undefined).body).toMatch(/Veja como foi a semana/)
   })
+
+  it('mentions the new nutrition targets the week check-in proposes', () => {
+    const week = { workouts: 3, runs: 0, runKm: 0, waterDays: 0 }
+    expect(weeklyMessage(week, { kcal: 2050, delta: -250 }).body).toBe(
+      '3 treinos de força. Novas metas de alimentação para a semana: 2.050 kcal por dia (−250), para revisar em Alimentação. Toque para ver a semana.',
+    )
+    expect(weeklyMessage(week, { kcal: 2300, delta: 0 }).body).toMatch(/proteína e gorduras ajustadas ao seu peso/)
+  })
 })

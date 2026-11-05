@@ -1,3 +1,4 @@
+import { CalendarCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
 import { Button, DecimalInput, Field } from '../../components/ui'
@@ -8,6 +9,7 @@ import { db, SETTINGS_ID } from '../../db/schema'
 import type { MacroGoals, Settings } from '../../db/types'
 import { formatNumber, formatSigned, parseDecimal } from '../../lib/format'
 import { useWeights } from '../body/body'
+import { CheckInModal } from './CheckInCard'
 import { MacroBalance } from './MacroViews'
 import { kcalForRate, type Expenditure } from './energy'
 import { kcalFromMacros } from './nutrition'
@@ -59,6 +61,7 @@ function GoalsForm({ settings, onClose }: { settings: Settings; onClose: () => v
   const trainingGoals = parseGoals(training)
   const valid = !!normalGoals && (!hasTraining || !!trainingGoals)
   const expenditure = useExpenditure(useToday())
+  const [reviewing, setReviewing] = useState(false)
 
   /** Takes the suggested calories, keeping protein and fat and moving the difference into carbs. */
   function applySuggestion(kcal: number) {
@@ -84,6 +87,10 @@ function GoalsForm({ settings, onClose }: { settings: Settings; onClose: () => v
     <Modal open title="Metas de alimentação" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <ExpenditureBox expenditure={expenditure} kgPerWeek={settings.weightGoal?.kgPerWeek} onApply={applySuggestion} />
+        {/* The weekly check-in made now: the calories within 250 kcal of the current ones, protein and fat per kg. */}
+        <Button className="w-full" onClick={() => setReviewing(true)}>
+          <CalendarCheck size={16} /> Revisar metas agora
+        </Button>
         <GoalFields title={hasTraining ? 'Dias sem treino' : 'Meta diária'} texts={normal} onChange={setNormal} weightKg={weightKg} />
         <label className="flex items-center gap-3 text-sm">
           <input
@@ -99,6 +106,8 @@ function GoalsForm({ settings, onClose }: { settings: Settings; onClose: () => v
           Salvar
         </Button>
       </form>
+      {/* Accepting saves the new targets, so this sheet's fields would be out of date: it closes too. */}
+      {reviewing && <CheckInModal onClose={() => setReviewing(false)} onAccepted={onClose} />}
     </Modal>
   )
 }

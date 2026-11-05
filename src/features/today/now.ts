@@ -1,7 +1,8 @@
 import type { MealKey, SmartReminders } from '../../db/types'
 import { formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
-import { formatMl } from '../../lib/format'
+import { formatMl, formatNumber, formatSigned } from '../../lib/format'
 import type { AgendaItem, AgendaKind } from '../calendar/agenda'
+import type { PendingGoals } from '../food/checkIn'
 import { waterExpectedBy } from '../notifications/reminders'
 
 /** What the "Agora" line knows about the day. */
@@ -31,6 +32,8 @@ export interface NowDay {
   uncommented?: { id: string; title: string; endedAt: number }
   /** The times set for the smart reminders (weigh-in, lunch, dinner). */
   smart?: SmartReminders
+  /** New nutrition targets from this week's check-in, still waiting for an answer. */
+  checkIn?: PendingGoals
 }
 
 export type NowAction =
@@ -40,7 +43,7 @@ export type NowAction =
 
 export interface NowStep {
   /** What it is about, for the icon and the color. */
-  kind: 'workout' | 'weighIn' | 'meal' | 'water' | 'habits' | 'journal' | 'upcoming' | 'comment'
+  kind: 'workout' | 'weighIn' | 'meal' | 'water' | 'habits' | 'journal' | 'upcoming' | 'comment' | 'checkIn'
   /** For workouts: gym, run… */
   agendaKind?: AgendaKind
   /** When: "Agora", "Mais tarde" (today) or "Próximo treino". */
@@ -108,10 +111,10 @@ function workoutStep(item: NowDay['agenda'][number], day: NowDay, now: number, s
 
 /**
  * The one thing worth doing now, most urgent first: the workout in progress, a workout about to
- * start, the morning weigh-in, the meal being eaten, the water when well behind the day's pace,
- * a workout later today, and at night the habits still open and the journal. With nothing pending,
- * the next workout of the coming days. Nudges only about what is part of the routine (a meal or a
- * weigh-in logged on recent days).
+ * start, the morning weigh-in, the meal being eaten, the water when well behind the day's pace, the
+ * week's new nutrition targets (Sunday and Monday), a workout later today, and at night the habits
+ * still open and the journal. With nothing pending, the next workout of the coming days. Nudges only
+ * about what is part of the routine (a meal or a weigh-in logged on recent days).
  */
 export function nextStep(day: NowDay, nowDate: Date): NowStep | undefined {
   const now = nowDate.getTime()
@@ -177,6 +180,21 @@ export function nextStep(day: NowDay, nowDate: Date): NowStep | undefined {
       title: 'Água abaixo do ritmo',
       detail: `${formatMl(day.waterMl)} de ${formatMl(day.waterGoalMl)}; a esta hora seriam ${formatMl(Math.round(expected / 50) * 50)}`,
       action: { type: 'water', ml: day.glassMl, label: formatMl(day.glassMl) },
+    }
+  }
+
+  // The weekly check-in waits on the food screen all week; "Agora" only brings it up at its start.
+  if (day.checkIn && nowDate.getDay() <= 1) {
+    const { kcal, delta } = day.checkIn
+    return {
+      kind: 'checkIn',
+      when: 'Agora',
+      title: 'Revisar as metas da semana',
+      detail:
+        delta !== 0
+          ? `Proposta: ${formatNumber(kcal, 0)} kcal por dia (${formatSigned(delta, 0)}), pelo seu gasto e a meta de peso`
+          : 'Proposta: proteína e gorduras ajustadas ao seu peso',
+      action: { type: 'link', to: '/alimentacao', label: 'Revisar' },
     }
   }
 

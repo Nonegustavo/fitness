@@ -5,6 +5,7 @@ import { db, SETTINGS_ID } from '../../db/schema'
 import type { Habit, HabitLog } from '../../db/types'
 import { dayKey, parseDay, shiftDay, type DayKey } from '../../lib/dates'
 import { buildAgenda } from '../calendar/agenda'
+import { weekGoalsPending } from '../food/useCheckIn'
 import { plannedEvents } from '../garmin/sync'
 import { setHabitValue } from '../habits/habits'
 import { isAndroidApp } from '../healthconnect/plugin'
@@ -258,7 +259,9 @@ function watchWeekly() {
     const digest = over
       ? weekDigest(week.from, week.to, { sessions, activities, health, water, waterGoalMl: settings.waterGoalMl })
       : undefined
-    return { at, message: { ...weeklyMessage(digest), route: '/semana' } }
+    // The check-in of the week that starts that Sunday: its new targets, while they wait for an answer.
+    const goals = over ? await weekGoalsPending(dayKey(at)) : undefined
+    return { at, message: { ...weeklyMessage(digest, goals), route: '/semana' } }
   }).subscribe({
     next: ({ at, message }) => {
       clearTimeout(pending)

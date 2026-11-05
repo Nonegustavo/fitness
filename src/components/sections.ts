@@ -45,7 +45,7 @@ export const SECTIONS: Section[] = [
 ]
 
 /** Screens reached from "Mais" that aren't sections, with the color their page uses. */
-const SCREEN_TONES: Record<string, Tone> = { '/passos': 'today', '/semana': 'insights' }
+const SCREEN_TONES: Record<string, Tone> = { '/passos': 'today', '/semana': 'insights', '/retrospectiva': 'analysis' }
 
 /** The section color of a route: the screen's own, else the longest section path it falls under. */
 export function toneForPath(pathname: string): Tone | undefined {

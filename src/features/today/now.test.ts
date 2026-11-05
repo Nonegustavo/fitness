@@ -154,6 +154,36 @@ describe('nextStep, after a run', () => {
   })
 })
 
+describe('nextStep, the weekly check-in of the nutrition targets', () => {
+  // Sunday the 8th, Monday the 9th, Tuesday the 10th.
+  const sunday = '2026-11-08'
+  const pending = { ...base, today: sunday, checkIn: { kcal: 2050, delta: -250 } }
+
+  it('asks to review the new targets on Sunday and Monday only', () => {
+    expect(nextStep(pending, at(10, 0, 8))).toMatchObject({
+      kind: 'checkIn',
+      when: 'Agora',
+      title: 'Revisar as metas da semana',
+      detail: 'Proposta: 2.050 kcal por dia (−250), pelo seu gasto e a meta de peso',
+      action: { type: 'link', to: '/alimentacao', label: 'Revisar' },
+    })
+    expect(nextStep({ ...pending, today: '2026-11-09' }, at(10, 0, 9))?.kind).toBe('checkIn')
+    expect(nextStep({ ...pending, today: '2026-11-10' }, at(10, 0, 10))).toBeUndefined()
+  })
+
+  it('comes after the water and before a workout later in the day', () => {
+    expect(nextStep({ ...pending, waterMl: 1000 }, at(15, 0, 8))?.kind).toBe('water')
+    expect(nextStep({ ...pending, agenda: [run(19, sunday)] }, at(10, 0, 8))?.kind).toBe('checkIn')
+    expect(nextStep({ ...pending, agenda: [run(11, sunday)] }, at(10, 0, 8))?.kind).toBe('workout')
+  })
+
+  it('tells when only protein and fat change', () => {
+    expect(nextStep({ ...pending, checkIn: { kcal: 2300, delta: 0 } }, at(10, 0, 8))?.detail).toBe(
+      'Proposta: proteína e gorduras ajustadas ao seu peso',
+    )
+  })
+})
+
 describe('inTime', () => {
   it('reads minutes and hours', () => {
     expect(inTime(40 * 60_000)).toBe('em 40 min')

@@ -10,6 +10,7 @@ import { formatDay } from '../../lib/dates'
 import { getSyncState, syncNow } from '../../sync/controller'
 import { syncGarmin } from '../garmin/sync'
 import { WeekCard } from '../calendar/cards'
+import { RecapBanner } from '../recap/RecapBanner'
 import { CustomizeHome } from './CustomizeHome'
 import { ELEMENT_VIEWS } from './elements'
 import { elementInfo, homeAreas, orderForTime } from './homeCards'
@@ -59,6 +60,7 @@ export default function TodayPage() {
         </>
       }
     >
+      <RecapBanner today={today} />
       {areas.now && <NowCard today={today} />}
       {areas.week && <WeekCard today={today} />}
 

@@ -10,6 +10,7 @@ import { mean } from '../insights/stats'
 import { firstDayOf } from '../insights/useDailyData'
 import { painLines, painsText } from '../journal/pains'
 import { athleteLines } from './athleteLines'
+import { checkInLines } from './contextCheckIn'
 import {
   adherenceLines,
   bodyLines,
@@ -170,6 +171,7 @@ export function buildContext(input: ContextInput): string {
   section(out, 'Dores e desconfortos (contadas no diário, de 1 a 10)', painLines(sources.pains ?? [], today))
   section(out, 'Carga, prontidão e previsões de prova (calculadas pelo app)', athleteLines(input))
   section(out, 'Energia e proteína', energyLines({ foodLogs: sources.foodLogs, weights: sources.weights, health: sources.health }, today))
+  section(out, 'Check-in semanal das metas de alimentação', checkInLines(sources, settings, today))
   section(
     out,
     'Constância e aderência',

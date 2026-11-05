@@ -17,6 +17,7 @@ import { formatNumber, parseDecimal } from '../../lib/format'
 import { useDailyHealth } from '../garmin/recovery'
 import { logFood, useFoodCatalog, useFoodPrefs } from './foods'
 import { closeTheDay, remainingOf, type Suggestion } from './closeDay'
+import { CheckInCard } from './CheckInCard'
 import { GoalsModal } from './GoalsModal'
 import { useExpenditure } from './useExpenditure'
 import { amountLabel, goalsFor, groupMeals, mealAt, multiply, OPTIONAL_NUTRIENTS, logItems, MEAL_LABEL, MEALS, sumNutrients, useFoodLogs, useTrainingDays } from './nutrition'
@@ -81,6 +82,7 @@ export default function FoodPage() {
         )}
       </Card>
 
+      {date === today && <CheckInCard />}
       {logs && date === today && goals && <CloseDayCard date={date} eaten={totals} goals={goals} />}
 
       {!logs && <SkeletonCard lines={3} />}
