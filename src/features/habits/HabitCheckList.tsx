@@ -18,6 +18,7 @@ import {
   useWeekLogs,
   weekProgressText,
   weekResults,
+  weeklyTimes,
   type WeekResult,
 } from './habits'
 import { HabitBadge, habitColor, habitIcon, HabitMark, showsBadges } from './look'
@@ -65,7 +66,8 @@ export function HabitCheckList({ date, compact = false }: { date: DayKey; compac
   // Completing the last habit to do of the day (not opening a day already complete, nor skipping
   // the last one left) is worth a party.
   const goals = dayGoals(active, byHabit)
-  const allDone = goals.required.length > 0 && goals.left.length === 0
+  // Weekly habits alone don't make a day "all done": the party is for the day's own habits.
+  const allDone = goals.required.some((habit) => weeklyTimes(habit) === undefined) && goals.left.length === 0
   const doneCount = goals.done.length
   const seen = useRef<{ date: DayKey; allDone: boolean; done: number }>(undefined)
   useEffect(() => {
