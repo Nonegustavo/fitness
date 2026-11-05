@@ -2,7 +2,7 @@ import type { Activity, DailyHealth, Habit, HabitLog, MealKey, SmartReminders, W
 import { dayKey, formatTime, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
-import { habitLogId, habitTime, isSkipped, isSuccess } from '../habits/habits'
+import { daysByHabit, habitLogId, habitTime, isSkipped, isSuccess, NO_DAYS, weeklyTimes, weekResult } from '../habits/habits'
 
 /** Reminders go this far ahead, so they keep coming even if the app isn't opened for a while. */
 export const HORIZON_DAYS = 14
@@ -31,13 +31,19 @@ export function notificationId(key: string): number {
 /**
  * Every reminder from `now` to the horizon: on the habit's weekdays, at its time, skipping days
  * already met (a goal reached), already logged (a habit to avoid) or set aside ("Hoje não vou fazer").
+ * A weekly habit only rings while its week's target is still ahead (`logs` should cover the
+ * current week from Sunday); a weekly limit to avoid never rings.
  */
 export function plannedReminders(habits: Habit[], logs: HabitLog[], now: Date): PlannedReminder[] {
-  const byId = new Map(logs.filter((log) => !log.deleted).map((log) => [log.id, log]))
+  const kept = logs.filter((log) => !log.deleted)
+  const byId = new Map(kept.map((log) => [log.id, log]))
+  const byHabit = daysByHabit(kept)
   const planned: PlannedReminder[] = []
   for (const habit of habits) {
     const reminder = habit.reminder
     if (!reminder || habit.archived || habit.deleted || reminder.days.length === 0) continue
+    const weekly = weeklyTimes(habit) !== undefined
+    if (weekly && habit.polarity === 'bad') continue
     const [hour, minute] = (habitTime(habit) ?? reminder.time).split(':').map(Number)
     for (let offset = 0; offset < HORIZON_DAYS; offset++) {
       const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, hour, minute)
@@ -47,14 +53,18 @@ export function plannedReminders(habits: Habit[], logs: HabitLog[], now: Date): 
       if (isSkipped(log)) continue
       const value = log?.value
       if (habit.polarity === 'good' ? isSuccess(habit, value) : value !== undefined) continue
+      const week = weekly ? weekResult(habit, byHabit.get(habit.id) ?? NO_DAYS, weekStart(date), date) : undefined
+      if (week?.met) continue
+      const tap = habit.kind === 'check' ? 'Toque em Feito para marcar.' : 'Toque para registrar.'
       planned.push({
         id: notificationId(habitLogId(habit.id, date)),
         at,
         habitId: habit.id,
         date,
         title: habit.name,
-        body:
-          habit.polarity === 'bad'
+        body: week
+          ? `${week.count} de ${week.times} nesta semana. ${tap}`
+          : habit.polarity === 'bad'
             ? 'Toque para registrar o dia.'
             : habit.kind === 'check'
               ? 'Já fez hoje? Toque em Feito para marcar.'

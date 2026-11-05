@@ -72,4 +72,32 @@ describe('weekStats', () => {
     })
     expect(week.habits).toBe(0.75)
   })
+
+  it('counts a weekly habit as its week, met or not', () => {
+    const habit = (id: string, times: number) => ({
+      ...meta,
+      id,
+      name: id,
+      kind: 'check' as const,
+      polarity: 'good' as const,
+      startDate: '2026-10-01',
+      archived: 0 as const,
+      order: 0,
+      frequency: { times, per: 'week' as const },
+    })
+    const log = (habitId: string, date: string) => ({ ...meta, id: `${habitId}:${date}`, habitId, date, value: 1 })
+    const sources: WeekSources = {
+      foodLogs: [],
+      sessions: [],
+      activityDates: [],
+      health: [],
+      weightTrend: [],
+      water: [],
+      habits: [habit('run', 3), habit('gym', 2)],
+      // Ran 3 days (met), went to the gym once (missed): 1 of 2 habits.
+      habitLogs: [log('run', '2026-10-26'), log('run', '2026-10-28'), log('run', '2026-10-30'), log('gym', '2026-10-27')],
+      goalOn: () => undefined,
+    }
+    expect(weekStats('2026-10-25', '2026-10-31', sources).habits).toBe(0.5)
+  })
 })

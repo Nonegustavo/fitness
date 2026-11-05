@@ -261,7 +261,8 @@ export function buildDailyData(sources: Sources, from: DayKey, to: DayKey): Dail
   }
 
   // Habits: a missing log on a day the habit existed means not done (0); a skipped day is missing,
-  // since it says nothing about what the habit does.
+  // since it says nothing about what the habit does. Weekly habits too: the correlations compare
+  // days, so each day stays as logged.
   const habitMetrics: Metric[] = []
   const values = new Map<string, number>()
   for (const log of sources.habitLogs) values.set(`${log.habitId}:${log.date}`, log.value)

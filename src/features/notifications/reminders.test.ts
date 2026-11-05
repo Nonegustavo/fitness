@@ -76,6 +76,22 @@ describe('plannedReminders', () => {
     const tuesdayMorning = habit({ reminder: { time: '07:00', days: [2] } })
     expect(plannedReminders([tuesdayMorning], [], now).map((reminder) => reminder.date)).toEqual(['2026-11-10'])
   })
+
+  it('rings for a weekly habit only while the week is short of its target', () => {
+    const run = habit({ frequency: { times: 2, per: 'week' }, reminder: { time: '20:00', days: everyDay } })
+    const ran = (date: string): HabitLog => ({ id: `stretch:${date}`, habitId: 'stretch', date, value: 1, ...meta })
+    // Done on Sunday: the rest of this week (to Saturday 11-07) still rings, with the count.
+    const once = plannedReminders([run], [ran('2026-11-01')], now)
+    expect(once[0]).toMatchObject({ date: '2026-11-03', body: '1 de 2 nesta semana. Toque em Feito para marcar.' })
+    // Done twice: quiet until Sunday 11-08, the next week.
+    const twice = plannedReminders([run], [ran('2026-11-01'), ran('2026-11-02')], now)
+    expect(twice[0]).toMatchObject({ date: '2026-11-08', body: '0 de 2 nesta semana. Toque em Feito para marcar.' })
+  })
+
+  it('never rings for a weekly limit to avoid', () => {
+    const beer = habit({ polarity: 'bad', frequency: { times: 2, per: 'week' }, reminder: { time: '20:00', days: everyDay } })
+    expect(plannedReminders([beer], [], now)).toEqual([])
+  })
 })
 
 describe('notificationId', () => {

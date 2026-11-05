@@ -93,6 +93,28 @@ describe('streaks', () => {
     ]
     expect(streaks({ ...base, habits, habitLogs }, today).habits).toEqual({ count: 2, today: false, skippedToday: true })
   })
+
+  it('asks the days only for the daily habits, and breaks the day a weekly limit is passed', () => {
+    const habits = [
+      habit({ id: 'a' }),
+      habit({ id: 'run', frequency: { times: 3, per: 'week' } }),
+      habit({ id: 'beer', polarity: 'bad', frequency: { times: 1, per: 'week' } }),
+    ]
+    // The week began on Sunday 11-01; one beer a week is fine, the second (11-03) is past the limit.
+    const habitLogs = [
+      { id: 'a:2026-11-01', value: 1 },
+      { id: 'a:2026-11-02', value: 1 },
+      { id: 'beer:2026-11-02', value: 1 },
+      { id: 'a:2026-11-03', value: 1 },
+      { id: 'beer:2026-11-03', value: 1 },
+      { id: 'a:2026-11-04', value: 1 },
+    ]
+    expect(streaks({ ...base, habits, habitLogs }, today).habits).toEqual({ count: 1, today: true })
+    const once = habitLogs.filter((log) => log.id !== 'beer:2026-11-03')
+    expect(streaks({ ...base, habits, habitLogs: once }, today).habits).toEqual({ count: 4, today: true })
+    // Only weekly habits: no day to keep.
+    expect(streaks({ ...base, habits: habits.slice(1), habitLogs }, today).habits).toBeUndefined()
+  })
 })
 
 describe('milestoneMessage', () => {

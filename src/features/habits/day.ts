@@ -1,5 +1,5 @@
 import type { Habit, HabitLog } from '../../db/types'
-import { habitTime, isSkipped, isSuccess } from './habits'
+import { habitTime, isSkipped, isSuccess, weeklyTimes, type WeekResult } from './habits'
 
 /**
  * How a habit stands on a day: one to do is open or done, one to avoid is clear or happened, and
@@ -14,22 +14,38 @@ export function dayState(habit: Habit, log: Pick<HabitLog, 'value' | 'skipped'> 
   return isSuccess(habit, value) ? 'done' : 'open'
 }
 
-/** 0: to do, with a time · 1: to do, without one · 2: to avoid, nothing logged · 3: settled. */
-function group(habit: Habit, state: DayState): number {
-  if (state === 'open') return habitTime(habit) ? 0 : 1
+/**
+ * 0: to do, with a time · 1: to do, without one, and the weekly ones still open (a time doesn't
+ * put them before the daily ones) · 2: to avoid, nothing logged · 3: settled, with the weekly
+ * habits whose week is already met.
+ */
+function group(habit: Habit, state: DayState, weekMet: boolean): number {
+  if (state === 'open') {
+    if (weeklyTimes(habit) === undefined) return habitTime(habit) ? 0 : 1
+    return weekMet ? 3 : 1
+  }
   return state === 'clear' ? 2 : 3
 }
 
 const LAST = '99:99'
 
 /**
- * The day's list: what's still to do with a time (by time), then without one, then the habits to
- * avoid not logged, and at the end everything settled (done, skipped, happened). Within each, by
- * time and then the manual order. `logs` maps a habit id to its log of the day.
+ * The day's list: what's still to do with a time (by time), then without one and the weekly
+ * habits not met yet this week, then the habits to avoid not logged, and at the end everything
+ * settled (done, skipped, happened, the week met). Within each, by time and then the manual order.
+ * `logs` maps a habit id to its log of the day; `weeks`, a weekly habit's id to its week.
  */
-export function orderForDay(habits: Habit[], logs: Map<string, Pick<HabitLog, 'value' | 'skipped'>>): Habit[] {
+export function orderForDay(
+  habits: Habit[],
+  logs: Map<string, Pick<HabitLog, 'value' | 'skipped'>>,
+  weeks: Map<string, Pick<WeekResult, 'met'>> = new Map(),
+): Habit[] {
   return habits
-    .map((habit) => ({ habit, group: group(habit, dayState(habit, logs.get(habit.id))), time: habitTime(habit) ?? LAST }))
+    .map((habit) => ({
+      habit,
+      group: group(habit, dayState(habit, logs.get(habit.id)), weeks.get(habit.id)?.met ?? false),
+      time: habitTime(habit) ?? LAST,
+    }))
     .sort((a, b) => a.group - b.group || a.time.localeCompare(b.time) || a.habit.order - b.habit.order)
     .map(({ habit }) => habit)
 }
@@ -44,13 +60,17 @@ export function keepOrder(held: string[], ids: string[]): string[] {
 
 /**
  * The day's goals: the habits to do that weren't skipped, and how many are done. A skipped habit
- * isn't asked for, so the day can be all done without it.
+ * isn't asked for, so the day can be all done without it. A weekly habit isn't asked for on any
+ * day either; done today, it counts among the day's (as done), so it's never left.
  */
 export function dayGoals(
   habits: Habit[],
   logs: Map<string, Pick<HabitLog, 'value' | 'skipped'>>,
 ): { required: Habit[]; done: Habit[]; left: Habit[] } {
-  const required = habits.filter((habit) => habit.polarity === 'good' && !isSkipped(logs.get(habit.id)))
-  const done = required.filter((habit) => isSuccess(habit, logs.get(habit.id)?.value))
+  const met = (habit: Habit) => isSuccess(habit, logs.get(habit.id)?.value)
+  const required = habits.filter(
+    (habit) => habit.polarity === 'good' && !isSkipped(logs.get(habit.id)) && (weeklyTimes(habit) === undefined || met(habit)),
+  )
+  const done = required.filter(met)
   return { required, done, left: required.filter((habit) => !done.includes(habit)) }
 }

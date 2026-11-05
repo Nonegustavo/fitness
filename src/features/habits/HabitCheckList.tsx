@@ -10,7 +10,16 @@ import type { DayKey } from '../../lib/dates'
 import { tapFeedback } from '../../lib/haptics'
 import { dayGoals, dayState, keepOrder, orderForDay, type DayState } from './day'
 import { useLongPress, useReorderMotion } from './gestures'
-import { describeHabit, habitTime, setHabitValue, useHabitLogs, useHabits } from './habits'
+import {
+  describeHabit,
+  habitTime,
+  setHabitValue,
+  useHabits,
+  useWeekLogs,
+  weekProgressText,
+  weekResults,
+  type WeekResult,
+} from './habits'
 import { HabitBadge, habitColor, habitIcon, HabitMark, showsBadges } from './look'
 import { SkipSheet } from './SkipSheet'
 
@@ -23,6 +32,8 @@ const NO_SELECT = 'select-none [-webkit-touch-callout:none]'
 interface ItemProps {
   habit: Habit
   log: HabitLog | undefined
+  /** A weekly habit's week so far. */
+  week: WeekResult | undefined
   onSet: (value: number) => void
   onMenu: () => void
   ref: (node: HTMLElement | null) => void
@@ -31,20 +42,23 @@ interface ItemProps {
 /**
  * The day's check-in: a toggle for yes/no habits, a stepper for counted ones, in the order of the
  * day (what's left to do first, by time). A long press says "hoje não vou fazer". `compact` lays
- * them out as buttons two per row, without the description (the Hoje card).
+ * them out as buttons two per row, without the description (the Hoje card). Weekly habits show
+ * how their week goes ("2/3 na semana").
  */
 export function HabitCheckList({ date, compact = false }: { date: DayKey; compact?: boolean }) {
   const today = useToday()
   const habits = useHabits()
-  const logs = useHabitLogs(date, date)
+  // The whole week of the day, for the weekly habits.
+  const logs = useWeekLogs(date)
   const toast = useToast()
   const [menu, setMenu] = useState<Habit>()
   const [held, setHeld] = useState<{ date: DayKey; ids: string[] }>()
   const release = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const active = (habits ?? []).filter((habit) => habit.archived === 0)
-  const byHabit = new Map((logs ?? []).map((log) => [log.habitId, log]))
-  const target = orderForDay(active, byHabit).map((habit) => habit.id)
+  const byHabit = new Map((logs ?? []).filter((log) => log.date === date).map((log) => [log.habitId, log]))
+  const weeks = weekResults(active, logs ?? [], date, today)
+  const target = orderForDay(active, byHabit, weeks).map((habit) => habit.id)
   const ids = held?.date === date ? keepOrder(held.ids, target) : target
   const itemRef = useReorderMotion(ids)
 
@@ -91,6 +105,7 @@ export function HabitCheckList({ date, compact = false }: { date: DayKey; compac
     key: habit.id,
     habit,
     log: byHabit.get(habit.id),
+    week: weeks.get(habit.id),
     ref: itemRef(habit.id),
     onSet: (value) => {
       hold()
@@ -139,11 +154,17 @@ export function HabitCheckList({ date, compact = false }: { date: DayKey; compac
 
 const skipText = (log: HabitLog | undefined) => (log?.note ? `pulado · ${log.note}` : 'pulado')
 
-const label = (habit: Habit, state: DayState, log: HabitLog | undefined) =>
-  state === 'skipped' ? `${habit.name}, ${skipText(log)}` : habit.name
+const label = (habit: Habit, state: DayState, log: HabitLog | undefined, week: WeekResult | undefined) =>
+  state === 'skipped' ? `${habit.name}, ${skipText(log)}` : week ? `${habit.name}, ${weekProgressText(week)}` : habit.name
+
+/** "2/3 na semana"; in red once a habit to avoid is past its weekly limit. */
+function WeekNote({ habit, week, className }: { habit: Habit; week: WeekResult; className?: string }) {
+  const over = habit.polarity === 'bad' && !week.met
+  return <span className={cx(over ? 'text-critical' : 'text-muted', className)}>{weekProgressText(week)}</span>
+}
 
 /** A habit as one button (yes/no) or a small stepper (counted), for the compact list. */
-function HabitChip({ habit, log, onSet, onMenu, ref }: ItemProps) {
+function HabitChip({ habit, log, week, onSet, onMenu, ref }: ItemProps) {
   const press = useLongPress(onMenu)
   const state = dayState(habit, log)
   const value = log?.value ?? 0
@@ -152,7 +173,11 @@ function HabitChip({ habit, log, onSet, onMenu, ref }: ItemProps) {
   const name = (
     <span className="min-w-0 flex-1">
       <span className={cx('line-clamp-2 leading-tight', skipped && 'text-muted')}>{habit.name}</span>
-      {skipped && <span className="block truncate text-xs text-muted">{skipText(log)}</span>}
+      {skipped ? (
+        <span className="block truncate text-xs text-muted">{skipText(log)}</span>
+      ) : (
+        week && <WeekNote habit={habit} week={week} className="block truncate text-xs" />
+      )}
     </span>
   )
   if (habit.kind === 'check') {
@@ -163,7 +188,7 @@ function HabitChip({ habit, log, onSet, onMenu, ref }: ItemProps) {
         type="button"
         role="checkbox"
         aria-checked={marked}
-        aria-label={label(habit, state, log)}
+        aria-label={label(habit, state, log, week)}
         {...press}
         onClick={() => onSet(marked ? 0 : 1)}
         className={cx('flex min-h-11 items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition active:scale-[0.97]', NO_SELECT)}
@@ -194,29 +219,38 @@ function HabitChip({ habit, log, onSet, onMenu, ref }: ItemProps) {
   )
 }
 
-function HabitRow({ habit, log, onSet, onMenu, ref, badge }: ItemProps & { badge: boolean }) {
+function HabitRow({ habit, log, week, onSet, onMenu, ref, badge }: ItemProps & { badge: boolean }) {
   const press = useLongPress(onMenu)
   const state = dayState(habit, log)
   const value = log?.value ?? 0
   const skipped = state === 'skipped'
   const marked = state === 'done' || state === 'happened'
+  // A weekly habit says how its week goes instead of how often it's done.
   const detail = skipped
     ? `Pulado${log?.note ? ` · ${log.note}` : ''}`
-    : [habitTime(habit), describeHabit(habit)].filter(Boolean).join(' · ')
+    : [habitTime(habit), describeHabit(habit, { frequency: !week })].filter(Boolean).join(' · ')
 
   return (
     <li ref={ref} {...press} className={cx('flex items-center gap-3 bg-surface py-1.5', NO_SELECT)}>
       {badge && <HabitBadge habit={habit} muted={skipped} />}
       <div className="min-w-0 flex-1">
         <p className={cx('truncate text-sm font-medium', skipped && 'text-muted')}>{habit.name}</p>
-        <p className="truncate text-xs text-muted">{detail}</p>
+        <p className="truncate text-xs text-muted">
+          {!skipped && week && (
+            <>
+              <WeekNote habit={habit} week={week} />
+              {' · '}
+            </>
+          )}
+          {detail}
+        </p>
       </div>
       {habit.kind === 'check' ? (
         <button
           type="button"
           role="checkbox"
           aria-checked={marked}
-          aria-label={label(habit, state, log)}
+          aria-label={label(habit, state, log, week)}
           onClick={() => onSet(marked ? 0 : 1)}
           className="inline-flex size-11 items-center justify-center rounded-full transition active:scale-90"
         >

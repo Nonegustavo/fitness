@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { alive, patch, remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Habit, HabitLog } from '../../db/types'
-import { shiftDay, type DayKey } from '../../lib/dates'
+import { daysBetween, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 
 export type HabitTemplate = Pick<Habit, 'name' | 'kind' | 'polarity' | 'unit' | 'target' | 'icon'>
 
@@ -31,6 +31,24 @@ export function isSuccess(habit: Habit, value = 0): boolean {
   return value <= (habit.kind === 'count' ? (habit.target ?? 0) : 0)
 }
 
+/**
+ * A weekly habit's target, 1 to 6 days a week (at least that many to do, at most to avoid);
+ * undefined for a daily one. Seven a week is every day.
+ */
+export function weeklyTimes(habit: Pick<Habit, 'frequency'>): number | undefined {
+  const times = habit.frequency?.per === 'week' ? Math.round(habit.frequency.times) : undefined
+  return times !== undefined && times >= 1 && times <= 6 ? times : undefined
+}
+
+/** "3 vezes por semana", "até 2 dias por semana"; undefined for a daily habit. */
+export function frequencyText(habit: Pick<Habit, 'frequency' | 'polarity'>): string | undefined {
+  const times = weeklyTimes(habit)
+  if (times === undefined) return undefined
+  return habit.polarity === 'good'
+    ? `${times} ${times === 1 ? 'vez' : 'vezes'} por semana`
+    : `até ${times} ${times === 1 ? 'dia' : 'dias'} por semana`
+}
+
 /** What a habit's logs say about each day: the value, and the days skipped. */
 export interface HabitDays {
   values: Map<DayKey, number>
@@ -51,17 +69,97 @@ export function daysByHabit(logs: Pick<HabitLog, 'habitId' | 'date' | 'value' | 
   return byHabit
 }
 
-const MAX_STREAK_DAYS = 3650
+const pad = (n: number) => (n < 10 ? `0${n}` : String(n))
 
 /**
- * Consecutive successful days up to today. Today only counts once it is a success, so a goal not
- * met yet today doesn't break yesterday's streak; skipped days are stepped over, adding nothing.
+ * shiftDay for the day-by-day walks (a year of days per habit for the strength): the same key,
+ * about 30 times faster than through date-fns. Noon keeps a daylight-saving change off the date.
+ */
+export function stepDay(key: DayKey, days: number): DayKey {
+  const date = new Date(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + days, 12)
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/**
+ * How a week went: 'met' counts, 'missed' breaks, 'open' is a week not over and not met yet (it
+ * breaks nothing), 'aside' one with every day skipped, or the first, started too late in the week
+ * to reach the target.
+ */
+export type WeekOutcome = 'met' | 'missed' | 'open' | 'aside'
+
+/** A weekly habit's week, Sunday to Saturday. */
+export interface WeekResult {
+  /** Its Sunday. */
+  week: DayKey
+  /** The days that count: done (to do) or past the day's limit (to avoid); skipped ones left out. */
+  count: number
+  /** At least (to do) or at most (to avoid) this many days. */
+  times: number
+  /** Reached (to do), or still within the limit (to avoid). */
+  met: boolean
+  outcome: WeekOutcome
+}
+
+/**
+ * A weekly habit's week (its Sunday) as of `today`, the day in progress: a week still going isn't
+ * missed yet. Skipped days drop out of the week's days without lowering the target, so a week
+ * with every day skipped is set aside, and one with too few days left can be missed.
+ */
+export function weekResult(habit: Habit, days: HabitDays, week: DayKey, today: DayKey): WeekResult {
+  const times = weeklyTimes(habit) ?? 7
+  const first = week < habit.startDate ? habit.startDate : week
+  const last = stepDay(week, 6)
+  let count = 0
+  let available = 0
+  for (let day = first; day <= last; day = stepDay(day, 1)) {
+    if (days.skipped.has(day)) continue
+    available++
+    const success = isSuccess(habit, days.values.get(day))
+    if (habit.polarity === 'good' ? success : !success) count++
+  }
+  const met = habit.polarity === 'good' ? count >= times : count <= times
+  let outcome: WeekOutcome = 'missed'
+  if (available === 0) outcome = 'aside'
+  else if (met) outcome = 'met'
+  else if (last >= today) outcome = 'open'
+  // Created on a Friday, a habit of 3 days a week had no way to make its first week.
+  else if (habit.polarity === 'good' && daysBetween(first, last) + 1 < times) outcome = 'aside'
+  return { week, count, times, met, outcome }
+}
+
+/** Each weekly habit's week, the one `day` is in, from logs that cover it. */
+export function weekResults(
+  habits: Habit[],
+  logs: Pick<HabitLog, 'habitId' | 'date' | 'value' | 'skipped'>[],
+  day: DayKey,
+  today: DayKey,
+): Map<string, WeekResult> {
+  const week = weekStart(day)
+  const byHabit = daysByHabit(logs)
+  return new Map(
+    habits.flatMap((habit) =>
+      weeklyTimes(habit) === undefined ? [] : [[habit.id, weekResult(habit, byHabit.get(habit.id) ?? NO_DAYS, week, today)] as const],
+    ),
+  )
+}
+
+/** "2/3 na semana": the days done (or, to avoid, the days it happened) against the target. */
+export const weekProgressText = (week: Pick<WeekResult, 'count' | 'times'>): string => `${week.count}/${week.times} na semana`
+
+const MAX_STREAK_DAYS = 3650
+const MAX_STREAK_WEEKS = 520
+
+/**
+ * Consecutive successful days up to today, or weeks for a weekly habit. Today (the current week)
+ * only counts once it is a success, so a goal not met yet doesn't break the streak; skipped days,
+ * and weeks set aside, are stepped over, adding nothing.
  */
 export function streak(habit: Habit, days: HabitDays, today: DayKey): number {
+  if (weeklyTimes(habit) !== undefined) return weekStreak(habit, days, today)
   const met = (day: DayKey) => isSuccess(habit, days.values.get(day))
-  let day = met(today) && !days.skipped.has(today) ? today : shiftDay(today, -1)
+  let day = met(today) && !days.skipped.has(today) ? today : stepDay(today, -1)
   let count = 0
-  for (let walked = 0; walked < MAX_STREAK_DAYS && day >= habit.startDate; walked++, day = shiftDay(day, -1)) {
+  for (let walked = 0; walked < MAX_STREAK_DAYS && day >= habit.startDate; walked++, day = stepDay(day, -1)) {
     if (days.skipped.has(day)) continue
     if (!met(day)) break
     count++
@@ -69,15 +167,55 @@ export function streak(habit: Habit, days: HabitDays, today: DayKey): number {
   return count
 }
 
+function weekStreak(habit: Habit, days: HabitDays, today: DayKey): number {
+  let count = 0
+  let week = weekStart(today)
+  for (let walked = 0; walked < MAX_STREAK_WEEKS && stepDay(week, 6) >= habit.startDate; walked++, week = stepDay(week, -7)) {
+    const { outcome } = weekResult(habit, days, week, today)
+    if (outcome === 'missed') break
+    if (outcome === 'met') count++
+  }
+  return count
+}
+
+/** "12 dias seguidos", "5 dias sem", "3 semanas seguidas", "2 semanas dentro do limite". */
+export function streakText(habit: Pick<Habit, 'frequency' | 'polarity'>, count: number): string {
+  if (count === 0) return 'sem sequência'
+  const one = count === 1
+  if (weeklyTimes(habit) !== undefined) {
+    return habit.polarity === 'good'
+      ? `${count} ${one ? 'semana seguida' : 'semanas seguidas'}`
+      : `${count} ${one ? 'semana' : 'semanas'} dentro do limite`
+  }
+  return habit.polarity === 'good' ? `${count} ${one ? 'dia seguido' : 'dias seguidos'}` : `${count} ${one ? 'dia' : 'dias'} sem`
+}
+
 /**
  * Share of days meeting the habit between two days, ignoring days before the habit started and the
- * days skipped; undefined when no day is left.
+ * days skipped; undefined when no day is left. A weekly habit is counted in weeks, from the one
+ * `from` falls in to the one `to` falls in, and a week still going on `today` (by default the day
+ * after `to`) only counts once met.
  */
-export function successRate(habit: Habit, days: HabitDays, from: DayKey, to: DayKey): number | undefined {
+export function successRate(
+  habit: Habit,
+  days: HabitDays,
+  from: DayKey,
+  to: DayKey,
+  today: DayKey = stepDay(to, 1),
+): number | undefined {
   const start = from < habit.startDate ? habit.startDate : from
   let counted = 0
   let hits = 0
-  for (let day = start; day <= to; day = shiftDay(day, 1)) {
+  if (weeklyTimes(habit) !== undefined) {
+    for (let week = weekStart(start); week <= to; week = stepDay(week, 7)) {
+      const { outcome } = weekResult(habit, days, week, today)
+      if (outcome === 'open' || outcome === 'aside') continue
+      counted++
+      if (outcome === 'met') hits++
+    }
+    return counted > 0 ? hits / counted : undefined
+  }
+  for (let day = start; day <= to; day = stepDay(day, 1)) {
     if (days.skipped.has(day)) continue
     counted++
     if (isSuccess(habit, days.values.get(day))) hits++
@@ -129,12 +267,20 @@ export function useHabitLogs(from: DayKey, to: DayKey): HabitLog[] | undefined {
   )
 }
 
-/** "Meta: 2 doses", "Evitar", … */
-export function describeHabit(habit: Habit): string {
+/** The logs of the week (Sunday to Saturday) a day is in: the day's, and the weekly habits' progress. */
+export function useWeekLogs(day: DayKey): HabitLog[] | undefined {
+  const sunday = weekStart(day)
+  return useHabitLogs(sunday, shiftDay(sunday, 6))
+}
+
+/** "Meta: 2 doses", "Evitar", "Fazer · 3 vezes por semana"… `frequency: false` leaves the week out. */
+export function describeHabit(habit: Habit, { frequency = true }: { frequency?: boolean } = {}): string {
   const unit = habit.unit ? ` ${habit.unit}` : ''
+  const weekly = frequency ? frequencyText(habit) : undefined
+  const withWeek = (text: string) => (weekly ? `${text} · ${weekly}` : text)
   if (habit.kind === 'count' && habit.target !== undefined) {
-    return habit.polarity === 'good' ? `Meta: ${habit.target}${unit}` : `Limite: ${habit.target}${unit}`
+    return withWeek(habit.polarity === 'good' ? `Meta: ${habit.target}${unit}` : `Limite: ${habit.target}${unit}`)
   }
   const goal = habit.polarity === 'good' ? 'Fazer' : 'Evitar'
-  return habit.kind === 'count' && habit.unit ? `${goal} · ${habit.unit}` : goal
+  return withWeek(habit.kind === 'count' && habit.unit ? `${goal} · ${habit.unit}` : goal)
 }

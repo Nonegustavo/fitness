@@ -3,7 +3,7 @@ import { dayRange, formatDay, formatTime, shiftDay, weekStart, type DayKey } fro
 import { formatDuration, formatNumber } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
 import type { PlannedEvent } from '../garmin/calendar'
-import { habitTime } from '../habits/habits'
+import { frequencyText, habitTime } from '../habits/habits'
 import { describe, highlights, strengthLabel } from '../insights/analysis'
 import { buildDailyData, formatMetric, type DailyData, type DayRow, type Metric, type Sources } from '../insights/metrics'
 import { mean } from '../insights/stats'
@@ -226,10 +226,13 @@ function describeHabit(habit: Habit): string {
   const aim = habit.polarity === 'good' ? 'fazer' : 'evitar'
   const time = habitTime(habit)
   const at = time ? `, às ${time}` : ''
-  if (habit.kind === 'check') return `${habit.name} (${aim}${at})`
+  // "3 vezes por semana", "até 2 dias por semana" for a weekly habit.
+  const weekly = frequencyText(habit)
+  const often = weekly ? `, ${weekly}` : ''
+  if (habit.kind === 'check') return `${habit.name} (${aim}${often}${at})`
   const unit = habit.unit ? ` ${habit.unit}` : ''
   const target = habit.target === undefined ? '' : `, ${habit.polarity === 'good' ? 'meta' : 'limite'} ${formatNumber(habit.target)}${unit} por dia`
-  return `${habit.name} (${aim}, quantidade${target}${at})`
+  return `${habit.name} (${aim}, quantidade${target}${often}${at})`
 }
 
 function dayLine(

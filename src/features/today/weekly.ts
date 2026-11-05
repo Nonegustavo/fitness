@@ -23,7 +23,10 @@ export interface WeekStats {
   weightChange?: number
   /** Average liters a day, over the days with water logged. */
   waterL?: number
-  /** Share of habit-days met, the skipped ones left out. */
+  /**
+   * Share of habit-days met, the skipped ones left out, averaged over the habits; a weekly habit
+   * counts as its week, met or not.
+   */
   habits?: number
 }
 

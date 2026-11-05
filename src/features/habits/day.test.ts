@@ -59,6 +59,34 @@ describe('orderForDay', () => {
     expect(ids(orderForDay([creatine, water], logs({ water: { value: 3 } })))).toEqual(['water', 'creatine'])
     expect(ids(orderForDay([creatine, water], logs({ water: { value: 8 } })))).toEqual(['creatine', 'water'])
   })
+
+  describe('with weekly habits', () => {
+    const weekly = { times: 3, per: 'week' } as const
+    const yoga = habit('yoga', { time: '06:00', frequency: weekly })
+    const run = habit('run', { frequency: weekly })
+    const beer = habit('beer', { polarity: 'bad', frequency: { times: 2, per: 'week' } })
+    const list = [creatine, run, yoga, sun, beer, read]
+    const open = new Map([
+      ['yoga', { met: false }],
+      ['run', { met: false }],
+      ['beer', { met: true }],
+    ])
+
+    it('puts the open ones after the daily habits with a time, their own time sorting them among the rest', () => {
+      expect(ids(orderForDay(list, logs({}), open))).toEqual(['sun', 'read', 'yoga', 'creatine', 'run', 'beer'])
+    })
+
+    it('settles one whose week is met, or done today', () => {
+      const met = new Map([...open, ['run', { met: true }]])
+      expect(ids(orderForDay(list, logs({}), met))).toEqual(['sun', 'read', 'yoga', 'creatine', 'beer', 'run'])
+      expect(ids(orderForDay(list, logs({ yoga: { value: 1 } }), open))).toEqual(['sun', 'read', 'creatine', 'run', 'beer', 'yoga'])
+    })
+
+    it('keeps one to avoid among the ones to avoid until it happens today', () => {
+      expect(ids(orderForDay([beer, run], logs({ beer: { value: 1 } }), open))).toEqual(['run', 'beer'])
+      expect(ids(orderForDay([creatine, beer, alcohol], logs({ creatine: { value: 1 } }), open))).toEqual(['alcohol', 'beer', 'creatine'])
+    })
+  })
 })
 
 describe('keepOrder', () => {
@@ -78,5 +106,20 @@ describe('dayGoals', () => {
     expect(goals.done.map((h) => h.id)).toEqual(['a'])
     expect(goals.left).toEqual([])
     expect(dayGoals([a, b], logs({})).left.map((h) => h.id)).toEqual(['a', 'b'])
+  })
+
+  it('never asks for a weekly habit, but counts it as done the day it is', () => {
+    const a = habit('a')
+    const run = habit('run', { frequency: { times: 3, per: 'week' } })
+    const beer = habit('beer', { polarity: 'bad', frequency: { times: 2, per: 'week' } })
+    const open = dayGoals([a, run, beer], logs({}))
+    expect(open.required.map((h) => h.id)).toEqual(['a'])
+    expect(open.left.map((h) => h.id)).toEqual(['a'])
+    const ran = dayGoals([a, run, beer], logs({ a: { value: 1 }, run: { value: 1 } }))
+    expect(ran.required.map((h) => h.id)).toEqual(['a', 'run'])
+    expect(ran.done.map((h) => h.id)).toEqual(['a', 'run'])
+    expect(ran.left).toEqual([])
+    // Only weekly habits, none done: nothing asked for today.
+    expect(dayGoals([run], logs({})).required).toEqual([])
   })
 })

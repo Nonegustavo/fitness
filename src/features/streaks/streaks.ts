@@ -1,7 +1,7 @@
 import type { FoodLog, Habit, HabitLog, MacroGoals, WaterLog } from '../../db/types'
-import { shiftDay, type DayKey } from '../../lib/dates'
+import { shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatClock, formatNumber } from '../../lib/format'
-import { habitLogId, isSkipped, isSuccess } from '../habits/habits'
+import { habitLogId, isSkipped, isSuccess, weeklyTimes } from '../habits/habits'
 import type { Records } from '../running/running'
 
 /** The goals kept day after day that count as a streak. */
@@ -77,16 +77,34 @@ export function streaks(s: StreakSources, today: DayKey): Partial<Record<StreakK
     }, today)
   }
   const active = s.habits.filter((habit) => !habit.archived)
-  if (active.length > 0) {
+  // The streak is of days: a weekly habit to do isn't asked for on any of them (with only those,
+  // there's no streak), and one to avoid only breaks the day it goes past its weekly limit.
+  const daily = active.filter((habit) => weeklyTimes(habit) === undefined)
+  if (daily.length > 0) {
     const logs = new Map(s.habitLogs.map((log) => [log.id, log]))
+    const limits = active.filter((habit) => habit.polarity === 'bad' && weeklyTimes(habit) !== undefined)
+    const overLimit = (habit: Habit, date: DayKey) => {
+      const happened = (day: DayKey) => {
+        const log = logs.get(habitLogId(habit.id, day))
+        return day >= habit.startDate && !isSkipped(log) && !isSuccess(habit, log?.value)
+      }
+      if (!happened(date)) return false
+      let count = 0
+      for (let day = weekStart(date); day <= date; day = shiftDay(day, 1)) if (happened(day)) count++
+      return count > weeklyTimes(habit)!
+    }
     result.habits = dayStreak((date) => {
-      const started = active.filter((habit) => habit.startDate <= date)
+      const started = daily.filter((habit) => habit.startDate <= date)
       const due = started.filter((habit) => !isSkipped(logs.get(habitLogId(habit.id, date))))
       // A day with every habit skipped is set aside.
       if (due.length === 0) return started.length > 0 ? undefined : false
       // A day only counts once something was logged on it (a skip too): an empty day isn't a kept one.
-      const logged = started.some((habit) => logs.has(habitLogId(habit.id, date)))
-      return logged && due.every((habit) => isSuccess(habit, logs.get(habitLogId(habit.id, date))?.value))
+      const logged = active.some((habit) => habit.startDate <= date && logs.has(habitLogId(habit.id, date)))
+      return (
+        logged &&
+        due.every((habit) => isSuccess(habit, logs.get(habitLogId(habit.id, date))?.value)) &&
+        !limits.some((habit) => overLimit(habit, date))
+      )
     }, today)
   }
   return result

@@ -11,7 +11,7 @@ import { useAgenda, useTodayTemplate } from '../calendar/plans'
 import { goalsFor, sumNutrients, useFoodLogs, useTrainingDays } from '../food/nutrition'
 import { latestNight, sleepQuality } from '../garmin/recovery'
 import { dayGoals } from '../habits/day'
-import { useHabitLogs, useHabits } from '../habits/habits'
+import { useHabits, useWeekLogs, weeklyTimes, weekResults } from '../habits/habits'
 import { ENERGY, levelOf, MOODS, useJournalEntry } from '../journal/journal'
 import { useStartWorkout } from '../training/components'
 import { sumMl, useContainers, useWaterLogs } from '../water/water'
@@ -134,19 +134,39 @@ export function WaterSmall({ today }: { today: DayKey }) {
 
 export function HabitsSmall({ today }: { today: DayKey }) {
   const habits = useHabits()
-  const logs = useHabitLogs(today, today)
+  // The whole week, for the weekly habits.
+  const logs = useWeekLogs(today)
   if (!habits || !logs) return <TileSkeleton />
   const active = habits.filter((habit) => habit.archived === 0)
   if (!active.some((habit) => habit.polarity === 'good')) return null
-  // The day's goals leave out the habits skipped today ("Hoje não vou fazer").
-  const goals = dayGoals(active, new Map(logs.map((log) => [log.habitId, log])))
+  // The weekly habits to do: how many have met this week's target.
+  const weekly = active.filter((habit) => habit.polarity === 'good' && weeklyTimes(habit) !== undefined)
+  const weeks = weekResults(weekly, logs, today, today)
+  const weeksMet = weekly.filter((habit) => weeks.get(habit.id)?.met).length
+  if (weekly.length === active.filter((habit) => habit.polarity === 'good').length) {
+    // Only weekly habits to do: the week is what counts.
+    return (
+      <SmallCard icon={ListChecks} tone="habits" label="Hábitos" to="/habitos">
+        <Value value={`${weeksMet}/${weekly.length}`} />
+        <ThinBar value={weeksMet} max={weekly.length} color={toneColor('habits')} />
+        <Note>{weeksMet === weekly.length ? 'semana feita 🎉' : weekly.length === 1 ? 'meta da semana' : 'metas da semana'}</Note>
+      </SmallCard>
+    )
+  }
+  // The day's goals leave out the habits skipped today ("Hoje não vou fazer") and the weekly ones
+  // not done today.
+  const goals = dayGoals(active, new Map(logs.filter((log) => log.date === today).map((log) => [log.habitId, log])))
   const done = goals.done.length
   const total = goals.required.length
+  const week = weekly.length > 0 ? ` · semana ${weeksMet}/${weekly.length}` : ''
   return (
     <SmallCard icon={ListChecks} tone="habits" label="Hábitos" to="/habitos">
       <Value value={total === 0 ? '—' : `${done}/${total}`} />
       <ThinBar value={done} max={Math.max(total, 1)} color={toneColor('habits')} />
-      <Note>{total === 0 ? 'pulados hoje' : done === total ? 'tudo feito hoje 🎉' : `faltam ${total - done}`}</Note>
+      <Note>
+        {total === 0 ? 'pulados hoje' : done === total ? (week ? 'tudo feito 🎉' : 'tudo feito hoje 🎉') : `faltam ${total - done}`}
+        {week}
+      </Note>
     </SmallCard>
   )
 }

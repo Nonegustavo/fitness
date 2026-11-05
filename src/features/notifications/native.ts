@@ -270,14 +270,17 @@ function watchWeekly() {
   })
 }
 
-/** Reminders follow the habits and their logs: checking a habit takes today's reminder away. */
+/**
+ * Reminders follow the habits and their logs: checking a habit takes today's reminder away, and
+ * reaching a weekly habit's target, the rest of the week's. Six days back covers the week so far.
+ */
 function watchReminders() {
   let pending: ReturnType<typeof setTimeout> | undefined
   liveQuery(async () => {
     const today = dayKey()
     const [habits, logs] = await Promise.all([
       db.habits.toArray(),
-      db.habitLogs.where('date').between(today, shiftDay(today, HORIZON_DAYS), true, true).toArray(),
+      db.habitLogs.where('date').between(shiftDay(today, -6), shiftDay(today, HORIZON_DAYS), true, true).toArray(),
     ])
     return { habits: alive(habits), logs }
   }).subscribe({

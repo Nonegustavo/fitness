@@ -28,7 +28,18 @@ import { amountLabel, goalsFor, MEAL_LABEL, MEALS, sumNutrients } from '../food/
 import type { PlannedEvent } from '../garmin/calendar'
 import { hrvStatus } from '../garmin/recovery'
 import { describeStep, workoutBlocks } from '../garmin/workout'
-import { daysByHabit, NO_DAYS, skippedBetween, streak, successRate } from '../habits/habits'
+import {
+  daysByHabit,
+  frequencyText,
+  NO_DAYS,
+  skippedBetween,
+  streak,
+  successRate,
+  weeklyTimes,
+  weekResult,
+  type HabitDays,
+} from '../habits/habits'
+import { habitStrength, strengthPercent } from '../habits/strength'
 import { formatPace, isRun, personalRecords, pooledPace, weeklyVolume } from '../running/running'
 import { STREAK_LABELS, streaks, type StreakKind } from '../streaks/streaks'
 import { MUSCLES } from '../training/catalog'
@@ -311,8 +322,9 @@ export function weekLines(s: WeeksInput, today: DayKey, count = 8): string[] {
     const hrv = average(health.flatMap((row) => (row.hrv?.lastNight ? [row.hrv.lastNight] : [])))
     const resting = average(health.flatMap((row) => (row.restingHr ? [row.restingHr] : [])))
     const weight = trendAt(weightTrend, to)
+    // A weekly habit's current week only counts once met.
     const rates = habits.flatMap((habit) => {
-      const rate = successRate(habit, values.get(habit.id) ?? NO_DAYS, from, to)
+      const rate = successRate(habit, values.get(habit.id) ?? NO_DAYS, from, to, today)
       return rate === undefined ? [] : [rate]
     })
     const eaten = [...food.values()]
@@ -600,11 +612,17 @@ export function adherenceLines(s: AdherenceInput, today: DayKey): string[] {
   const habits = s.habits.filter((habit) => !habit.archived)
   for (const habit of habits) {
     const days = values.get(habit.id) ?? NO_DAYS
+    if (weeklyTimes(habit) !== undefined) {
+      lines.push(weeklyHabitLine(habit, days, today))
+      continue
+    }
     const rate = successRate(habit, days, from, shiftDay(today, -1))
     if (rate === undefined) continue
     const skipped = skippedBetween(days, from, shiftDay(today, -1)).length
     const aside = skipped ? ` (sem contar ${skipped} ${skipped === 1 ? 'dia pulado' : 'dias pulados'})` : ''
-    lines.push(`- Hábito «${habit.name}»: cumprido em ${Math.round(rate * 100)}% dos dias das últimas 2 semanas${aside}; sequência atual ${streak(habit, days, today)} dias`)
+    lines.push(
+      `- Hábito «${habit.name}»: cumprido em ${Math.round(rate * 100)}% dos dias das últimas 2 semanas${aside}; sequência atual ${streak(habit, days, today)} dias; força ${strengthPercent(habitStrength(habit, days, today))}`,
+    )
   }
 
   const trainingDays = new Set(s.sessions.filter((session) => session.endedAt).map((session) => session.date))
@@ -634,6 +652,28 @@ export function adherenceLines(s: AdherenceInput, today: DayKey): string[] {
     if (list.length > 0) lines.push(`- Dicas da análise de ${day(insight.id)}: ${list.slice(0, 8).map((tip) => `"${tip}"`).join('; ')}`)
   }
   return lines
+}
+
+/**
+ * A weekly habit for the analysis: the last 4 complete weeks, this one so far, the streak in weeks
+ * and the strength (0–100%, up with each week met, down a little with each one missed).
+ */
+function weeklyHabitLine(habit: Habit, days: HabitDays, today: DayKey): string {
+  const week = weekStart(today)
+  const from = shiftDay(week, -28)
+  const rate = successRate(habit, days, from, shiftDay(week, -1))
+  const now = weekResult(habit, days, week, today)
+  const good = habit.polarity === 'good'
+  const skipped = skippedBetween(days, from, today).length
+  const weeks = streak(habit, days, today)
+  const parts = present([
+    rate !== undefined && `${good ? 'meta cumprida' : 'dentro do limite'} em ${Math.round(rate * 100)}% das últimas 4 semanas`,
+    `esta semana até agora ${now.count} ${now.count === 1 ? 'dia' : 'dias'}${good ? ` de ${now.times}` : ` (limite ${now.times})`}`,
+    good && skipped > 0 && `${skipped} ${skipped === 1 ? 'dia pulado' : 'dias pulados'} (não baixam a meta)`,
+    `sequência atual ${weeks} ${weeks === 1 ? 'semana' : 'semanas'}`,
+    `força ${strengthPercent(habitStrength(habit, days, today))}`,
+  ])
+  return `- Hábito «${habit.name}» (${frequencyText(habit)}): ${parts.join('; ')}`
 }
 
 // ---------------------------------------------------------------- freshness
