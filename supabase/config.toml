@@ -6,6 +6,9 @@ project_id = "fitness"
 [functions.analyze-meal]
 verify_jwt = false
 
+[functions.daily-insights]
+verify_jwt = false
+
 [functions.garmin]
 verify_jwt = false
 

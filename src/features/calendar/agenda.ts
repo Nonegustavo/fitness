@@ -31,8 +31,16 @@ export interface AgendaItem {
   activity?: Activity
 }
 
-/** The key of a Garmin calendar workout: its uid (or name) and its day. */
-export const eventKey = (event: Pick<PlannedEvent, 'uid' | 'title' | 'date'>): string => `${event.uid ?? event.title}|${event.date}`
+/**
+ * The key of a Garmin calendar workout, for the time the user plans it at: its name and its day.
+ * Not its UID: the published calendar makes up new UIDs every time it is fetched, which made the
+ * time set for a workout disappear on the next sync.
+ */
+export const eventKey = (event: Pick<PlannedEvent, 'title' | 'date'>): string =>
+  `t:${event.title.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()}|${event.date}`
+
+/** Times saved before, keyed by the feed's UID instead of the name. */
+const isLegacyKey = (id: string) => !id.startsWith('t:')
 
 const plain = (text: string) =>
   text
@@ -158,14 +166,19 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
     })
   }
 
-  const times = new Map((sources.eventTimes ?? []).filter((time) => !time.deleted).map((time) => [time.id, time.time]))
+  const saved = (sources.eventTimes ?? []).filter((time) => !time.deleted).sort((a, b) => a.updatedAt - b.updatedAt)
+  const times = new Map(saved.map((time) => [time.id, time.time]))
+  // A time saved under an old UID key still counts for the day's only Garmin workout (the latest one set).
+  const legacy = new Map(saved.filter((time) => isLegacyKey(time.id)).map((time) => [time.date, time.time]))
+  const eventsOn = new Map<DayKey, number>()
+  for (const event of sources.events ?? []) eventsOn.set(event.date, (eventsOn.get(event.date) ?? 0) + 1)
   for (const event of sources.events ?? []) {
     if (!inRange(event.date)) continue
     const kind = eventKind(event)
     const key = eventKey(event)
-    const customTime = times.get(key)
+    const customTime = times.get(key) ?? (eventsOn.get(event.date) === 1 ? legacy.get(event.date) : undefined)
     const base = {
-      key: `event-${event.uid ?? event.title}-${event.date}`,
+      key: `event-${key}`,
       date: event.date,
       kind,
       title: eventTitle(event.title),

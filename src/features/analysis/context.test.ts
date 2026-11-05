@@ -163,7 +163,7 @@ describe('what was said about a run', () => {
     }
     const text = build({ ...world(), activities: [run] })
     expect(text).toContain(
-      'treino: Corrida 7 Km 7,1 km em 43 min, esforço 7/10, desconforto: joelho, comentário: "Tiros no ritmo. / O último mais pesado."',
+      'treino: Corrida 7 Km: 7,1 km em 43 min, esforço 7/10, desconforto: joelho, comentário: "Tiros no ritmo. / O último mais pesado."',
     )
   })
 })

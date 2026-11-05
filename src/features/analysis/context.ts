@@ -1,31 +1,58 @@
-import type { DailyInsight, Habit, Settings } from '../../db/types'
-import { dayRange, formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
+import type { ActivityStream, DailyInsight, Exercise, Habit, MeasurementEntry, Settings } from '../../db/types'
+import { dayRange, formatDay, formatTime, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
-import { activityLabel } from '../activities/activities'
+import type { AgendaItem } from '../calendar/agenda'
 import type { PlannedEvent } from '../garmin/calendar'
 import { describe, highlights, strengthLabel } from '../insights/analysis'
 import { buildDailyData, formatMetric, type DailyData, type DayRow, type Metric, type Sources } from '../insights/metrics'
 import { mean } from '../insights/stats'
 import { firstDayOf } from '../insights/useDailyData'
-import { DISCOMFORT_AREAS } from '../training/discomfort'
-import { summarize } from '../training/stats'
+import {
+  adherenceLines,
+  bodyLines,
+  compositionText,
+  dayWorkouts,
+  energyLines,
+  freshnessLines,
+  mealsText,
+  measurementText,
+  oneLine,
+  recoveryParts,
+  runningLines,
+  sleepParts,
+  strengthLines,
+  weekLines,
+  type Freshness,
+} from './contextParts'
 
 export const DETAIL_DAYS = 14
+/** The last days get each meal and what was in it; the older ones, the totals. */
+const MEAL_DAYS = 7
 const TREND_DAYS = 30
 const DIARY_CHARS = 600
-/** A workout's comment (what the user told the coach). */
-const NOTE_CHARS = 400
 const PLANNED_DAYS = 7
 export const PROFILE_CHARS = 3000
 
 export interface ContextInput {
   sources: Sources
   settings: Settings
+  /** The coach's workouts from the Garmin calendar; `time` is the one the user planned, when set. */
   planned: PlannedEvent[] | null
   /** Templates scheduled in the app and not done yet. */
   gymPlans?: { date: DayKey; name: string; time?: string }[]
   /** Yesterday's analysis, so today's doesn't repeat it. */
   previous?: DailyInsight
+  /** The analyses of the last days, for their tips. */
+  insights?: DailyInsight[]
+  /** Exercise names and muscles, for the gym workouts. */
+  exercises?: Map<string, Exercise>
+  measurements?: MeasurementEntry[]
+  /** The runs' distance samples, for the best efforts. */
+  streams?: Map<string, Pick<ActivityStream, 'step' | 'distance'>>
+  /** The calendar of the last two weeks and the next one: planned against done. */
+  agenda?: AgendaItem[]
+  /** When each source last brought data. */
+  synced?: Freshness
   today: DayKey
   now: Date
 }
@@ -36,15 +63,24 @@ export function hasRecentData(sources: Sources, today: DayKey): boolean {
   return [...data.rows.values()].filter((row) => Object.keys(row).length >= 3).length >= 3
 }
 
+const section = (out: string[], title: string, lines: string[]) => {
+  if (lines.length > 0) out.push('', `## ${title}`, ...lines)
+}
+
 /**
- * Everything the daily analysis reads, as plain text: the last two weeks day by day (with the
- * diary), the last month against the one before, the goals, the relations the app found in the
- * data and the workouts planned ahead. Built on the device, from the local data.
+ * Everything the daily analysis reads, as plain text: the goals, how fresh the data is, the last
+ * two weeks day by day (sleep, recovery, each workout with what the user said about it, the meals,
+ * the diary), the last weeks one line each, the lifts, the running, the body, the energy balance,
+ * how well the plan and the habits were kept, the last month against the one before, the relations
+ * the app found and the workouts planned ahead. Built on the device, from the local data.
  */
-export function buildContext({ sources, settings, planned, gymPlans, previous, today, now }: ContextInput): string {
+export function buildContext(input: ContextInput): string {
+  const { sources, settings, planned, gymPlans, previous, today, now } = input
+  const exercises = input.exercises ?? new Map<string, Exercise>()
   const first = firstDayOf(sources) ?? today
   const all = buildDailyData(sources, first, today)
   const metric = new Map(all.metrics.map((m) => [m.key, m]))
+  const habits = sources.habits.filter((habit) => !habit.archived)
   const out: string[] = []
 
   out.push(`Hoje é ${formatDay(today, "EEEE, d 'de' MMMM 'de' yyyy")}; agora são ${formatTime(now.getTime())}.`)
@@ -71,15 +107,75 @@ export function buildContext({ sources, settings, planned, gymPlans, previous, t
       weightGoal.kgPerWeek === 0 ? 'manter' : `${weightGoal.kgPerWeek < 0 ? 'perder' : 'ganhar'} ${rate} kg por semana`
     out.push(`- Peso: chegar a ${formatNumber(weightGoal.targetKg, 1)} kg (${pace}).`)
   }
-  const habits = sources.habits.filter((habit) => !habit.archived)
   for (const habit of habits) out.push(`- Hábito: ${describeHabit(habit)}.`)
 
-  out.push('', `## Últimos ${DETAIL_DAYS} dias`)
-  for (const day of dayRange(shiftDay(today, -(DETAIL_DAYS - 1)), today).reverse()) {
-    out.push(dayLine(day, all.rows.get(day), metric, sources, habits))
-    const diary = sources.journal.find((entry) => entry.id === day)?.text.trim()
-    if (diary) out.push(`  Diário: "${diary.length > DIARY_CHARS ? `${diary.slice(0, DIARY_CHARS)}…` : diary}"`)
-  }
+  const todaysLogs = sources.foodLogs.filter((log) => log.date === today)
+  section(
+    out,
+    'De quando são os dados',
+    freshnessLines(input.synced ?? {}, {
+      date: today,
+      weighed: sources.weights.some((entry) => entry.date === today),
+      lastMeal: todaysLogs.length ? Math.max(...todaysLogs.map((log) => log.time)) : undefined,
+      slept: sources.health.some((row) => row.id === today && row.sleep),
+      workouts:
+        sources.activities.filter((activity) => activity.date === today).length +
+        sources.sessions.filter((session) => session.date === today && session.endedAt).length,
+    }),
+  )
+
+  out.push('', `## Últimos ${DETAIL_DAYS} dias (do mais recente)`)
+  dayRange(shiftDay(today, -(DETAIL_DAYS - 1)), today)
+    .reverse()
+    .forEach((day, index) => {
+      out.push(dayLine(day, all.rows.get(day), metric, input, habits, exercises))
+      if (index < MEAL_DAYS) {
+        const meals = mealsText(sources.foodLogs.filter((log) => log.date === day))
+        if (meals) out.push(`  Refeições: ${meals}`)
+      }
+      const diary = sources.journal.find((entry) => entry.id === day)?.text.trim()
+      if (diary) out.push(`  Diário: "${diary.length > DIARY_CHARS ? `${diary.slice(0, DIARY_CHARS)}…` : diary}"`)
+    })
+
+  section(out, 'Semanas (domingo a sábado; da mais antiga à atual)', weekLines(sources, today))
+  section(out, 'Musculação', strengthLines(sources.sessions, exercises, today))
+  const week = weekStart(today)
+  section(
+    out,
+    'Corrida',
+    runningLines(
+      {
+        activities: sources.activities,
+        streams: input.streams,
+        weekAgenda: input.agenda?.filter((item) => item.date >= week && item.date <= shiftDay(week, 6)),
+        events: planned,
+      },
+      today,
+    ),
+  )
+  section(
+    out,
+    'Corpo',
+    bodyLines({ weights: sources.weights, measurements: input.measurements ?? [], sites: settings.measurementSites, settings }, today),
+  )
+  section(out, 'Energia e proteína', energyLines({ foodLogs: sources.foodLogs, weights: sources.weights, health: sources.health }, today))
+  section(
+    out,
+    'Constância e aderência',
+    adherenceLines(
+      {
+        agenda: input.agenda,
+        habits: sources.habits,
+        habitLogs: sources.habitLogs,
+        water: sources.waterLogs,
+        foodLogs: sources.foodLogs,
+        sessions: sources.sessions,
+        settings,
+        insights: input.insights,
+      },
+      today,
+    ),
+  )
 
   const trends = trendLines(all, today, metric)
   if (trends.length > 0) out.push('', `## Últimos ${TREND_DAYS} dias contra os ${TREND_DAYS} anteriores (médias)`, ...trends)
@@ -94,8 +190,9 @@ export function buildContext({ sources, settings, planned, gymPlans, previous, t
   if (ahead.length > 0) {
     out.push('', '## Treinos planejados (SisRUN, pelo Garmin)')
     for (const event of ahead) {
-      const detail = event.description?.replace(/\s+/g, ' ').trim().slice(0, 200)
-      out.push(`- ${formatDay(event.date, 'EEE d/MM')}: ${event.title}${detail ? ` — ${detail}` : ''}`)
+      const detail = event.description ? oneLine(event.description.replace(/\s+/g, ' '), 300) : ''
+      const at = event.time !== undefined ? ` às ${formatTime(event.time)}` : ''
+      out.push(`- ${formatDay(event.date, 'EEE d/MM')}${at}: ${event.title}${detail ? ` — ${detail}` : ''}`)
     }
   }
 
@@ -118,59 +215,26 @@ function describeHabit(habit: Habit): string {
   return `${habit.name} (${aim}, quantidade${target})`
 }
 
-function dayLine(day: DayKey, row: DayRow | undefined, metric: Map<string, Metric>, sources: Sources, habits: Habit[]) {
+function dayLine(
+  day: DayKey,
+  row: DayRow | undefined,
+  metric: Map<string, Metric>,
+  { sources, settings, measurements }: ContextInput,
+  habits: Habit[],
+  exercises: Map<string, Exercise>,
+) {
   const value = (key: string) => row?.[key]
   const show = (key: string) => {
     const v = value(key)
     const m = metric.get(key)
     return v === undefined || !m ? undefined : formatMetric(m, v)
   }
-  const parts: string[] = []
+  const health = sources.health.find((entry) => entry.id === day)
+  const parts: string[] = [...sleepParts(health)]
+  if (!health?.sleep && show('sleepHours')) parts.push(`sono ${show('sleepHours')}`)
+  parts.push(...recoveryParts(health))
 
-  if (value('sleepHours') !== undefined) {
-    const details = [
-      show('sleepScore') && `nota ${show('sleepScore')}`,
-      show('deepHours') && `profundo ${show('deepHours')}`,
-      show('remHours') && `REM ${show('remHours')}`,
-      show('bedtime') && `deitou ${show('bedtime')}`,
-    ].filter(Boolean)
-    parts.push(`sono ${show('sleepHours')}${details.length ? ` (${details.join(', ')})` : ''}`)
-  }
-  for (const [key, label] of [
-    ['hrv', 'HRV'],
-    ['restingHr', 'FC repouso'],
-    ['bodyBattery', 'Body Battery máx.'],
-    ['stress', 'estresse'],
-    ['steps', 'passos'],
-  ] as const) {
-    if (show(key)) parts.push(`${label} ${show(key)}`)
-  }
-
-  const workouts = [
-    ...sources.activities
-      .filter((activity) => activity.date === day)
-      .map((activity) => {
-        const distance = activity.distanceM ? ` ${formatNumber(activity.distanceM / 1000, 1)} km` : ''
-        const effect = activity.aerobicEffect ? `, efeito ${formatNumber(activity.aerobicEffect, 1)}` : ''
-        const effort = activity.effort ? `, esforço ${activity.effort}/10` : ''
-        const pain = activity.discomfort?.length
-          ? `, desconforto: ${activity.discomfort.map((area) => DISCOMFORT_AREAS[area] ?? area).join(', ').toLowerCase()}`
-          : ''
-        const said = activity.notes?.trim().replace(/\s*\n\s*/g, ' / ')
-        const note = said ? `, comentário: "${said.length > NOTE_CHARS ? `${said.slice(0, NOTE_CHARS)}…` : said}"` : ''
-        return `${activity.title ?? activityLabel(activity)}${distance} em ${formatDuration(activity.timerSec * 1000)}${effect}${effort}${pain}${note}`
-      }),
-    ...sources.sessions
-      .filter((session) => session.date === day && session.endedAt)
-      .map((session) => {
-        const { sets, volumeKg } = summarize(session)
-        const effort = session.effort ? `, esforço ${session.effort}/10` : ''
-        const pain = session.discomfort?.length
-          ? `, desconforto: ${session.discomfort.map((area) => DISCOMFORT_AREAS[area] ?? area).join(', ').toLowerCase()}`
-          : ''
-        return `musculação «${session.name}», ${sets} séries, ${formatNumber(volumeKg, 0)} kg levantados${effort}${pain}`
-      }),
-  ]
+  const workouts = dayWorkouts(day, sources.activities, sources.sessions, exercises)
   if (workouts.length > 0) parts.push(`treino: ${workouts.join('; ')}`)
   else if (value('activityMinutes') === 0) parts.push('sem treino')
 
@@ -179,7 +243,14 @@ function dayLine(day: DayKey, row: DayRow | undefined, metric: Map<string, Metri
     parts.push(`comeu ${show('kcal')} (proteína ${show('protein')}, carboidratos ${show('carbs')}, gorduras ${show('fat')}${last})`)
   }
   if (show('water')) parts.push(`água ${show('water')}`)
-  if (show('weight')) parts.push(`peso ${show('weight')}${show('bodyFat') ? `, gordura ${show('bodyFat')}` : ''}`)
+  const weighIn = sources.weights.filter((entry) => entry.date === day).sort((a, b) => a.time - b.time)[0]
+  if (weighIn) {
+    const composition = compositionText(weighIn)
+    parts.push(`peso ${formatNumber(weighIn.weightKg, 1)} kg${composition ? ` (${composition})` : ''}`)
+  }
+  const measured = (measurements ?? []).find((entry) => entry.date === day)
+  const sizes = measured && measurementText(measured, settings.measurementSites)
+  if (sizes) parts.push(sizes)
   if (show('mood')) parts.push(`humor ${show('mood')}/5`)
   if (show('energy')) parts.push(`energia ${show('energy')}/5`)
 

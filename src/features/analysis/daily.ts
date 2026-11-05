@@ -3,12 +3,14 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useSyncExternalStore } from 'react'
 import { alive, save } from '../../db/repo'
 import { db, DEFAULT_SETTINGS, SETTINGS_ID } from '../../db/schema'
-import type { DailyInsight, InsightSection } from '../../db/types'
+import type { ActivityStream, DailyInsight, InsightSection } from '../../db/types'
 import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
 import { getSyncState, onSyncStateChange } from '../../sync/controller'
 import { supabase } from '../../sync/supabase'
+import { buildAgenda } from '../calendar/agenda'
 import { plannedEvents } from '../garmin/sync'
 import { loadSources } from '../insights/useDailyData'
+import { isOutdoorRun } from '../running/running'
 import { buildContext, hasRecentData } from './context'
 
 const AREAS: InsightSection['area'][] = ['sono', 'recuperacao', 'treino', 'alimentacao', 'corpo', 'habitos', 'geral']
@@ -48,28 +50,64 @@ const subscribe = (listener: () => void) => {
 
 export const useInsightState = (): GenerateState => useSyncExternalStore(subscribe, () => state)
 
+const metaTime = async (key: string, field: string): Promise<number | undefined> => {
+  const value = (await db.meta.get(key))?.value as Record<string, unknown> | undefined
+  return typeof value?.[field] === 'number' ? (value[field] as number) : undefined
+}
+
 /** The summary of the data the analysis reads, built on the device from the local data. */
 export async function contextFor(day: DayKey = dayKey(), withPrevious = true): Promise<string> {
-  const [sources, settings, planned, previous, plans, templates] = await Promise.all([
+  const from = shiftDay(day, -14)
+  const to = shiftDay(day, 7)
+  const [sources, settings, events, insights, plans, templates, eventTimes, exercises, measurements] = await Promise.all([
     loadSources(),
     db.settings.get(SETTINGS_ID),
     plannedEvents(),
-    db.insights.get(shiftDay(day, -1)),
-    db.workoutPlans.where('date').between(day, shiftDay(day, 7), true, true).toArray(),
+    db.insights.where('id').between(shiftDay(day, -4), shiftDay(day, -1), true, true).toArray(),
+    db.workoutPlans.where('date').between(from, to, true, true).toArray(),
     db.workoutTemplates.toArray(),
+    db.eventTimes.where('date').between(from, to, true, true).toArray(),
+    db.exercises.toArray(),
+    db.measurements.toArray(),
   ])
-  // Scheduled templates still ahead: one done that day by a workout of the same template is left out.
-  const gymPlans = alive(plans).flatMap((plan) => {
-    const template = templates.find((t) => t.id === plan.templateId && !t.deleted)
-    const done = sources.sessions.some((s) => s.date === plan.date && s.templateId === plan.templateId && s.endedAt)
-    return template && !done ? [{ date: plan.date, name: template.name, time: plan.time }] : []
+  const runs = sources.activities.filter(isOutdoorRun)
+  const [streams, garmin, healthConnect, calendar] = await Promise.all([
+    db.activityStreams.bulkGet(runs.map((run) => run.id)),
+    metaTime('garmin', 'lastRunAt'),
+    metaTime('healthConnect', 'lastImportAt'),
+    metaTime('garminCalendar', 'fetchedAt'),
+  ])
+  const agenda = buildAgenda(from, to, day, {
+    plans: alive(plans),
+    events,
+    sessions: sources.sessions,
+    activities: sources.activities,
+    templates: alive(templates),
+    eventTimes: alive(eventTimes),
   })
+  // The coach's workouts with the time the user planned them at, when there is one.
+  const timed = new Map(agenda.flatMap((item) => (item.event && item.time !== undefined ? [[item.event, item.time] as const] : [])))
+  const planned = events && events.map((event) => (timed.has(event) ? { ...event, time: timed.get(event) } : event))
+  // Scheduled templates still ahead: one done that day by a workout of the same template is left out.
+  const gymPlans = agenda.flatMap((item) =>
+    item.plan && item.status === 'planned' && item.date >= day
+      ? [{ date: item.date, name: item.title, time: item.plan.time }]
+      : [],
+  )
+  const live = alive(insights)
+  const previous = live.find((insight) => insight.id === shiftDay(day, -1))
   return buildContext({
     sources,
     settings: settings ?? { id: SETTINGS_ID, ...DEFAULT_SETTINGS, updatedAt: 0, deleted: 0, dirty: 0 },
     planned,
-    gymPlans: gymPlans.sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? '')),
-    previous: withPrevious && previous && !previous.deleted ? previous : undefined,
+    gymPlans,
+    previous: withPrevious ? previous : undefined,
+    insights: live,
+    exercises: new Map(alive(exercises).map((exercise) => [exercise.id, exercise])),
+    measurements: alive(measurements),
+    streams: new Map(streams.filter((stream): stream is ActivityStream => !!stream && !stream.deleted).map((stream) => [stream.id, stream])),
+    agenda,
+    synced: { garmin, healthConnect, calendar },
     today: day,
     now: new Date(),
   })

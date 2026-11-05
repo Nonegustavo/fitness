@@ -154,11 +154,14 @@ export function dayTitle(date: DayKey, today: DayKey): string {
 function ItemRow({
   item,
   today,
+  day,
   onEdit,
   onTime,
 }: {
   item: AgendaItem
   today: DayKey
+  /** The day it's for, when the list mixes days. */
+  day?: string
   onEdit: (plan: WorkoutPlan) => void
   onTime: (item: AgendaItem) => void
 }) {
@@ -187,6 +190,7 @@ function ItemRow({
     <li className="flex items-start gap-3 py-2.5">
       <AgendaIcon kind={item.kind} status={item.status} size="md" />
       <div className="min-w-0 flex-1">
+        {day && <p className="text-xs font-semibold text-accent-ink">{day}</p>}
         {link ? (
           <Link to={link} className="block truncate text-sm font-medium hover:text-accent-ink">
             {item.title}
@@ -237,14 +241,29 @@ function ItemRow({
 }
 
 /** Items with their actions: start, change or unschedule what is scheduled; open what was done. */
-export function AgendaItems({ items, today }: { items: AgendaItem[]; today: DayKey }) {
+/** "Amanhã", or the weekday and date ("Sexta, 7/11"), for an item that isn't today's. */
+export function itemDay(date: DayKey, today: DayKey): string {
+  if (date === shiftDay(today, 1)) return 'Amanhã'
+  const label = formatDay(date, 'EEE, d/MM')
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+/** A list of workouts; `showDay` names the day of the ones that aren't today's. */
+export function AgendaItems({ items, today, showDay = false }: { items: AgendaItem[]; today: DayKey; showDay?: boolean }) {
   const [editing, setEditing] = useState<WorkoutPlan>()
   const [timing, setTiming] = useState<AgendaItem>()
   return (
     <>
       <ul className="divide-y divide-line">
         {items.map((item) => (
-          <ItemRow key={item.key} item={item} today={today} onEdit={setEditing} onTime={setTiming} />
+          <ItemRow
+            key={item.key}
+            item={item}
+            today={today}
+            day={showDay && item.date !== today ? itemDay(item.date, today) : undefined}
+            onEdit={setEditing}
+            onTime={setTiming}
+          />
         ))}
       </ul>
       {editing && <PlanModal date={editing.date} today={today} plan={editing} onClose={() => setEditing(undefined)} />}

@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo } from 'react'
-import { alive, save } from '../../db/repo'
+import { alive, patch, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Food, FoodLog, FoodPref, FoodUnit, MealKey, Nutrients, Portion, QuickAmount } from '../../db/types'
 import { dayTime, formatTime, type DayKey } from '../../lib/dates'
-import { nutrientsFor } from './nutrition'
+import { multiply, nutrientsFor } from './nutrition'
 import tacoData from './taco.json'
 
 export const TACO_SOURCE = 'TACO 4ª edição, NEPA/UNICAMP, 2011'
@@ -40,6 +40,7 @@ const DETAIL: Record<Food['source'], string> = {
   openfoodfacts: 'Open Food Facts',
   recipe: 'Receita',
   'health-connect': 'Do Health Connect',
+  ai: 'Análise por IA',
 }
 
 export function fromCustom(food: Food): FoodItem {
@@ -54,8 +55,48 @@ export function fromCustom(food: Food): FoodItem {
   }
 }
 
-/** Foods with a weight: what the plate analysis and recipes can use, as both work in grams. */
+/** Foods with a weight: what recipes can use, as they work in grams. */
 export const weighed = (items: FoodItem[]): FoodItem[] => items.filter((item) => item.unit !== 'portion')
+
+/** The portion a food measured in portions keeps once it has a weight, so it can still be counted by it. */
+const WEIGHED_PORTION = 'porção'
+
+/**
+ * A food measured in portions, once it's known what one portion weighs: its values per 100 g instead of
+ * per portion (every nutrient it has), no longer measured in portions, and that portion ("porção", 30 g)
+ * first among the ones it already had.
+ */
+export function weighedVersion(
+  food: { per100: Nutrients; portions?: Portion[] },
+  portionGrams: number,
+): { per100: Nutrients; portions: Portion[]; unit: undefined } {
+  return {
+    per100: multiply(food.per100, 100 / portionGrams),
+    portions: [
+      { label: WEIGHED_PORTION, grams: portionGrams },
+      ...(food.portions ?? []).filter((portion) => portion.label !== WEIGHED_PORTION),
+    ],
+    unit: undefined,
+  }
+}
+
+/**
+ * Saves what one portion of a food measured in portions weighs, so it's measured in grams from then on
+ * (see weighedVersion). Its 1-tap shortcut and last amount, counted in portions, become the same amounts
+ * in grams. Logs keep their own values and unit, so the past doesn't change.
+ */
+export async function weighFood(item: FoodItem, portionGrams: number): Promise<FoodItem> {
+  const change = weighedVersion(item, portionGrams)
+  await patch(db.foods, item.id, change)
+  const pref = await db.foodPrefs.get(item.id)
+  if (pref && !pref.deleted && (pref.quick || pref.lastGrams !== undefined)) {
+    await updatePref(item.id, {
+      lastGrams: pref.lastGrams === undefined ? undefined : pref.lastGrams * portionGrams,
+      quick: pref.quick && { grams: pref.quick.grams * portionGrams, portion: change.portions[0] },
+    })
+  }
+  return { ...item, ...change }
+}
 
 /** The user's foods plus TACO, without the TACO foods the user replaced with their own version. */
 export function catalogOf(custom: Food[]): FoodItem[] {

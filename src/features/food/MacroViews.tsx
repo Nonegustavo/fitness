@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { cx } from '../../components/ui'
 import type { MacroGoals, Nutrients } from '../../db/types'
 import { formatNumber } from '../../lib/format'
-import { balanceOf, goalShares, MACROS, macroShares, mostAbove, roundShares } from './macros'
+import { balanceOf, goalShares, MACROS, macroShares, mostAbove, roundShares, type MacroKey } from './macros'
 
 /**
  * Progress on a ring, starting at the top. Past the goal the ring is full and a darker lap of the
@@ -79,8 +79,16 @@ export const MacroDot = ({ color }: { color: string }) => (
   <span aria-hidden className="inline-block size-2.5 shrink-0 rounded-[3px]" style={{ background: color }} />
 )
 
-/** "C 21 · P 5 · G 2", each letter in its macro's color, for lists. */
-export function MacroLine({ nutrients, className }: { nutrients: Nutrients; className?: string }) {
+/** "C 21 · P 5 · G 2" (grams, to `digits` decimals), each letter in its macro's color, for lists. */
+export function MacroLine({
+  nutrients,
+  digits = 0,
+  className,
+}: {
+  nutrients: Pick<Nutrients, MacroKey>
+  digits?: number
+  className?: string
+}) {
   return (
     <span className={cx('inline-flex flex-wrap gap-x-2 tabular-nums', className)}>
       {MACROS.map(({ key, short, label, color }) => (
@@ -88,7 +96,7 @@ export function MacroLine({ nutrients, className }: { nutrients: Nutrients; clas
           <span className="font-semibold" style={{ color }}>
             {short}
           </span>{' '}
-          {formatNumber(nutrients[key], 0)}
+          {formatNumber(nutrients[key], digits)}
         </span>
       ))}
     </span>

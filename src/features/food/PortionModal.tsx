@@ -7,7 +7,7 @@ import type { Food, FoodLog, MealKey, QuickAmount } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { FoodForm } from './FoodForm'
-import { fromCustom, logFood, setQuick, toggleFavorite, type FoodItem } from './foods'
+import { fromCustom, logFood, setQuick, toggleFavorite, weighFood, type FoodItem } from './foods'
 import { MacroBalance, MacroGrams, MacroLine, OtherNutrients } from './MacroViews'
 import { amountLabel, MEALS, nutrientsFor, portionCount, useDayGoals } from './nutrition'
 import { RecipeForm } from './RecipeForm'
@@ -18,13 +18,17 @@ const SOURCE: Record<FoodItem['source'], string> = {
   openfoodfacts: 'Open Food Facts',
   recipe: 'Minha receita',
   'health-connect': 'Do Health Connect',
+  ai: 'Análise por IA',
 }
 
 const QUICK_GRAMS = [50, 100, 150, 200]
 const asText = (value: number) => String(Math.round(value * 100) / 100).replace('.', ',')
 const QUICK_PORTIONS = [0.5, 1, 1.5, 2]
 
-/** How much of a food (grams, or portions for a food without a weight), in which meal; shows the nutrients as you type. */
+/**
+ * How much of a food (grams, or portions for a food without a weight), in which meal; shows the nutrients
+ * as you type. A food without a weight can be logged in grams too, once you say what a portion weighs.
+ */
 export function PortionModal({
   item,
   initialMeal,
@@ -54,7 +58,16 @@ export function PortionModal({
   const inPortions = item.unit === 'portion'
   // A food with a weight and a portion ("1 fatia", 25 g) is counted in portions, or in grams on request.
   const portion = inPortions ? undefined : item.portions[0]
+  // A food that was measured in portions keeps a plain "porção": no need to repeat the word.
+  const plainPortion = portion?.label === 'porção'
   const [byPortion, setByPortion] = useState(!!portion)
+  // A food measured in portions typed in grams, given what one portion weighs. Logging it that way saves
+  // the weight in the food, which is measured in grams from then on.
+  const [inGrams, setInGrams] = useState(false)
+  const knownWeight = inPortions ? item.portions.find((p) => p.grams > 0)?.grams : undefined
+  const [weightText, setWeightText] = useState('')
+  const typedWeight = knownWeight ?? parseDecimal(weightText)
+  const portionWeight = typedWeight !== undefined && typedWeight > 0 && typedWeight <= 5000 ? typedWeight : undefined
   const [amountText, setAmountText] = useState(() => {
     if (inPortions) return asText(lastGrams ?? 1)
     if (portion) return asText(lastGrams ? portionCount(lastGrams, portion) : 1)
@@ -65,21 +78,43 @@ export function PortionModal({
   const [editing, setEditing] = useState<{ food: Food | null } | null>(null)
   const goals = useDayGoals(date)
   const typed = parseDecimal(amountText)
-  const grams = typed !== undefined && byPortion && portion ? typed * portion.grams : typed
-  const valid = grams !== undefined && grams > 0 && grams <= 5000
+  // The amount for the food as it is now: grams, or portions for a food measured in portions.
+  const grams =
+    typed === undefined
+      ? undefined
+      : inGrams
+        ? portionWeight && typed / portionWeight
+        : byPortion && portion
+          ? typed * portion.grams
+          : typed
+  const valid = grams !== undefined && grams > 0 && grams <= 5000 && (!inGrams || (typed ?? 0) <= 5000)
   const amount = nutrientsFor(item.per100, valid ? grams : 0, item.unit)
   const per100 = item.per100
   const reference = portion && byPortion ? nutrientsFor(per100, portion.grams) : per100
 
-  function switchUnit(next: boolean) {
-    if (!portion || next === byPortion) return
-    setByPortion(next)
-    if (grams !== undefined && grams > 0) setAmountText(asText(next ? portionCount(grams, portion) : Math.round(grams)))
+  function switchUnit(toPortions: boolean) {
+    const known = grams !== undefined && grams > 0
+    if (inPortions) {
+      if (toPortions === !inGrams) return
+      setInGrams(!toPortions)
+      // Without the weight of a portion, the grams are typed anew.
+      if (toPortions) setAmountText(asText(known ? grams : 1))
+      else setAmountText(known && portionWeight ? String(Math.round(grams * portionWeight)) : '')
+      return
+    }
+    if (!portion || toPortions === byPortion) return
+    setByPortion(toPortions)
+    if (known) setAmountText(asText(toPortions ? portionCount(grams, portion) : Math.round(grams)))
   }
 
   async function add() {
     if (!valid) return
-    onLogged(await logFood(item, grams, { meal, date, time, portion: byPortion ? portion : undefined }))
+    if (inGrams && portionWeight && typed !== undefined) {
+      // In grams: the food keeps what a portion weighs, then the grams are logged like any weighed food.
+      onLogged(await logFood(await weighFood(item, portionWeight), typed, { meal, date, time }))
+    } else {
+      onLogged(await logFood(item, grams, { meal, date, time, portion: byPortion ? portion : undefined }))
+    }
     onClose()
   }
 
@@ -96,7 +131,7 @@ export function PortionModal({
         <span>
           {SOURCE[item.source]} ·{' '}
           {inPortions
-            ? 'por porção'
+            ? `por porção${portionWeight ? ` (${formatNumber(portionWeight)} g)` : ''}`
             : portion && byPortion
               ? `por ${portion.label} (${formatNumber(portion.grams)} g)`
               : 'por 100 g'}
@@ -104,23 +139,46 @@ export function PortionModal({
         </span>
         <MacroLine nutrients={reference} />
       </p>
-      {portion && (
+      {(portion || inPortions) && (
         <div className="mb-3">
           <Segmented
             label="Medir em"
-            value={byPortion ? 'portion' : 'grams'}
+            value={(inPortions ? !inGrams : byPortion) ? 'portion' : 'grams'}
             onChange={(value) => switchUnit(value === 'portion')}
             options={[
-              { value: 'portion', label: `Porções (${portion.label})` },
+              { value: 'portion', label: portion && !plainPortion ? `Porções (${portion.label})` : 'Porções' },
               { value: 'grams', label: 'Gramas' },
             ]}
           />
         </div>
       )}
+      {inGrams && knownWeight === undefined && (
+        <div className="mb-3">
+          <Field label="Quanto pesa 1 porção? (g)">
+            <DecimalInput autoFocus value={weightText} onChange={(e) => setWeightText(e.target.value)} />
+          </Field>
+        </div>
+      )}
       <div className="grid grid-cols-[1fr_auto] items-end gap-3">
         <Field
-          label={inPortions ? 'Porções' : byPortion && portion ? `Quantas vezes ${portion.label}` : 'Quantidade (g)'}
-          hint={byPortion && portion && valid ? `${formatNumber(grams, 0)} g` : undefined}
+          label={
+            inPortions && !inGrams
+              ? 'Porções'
+              : byPortion && portion
+                ? plainPortion
+                  ? 'Quantas porções'
+                  : `Quantas vezes ${portion.label}`
+                : 'Quantidade (g)'
+          }
+          hint={
+            inGrams
+              ? valid
+                ? amountLabel(grams, 'portion')
+                : undefined
+              : byPortion && portion && valid
+                ? `${formatNumber(grams, 0)} g`
+                : undefined
+          }
         >
           <DecimalInput autoFocus value={amountText} onChange={(e) => setAmountText(e.target.value)} />
         </Field>
@@ -134,18 +192,20 @@ export function PortionModal({
         </Button>
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
-        {inPortions || (portion && byPortion)
+        {(inPortions && !inGrams) || (portion && byPortion)
           ? QUICK_PORTIONS.map((value) => (
               <Button key={value} size="sm" onClick={() => setAmountText(asText(value))}>
                 {inPortions ? amountLabel(value, 'portion') : `${formatNumber(value)}×`}
               </Button>
             ))
           : [
-              ...item.portions.map((p) => (
-                <Button key={p.label} size="sm" onClick={() => setAmountText(asText(p.grams))}>
-                  {p.label} · {formatNumber(p.grams)} g
-                </Button>
-              )),
+              ...(inPortions ? (portionWeight ? [{ label: '1 porção', grams: portionWeight }] : []) : item.portions).map(
+                (p) => (
+                  <Button key={p.label} size="sm" onClick={() => setAmountText(asText(p.grams))}>
+                    {p.label} · {formatNumber(p.grams)} g
+                  </Button>
+                ),
+              ),
               ...QUICK_GRAMS.map((value) => (
                 <Button key={value} size="sm" onClick={() => setAmountText(String(value))}>
                   {value} g
@@ -153,6 +213,11 @@ export function PortionModal({
               )),
             ]}
       </div>
+      {inGrams && (
+        <p className="mt-2 text-xs text-muted">
+          Ao adicionar em gramas, o peso da porção fica salvo e o alimento passa a ser medido em gramas.
+        </p>
+      )}
 
       <div className="mt-4 space-y-3">
         <MacroGrams nutrients={amount} goals={goals} />

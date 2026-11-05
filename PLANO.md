@@ -54,7 +54,7 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Refeições do dia, metas de kcal e macros, com metas próprias para dias de treino (detectados pelos treinos)
 - [x] Favoritos, recentes com a última quantidade, repetir refeição de ontem, refeições salvas
 - [x] Histórico de 14 dias contra a meta e médias de macros
-- [x] Foto do prato: a IA (Claude) identifica os alimentos e estima os gramas; você ajusta e confirma. Pronto no código; liga quando o Supabase estiver configurado e a chave da Anthropic estiver nos segredos das funções (passo a passo no README).
+- [x] Foto do prato: a IA (Claude) identifica os alimentos e estima os gramas; você ajusta e confirma. Pronto no código; liga quando o Supabase estiver configurado e a chave da Anthropic estiver nos segredos das funções (passo a passo no README). Desde 05/11, em duas etapas (veja "Depois das fases")
 - [x] Receitas: ingredientes com gramas, peso pronto (quando muda no preparo) e porções; entram na busca como qualquer alimento
 - [x] Alimentos cadastrados pela porção da embalagem (“2 fatias”, 50 g) e registrados contando porções ou em gramas
 - [x] Macros sempre na mesma ordem e cor: carboidratos (azul), proteína (roxo), gorduras (amarelo); anéis do dia contra a meta
@@ -124,7 +124,7 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Ícone próprio no app Android (também na tela de abertura e nas notificações)
 - [x] Correção: na montagem de fichas no computador, a página ficava sem rolar depois de criar um exercício no seletor
 - [x] Fichas arquivadas: saem da rotação e da lista principal, mas continuam guardadas para voltar quando quiser
-- [x] Alimentos medidos em porções: os que vieram sem peso (Health Connect) são registrados em porções, não em gramas; ficam fora da foto do prato e das receitas, que trabalham com gramas
+- [x] Alimentos medidos em porções: os que vieram sem peso (Health Connect) são registrados em porções; ficam fora das receitas, que trabalham com gramas. Desde 05/11 também dá para registrá-los em gramas: o app pergunta uma vez quanto pesa a porção e o alimento passa a ser medido em gramas
 - [x] Programar as fichas nos dias (com horário opcional), sugerindo a próxima da sequência; a ficha programada para hoje é a que o Hoje, o "+" e a tela Treinos oferecem para iniciar
 - [x] Calendário (Mais → Calendário; no computador, na barra lateral): o mês com os treinos feitos e programados, a musculação junto com as corridas do Garmin; cada dia mostra os detalhes e permite programar, mudar ou tirar uma ficha
 - [x] "Minha semana" no topo do Hoje, acima do "Em foco": a semana atual de domingo a sábado, um ponto por treino (cheio quando feito, contorno quando programado, cinza quando não feito) e um traço nos dias livres; tocar num dia abre os detalhes (dá para esconder em "Personalizar o Hoje")
@@ -148,6 +148,11 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Vibração leve no celular ao marcar hábito, registrar água, concluir série, começar treino e programar; deslizar para o lado troca o dia em Alimentação, Hábitos e Diário; puxar o Hoje para baixo sincroniza com o servidor e o Garmin
 - [x] Barra de baixo personalizável (Ajustes → Barra de baixo): as 4 seções que aparecem; as outras ficam em "Mais"
 - [x] "Como foi?" nas corridas (e em qualquer treino gravado pelo relógio): o comentário para o treinador, o esforço (PSE de 1 a 10) e dor ou desconforto, com "Copiar para mandar ao treinador". Aparece no calendário e em "Treinos de hoje", o "Agora" lembra de comentar a corrida do dia, e a análise do dia lê tudo isso
+- [x] Comentário também na musculação ("Como foi o treino?"), que vai para a análise do dia
+- [x] Resumo da análise do dia bem mais completo: de quando são os dados de cada fonte; sono com fases, horários, FC e respiração; HRV com a faixa normal e o status do Garmin; cada corrida com ritmo, FC, zonas, voltas, o treino planejado pelo treinador e o comentário; a musculação exercício por exercício, junto com o tempo e a FC do relógio; as refeições dos últimos 7 dias com o que foi comido; uma linha por semana nas últimas 8 semanas; 1RM estimado dos exercícios, séries por grupo muscular, exercícios parados e deload; km por semana contra o previsto, ritmo, recordes e próxima prova; tendência do peso contra a meta, composição e medidas; gasto estimado contra o consumo e proteína por kg; treinos planejados × feitos, hábitos, sequências e as dicas dos últimos dias. As instruções da IA separam corrida e musculação e terminam com "Para os próximos dias". Em Análise, "Ver o que a IA recebe" mostra o texto exato, o tamanho e o custo
+- [x] "Próximos treinos" no "Em foco": os treinos de hoje e os próximos, com o dia de cada um ("Amanhã", "Domingo, 8/11")
+- [x] Correção: o horário marcado para os treinos do Garmin se perdia na sincronização, porque o calendário publicado gera códigos novos a cada busca; agora vale o nome do treino e o dia
+- [x] Foto do prato em duas etapas: a IA lista o que viu, um item por linha com a quantidade, num texto que você corrige; depois calcula os gramas, carboidratos, proteína e gorduras de cada item (as calorias saem dos macros). "Descrever o que comi" vai direto para a segunda etapa. Nada é casado com a TACO: cada item vira um alimento seu ("Análise por IA"), atualizado se o nome se repetir
 
 ## Observações
 

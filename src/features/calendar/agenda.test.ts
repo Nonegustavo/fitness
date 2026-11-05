@@ -167,23 +167,47 @@ describe('buildAgenda', () => {
 })
 
 describe('the time set for a Garmin workout', () => {
+  const event = { uid: 'u1', date: '2026-11-06', title: '06/11 Sex - Corrida 7 Km' }
+  const key = 't:06/11 sex - corrida 7 km|2026-11-06'
+
   it('replaces the calendar time (or the lack of one) and is kept on the item', () => {
-    const event = { uid: 'u1', date: '2026-11-06', title: '06/11 Sex - Corrida 7 Km' }
     const [item] = buildAgenda(
       '2026-11-06',
       '2026-11-06',
       TODAY,
-      sources({ events: [event], eventTimes: [{ id: 'u1|2026-11-06', date: '2026-11-06', time: '06:45', ...meta }] }),
+      sources({ events: [event], eventTimes: [{ id: key, date: '2026-11-06', time: '06:45', ...meta }] }),
     )
-    expect(item).toMatchObject({ eventKey: 'u1|2026-11-06', customTime: '06:45', time: dayTime('2026-11-06', '06:45') })
+    expect(item).toMatchObject({ eventKey: key, customTime: '06:45', time: dayTime('2026-11-06', '06:45') })
     const [deleted] = buildAgenda(
       '2026-11-06',
       '2026-11-06',
       TODAY,
-      sources({ events: [event], eventTimes: [{ id: 'u1|2026-11-06', date: '2026-11-06', time: '06:45', ...meta, deleted: 1 }] }),
+      sources({ events: [event], eventTimes: [{ id: key, date: '2026-11-06', time: '06:45', ...meta, deleted: 1 }] }),
     )
     expect(deleted.customTime).toBeUndefined()
     expect(deleted.time).toBeUndefined()
+  })
+
+  it('survives the calendar making up a new UID on the next fetch', () => {
+    const times = [{ id: key, date: '2026-11-06', time: '08:00', ...meta }]
+    const [first] = buildAgenda('2026-11-06', '2026-11-06', TODAY, sources({ events: [event], eventTimes: times }))
+    const refetched = { ...event, uid: '20261107T055653Z-1746190823@172.23.128.1' }
+    const [again] = buildAgenda('2026-11-06', '2026-11-06', TODAY, sources({ events: [refetched], eventTimes: times }))
+    expect(again).toMatchObject({ key: first.key, eventKey: first.eventKey, customTime: '08:00' })
+  })
+
+  it('still uses a time saved under an old UID key when the day has a single Garmin workout', () => {
+    const old = [
+      { id: '20261107T011333Z-1746190823@172.23.128.1|2026-11-06', date: '2026-11-06', time: '07:30', ...meta, updatedAt: 1 },
+      { id: '20261107T051944Z-1746190823@172.23.128.1|2026-11-06', date: '2026-11-06', time: '08:00', ...meta, updatedAt: 2 },
+    ]
+    const [item] = buildAgenda('2026-11-06', '2026-11-06', TODAY, sources({ events: [event], eventTimes: old }))
+    expect(item.customTime).toBe('08:00')
+    const two = [event, { ...event, uid: 'u2', title: '06/11 Sex - Educativos' }]
+    expect(buildAgenda('2026-11-06', '2026-11-06', TODAY, sources({ events: two, eventTimes: old })).map((i) => i.customTime)).toEqual([
+      undefined,
+      undefined,
+    ])
   })
 })
 

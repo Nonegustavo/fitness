@@ -1,36 +1,53 @@
-import { LoaderCircle, TriangleAlert, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { LoaderCircle, Pencil, TriangleAlert, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Modal } from '../../components/Modal'
-import { Button, cx, Field, IconButton, Select, Switch, TextInput } from '../../components/ui'
-import type { FoodPref, MealKey } from '../../db/types'
+import { Button, Field, IconButton, Select, Switch, TextInput } from '../../components/ui'
+import type { MealKey } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
-import { logFood, searchFoods, type SearchEntry } from './foods'
-import { MEALS, scale, sumNutrients } from './nutrition'
+import { fromCustom, logFood } from './foods'
+import { MacroLine } from './MacroViews'
+import { MEALS } from './nutrition'
 import {
+  analyzeMacros,
   analyzePhoto,
-  analyzeText,
-  matchItems,
+  itemsToText,
+  macroKcal,
   preparePhoto,
+  saveAiFood,
+  unsureNames,
+  withGrams,
+  type MacroItem,
   type MealSource,
-  type PhotoAnalysis,
-  type ReviewItem,
 } from './photo'
 import { keepPhoto } from './photos'
 
-const CONFIDENCE_LABEL = { alta: 'confiança alta', media: 'confiança média', baixa: 'confiança baixa' }
+/** Reading the photo, the list to correct, the macros being calculated, or their result. */
+type Step = 'reading' | 'list' | 'calculating' | 'result'
+
+/** An item of the result: the numbers as calculated, and the grams as the user left them. */
+interface Row {
+  key: string
+  item: MacroItem
+  grams: number
+}
+
+/** "Feijão, Farofa e Ovo". */
+const names = new Intl.ListFormat('pt-BR', { type: 'conjunction' })
+
+const messageOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause))
 
 /**
- * Sends the photo or the description for analysis, then lets you fix each item (which food,
- * how many grams) before anything is logged: the AI suggests, you confirm.
+ * A meal in two steps, both by Claude. A photo first becomes the list of what's on the plate, one item per
+ * line with its grams, for you to correct (a description already is that list). Then the list becomes the
+ * grams and macros of each item, which you check before anything is logged. Every item is kept as a food
+ * of your own ("Análise por IA"), never matched to the TACO table.
  */
 export function PhotoReview({
   source,
   initialMeal,
   date,
   time,
-  index,
-  prefs,
   onClose,
   onDone,
 }: {
@@ -39,113 +56,191 @@ export function PhotoReview({
   date: DayKey
   /** When it was eaten ("12:30"); now when unset. */
   time?: string
-  index: SearchEntry[]
-  prefs: Map<string, FoodPref>
   onClose: () => void
   onDone: (count: number, meal: MealKey) => void
 }) {
   const fromPhoto = source.kind === 'photo'
+  const [step, setStep] = useState<Step>(fromPhoto ? 'reading' : 'calculating')
   const [preview, setPreview] = useState<string>()
-  const [items, setItems] = useState<ReviewItem[] | null>(null)
+  // The list the macros come from: what the photo showed (as corrected), or the description as typed.
+  const [text, setText] = useState(source.kind === 'text' ? source.text : '')
+  // What the photo step adds to the list: the model's remarks and the items it wasn't sure about.
+  const [photoNotes, setPhotoNotes] = useState('')
+  const [unsure, setUnsure] = useState<string[]>([])
+  const [rows, setRows] = useState<Row[]>([])
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string>()
   const [meal, setMeal] = useState(initialMeal)
   const [keep, setKeep] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        let analysis: PhotoAnalysis
-        if (source.kind === 'photo') {
-          const photo = await preparePhoto(source.file)
-          if (cancelled) return
-          setPreview(photo.preview)
-          analysis = await analyzePhoto(photo)
-        } else {
-          analysis = await analyzeText(source.text)
-        }
-        if (cancelled) return
-        setItems(matchItems(analysis, index, prefs))
-        setNotes(analysis.notes)
-      } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
+  async function calculate(list: string) {
+    setError(undefined)
+    setStep('calculating')
+    try {
+      const analysis = await analyzeMacros(list)
+      if (analysis.items.length === 0) {
+        setError(analysis.notes || 'Nenhum alimento na lista. Escreva um item por linha.')
+        setStep('list')
+        return
       }
-    })()
-    return () => {
-      cancelled = true
+      setRows(analysis.items.map((item, i) => ({ key: String(i), item, grams: item.grams })))
+      setNotes(analysis.notes)
+      setStep('result')
+    } catch (cause) {
+      setError(messageOf(cause))
+      setStep('list')
     }
-    // One analysis per photo or text: later changes to the food index don't re-run it.
-  }, [source])
-
-  const update = (key: string, change: Partial<ReviewItem>) =>
-    setItems((current) => current && current.map((item) => (item.key === key ? { ...item, ...change } : item)))
-
-  const searchAgain = (key: string, search: string) => {
-    const candidates = searchFoods(index, search, prefs, 6)
-    update(key, { search, candidates, foodId: candidates[0]?.id })
   }
 
-  const chosen = (items ?? []).flatMap((item) => {
-    const food = item.candidates.find((candidate) => candidate.id === item.foodId)
-    return food && item.grams > 0 ? [{ item, food }] : []
-  })
-  const totals = sumNutrients(chosen.map(({ item, food }) => scale(food.per100, item.grams)))
+  // Once, on open (StrictMode runs effects twice in development): the photo is read, or the description
+  // goes straight to the macros.
+  const started = useRef(false)
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    if (source.kind === 'text') {
+      void calculate(source.text)
+      return
+    }
+    void (async () => {
+      try {
+        const photo = await preparePhoto(source.file)
+        setPreview(photo.preview)
+        const analysis = await analyzePhoto(photo)
+        setText(itemsToText(analysis.items))
+        setPhotoNotes(analysis.notes || (analysis.items.length === 0 ? 'Nenhum alimento identificado na foto.' : ''))
+        setUnsure(unsureNames(analysis.items))
+      } catch (cause) {
+        setError(messageOf(cause))
+      }
+      setStep('list')
+    })()
+    // Only on open: one analysis per photo or description.
+  }, [source])
+
+  const ready = rows.filter((row) => row.grams > 0)
+  const eaten = ready.map((row) => withGrams(row.item, row.grams))
+  const total = {
+    carbs: eaten.reduce((sum, item) => sum + item.carbs, 0),
+    protein: eaten.reduce((sum, item) => sum + item.protein, 0),
+    fat: eaten.reduce((sum, item) => sum + item.fat, 0),
+  }
+
+  const setGrams = (key: string, grams: number) =>
+    setRows((current) => current.map((row) => (row.key === key ? { ...row, grams } : row)))
 
   async function addAll() {
     setSaving(true)
     // A photo that fails to keep shouldn't stop the meal from being logged.
     const photoId = source.kind === 'photo' && keep ? await keepPhoto(source.file).catch(() => undefined) : undefined
-    for (const { item, food } of chosen) await logFood(food, item.grams, { meal, date, time, photoId })
-    onDone(chosen.length, meal)
+    for (const row of ready) {
+      const food = await saveAiFood(row.item)
+      await logFood(fromCustom(food), row.grams, { meal, date, time, photoId })
+    }
+    onDone(ready.length, meal)
     onClose()
   }
+
+  const busy = (message: string) => (
+    <p className="flex items-center gap-2 py-6 text-sm text-ink-2">
+      <LoaderCircle size={18} className="animate-spin" />
+      {message}
+    </p>
+  )
 
   return (
     <Modal open title={fromPhoto ? 'Foto do prato' : 'Refeição descrita'} onClose={onClose}>
       {preview && <img src={preview} alt="Foto do prato" className="mb-3 max-h-48 w-full rounded-xl object-cover" />}
-      {source.kind === 'text' && (
-        <blockquote className="mb-3 rounded-xl border-l-4 border-accent-ink bg-surface-2 px-3 py-2 text-sm text-ink-2 whitespace-pre-line">
-          {source.text}
-        </blockquote>
+
+      {step === 'reading' && busy('Identificando os alimentos da foto… leva alguns segundos.')}
+
+      {step === 'calculating' && (
+        <>
+          <blockquote className="rounded-xl border-l-4 border-accent-ink bg-surface-2 px-3 py-2 text-sm text-ink-2 whitespace-pre-line">
+            {text.trim()}
+          </blockquote>
+          {busy('Calculando os macros de cada item…')}
+        </>
       )}
 
-      {error ? (
-        <p className="rounded-xl bg-surface-2 p-3 text-sm text-ink-2">{error}</p>
-      ) : !items ? (
-        <p className="flex items-center gap-2 py-6 text-sm text-ink-2">
-          <LoaderCircle size={18} className="animate-spin" />
-          {fromPhoto ? 'Analisando a foto… leva alguns segundos.' : 'Separando os alimentos…'}
-        </p>
-      ) : items.length === 0 ? (
-        <p className="rounded-xl bg-surface-2 p-3 text-sm text-ink-2">{notes || 'Nenhum alimento identificado.'}</p>
-      ) : (
+      {step === 'list' && (
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (text.trim()) void calculate(text.trim())
+          }}
+        >
+          {error && <p className="rounded-xl bg-surface-2 p-3 text-sm text-ink-2">{error}</p>}
+          <Field
+            label={fromPhoto ? 'O que tem no prato' : 'O que você comeu'}
+            hint="Um item por linha, com a quantidade (gramas, unidades, colheres…). Corrija os nomes e as quantidades antes de calcular."
+          >
+            <textarea
+              rows={Math.min(Math.max(text.split('\n').length + 1, 4), 12)}
+              maxLength={2000}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={'Arroz branco: 150 g\nFeijão carioca: 1 concha\nFrango grelhado: 120 g'}
+              className="w-full resize-y rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none transition placeholder:text-muted focus:border-accent-ink focus:ring-2 focus:ring-accent/30"
+            />
+          </Field>
+          {unsure.length > 0 && (
+            <p className="flex gap-1.5 text-xs text-ink">
+              <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden />
+              <span>Confira com atenção: {names.format(unsure)} (a foto deixou dúvida).</span>
+            </p>
+          )}
+          {photoNotes && <p className="text-xs text-ink-2">{photoNotes}</p>}
+          <Button type="submit" variant="primary" className="w-full" disabled={!text.trim()}>
+            Calcular os macros
+          </Button>
+        </form>
+      )}
+
+      {step === 'result' && (
         <>
           <p className="mb-2 text-xs text-muted">
-            Estimativas a partir {fromPhoto ? 'da foto' : 'da descrição'}: confira o alimento e os gramas de cada item antes
-            de adicionar.
+            Estimativas da IA: ajuste os gramas ou tire o que não comeu. Cada item fica salvo nos seus alimentos.
           </p>
-          <ul className="space-y-3">
-            {items.map((item) => (
-              <ReviewRow
-                key={item.key}
-                item={item}
-                onChange={(change) => update(item.key, change)}
-                onSearch={(search) => searchAgain(item.key, search)}
-                onRemove={() => setItems(items.filter((i) => i.key !== item.key))}
-              />
-            ))}
+          <ul className="space-y-2">
+            {rows.map((row) => {
+              const amount = withGrams(row.item, row.grams)
+              return (
+                <li key={row.key} className="rounded-xl border border-line p-3">
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate font-medium">{row.item.name}</p>
+                    <TextInput
+                      inputMode="numeric"
+                      maxLength={4}
+                      aria-label={`Gramas de ${row.item.name}`}
+                      value={row.grams ? String(row.grams) : ''}
+                      onChange={(e) => setGrams(row.key, Number(e.target.value.replace(/\D/g, '')) || 0)}
+                      className="h-9 w-20 px-2 text-center"
+                    />
+                    <span className="text-xs text-muted">g</span>
+                    <IconButton
+                      label={`Remover ${row.item.name}`}
+                      className="size-8"
+                      onClick={() => setRows((current) => current.filter((other) => other.key !== row.key))}
+                    >
+                      <X size={16} />
+                    </IconButton>
+                  </div>
+                  <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-ink-2">
+                    <span className="font-semibold text-ink tabular-nums">{formatNumber(macroKcal(amount), 0)} kcal</span>
+                    <MacroLine nutrients={amount} digits={1} />
+                  </p>
+                </li>
+              )
+            })}
           </ul>
           {notes && <p className="mt-3 text-xs text-ink-2">{notes}</p>}
 
-          <div className="mt-4 rounded-xl bg-surface-2 p-3 text-sm">
-            <span className="font-semibold">{formatNumber(totals.kcal, 0)} kcal</span>
-            <span className="text-ink-2">
-              {' '}
-              · C {formatNumber(totals.carbs, 0)} g · P {formatNumber(totals.protein, 0)} g · G{' '}
-              {formatNumber(totals.fat, 0)} g
-            </span>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-surface-2 p-3 text-sm">
+            <span className="font-semibold tabular-nums">Total: {formatNumber(macroKcal(total), 0)} kcal</span>
+            <MacroLine nutrients={total} className="text-ink-2" />
           </div>
           <div className="mt-3">
             <Field label="Refeição">
@@ -164,99 +259,16 @@ export function PhotoReview({
               <Switch checked={keep} onChange={setKeep} label="Guardar a foto com a refeição" />
             </div>
           )}
-          <Button
-            variant="primary"
-            className="mt-4 w-full"
-            disabled={chosen.length === 0 || saving}
-            onClick={() => void addAll()}
-          >
-            Adicionar {chosen.length} {chosen.length === 1 ? 'item' : 'itens'}
-          </Button>
+          <div className="mt-4 flex gap-2">
+            <Button disabled={saving} onClick={() => setStep('list')}>
+              <Pencil size={16} /> Editar a lista
+            </Button>
+            <Button variant="primary" className="flex-1" disabled={ready.length === 0 || saving} onClick={() => void addAll()}>
+              Adicionar {ready.length} {ready.length === 1 ? 'item' : 'itens'}
+            </Button>
+          </div>
         </>
       )}
     </Modal>
-  )
-}
-
-function ReviewRow({
-  item,
-  onChange,
-  onSearch,
-  onRemove,
-}: {
-  item: ReviewItem
-  onChange: (change: Partial<ReviewItem>) => void
-  onSearch: (search: string) => void
-  onRemove: () => void
-}) {
-  const [searching, setSearching] = useState(item.candidates.length === 0)
-  const food = item.candidates.find((candidate) => candidate.id === item.foodId)
-  return (
-    <li className="rounded-xl border border-line p-3">
-      <div className="mb-2 flex items-center gap-2">
-        <p className="min-w-0 flex-1 truncate font-medium">{item.name}</p>
-        <span className={cx('flex shrink-0 items-center gap-1 text-xs', item.confidence === 'baixa' ? 'text-ink' : 'text-muted')}>
-          {item.confidence === 'baixa' && <TriangleAlert size={12} />}
-          {CONFIDENCE_LABEL[item.confidence]}
-        </span>
-        <IconButton label={`Remover ${item.name}`} className="size-8" onClick={onRemove}>
-          <X size={16} />
-        </IconButton>
-      </div>
-      <div className="grid grid-cols-[1fr_5.5rem] gap-2">
-        <Select
-          aria-label={`Alimento da tabela para ${item.name}`}
-          value={item.foodId ?? ''}
-          onChange={(e) => onChange({ foodId: e.target.value || undefined })}
-          className="text-sm"
-        >
-          {item.candidates.length === 0 && <option value="">Nada parecido na tabela</option>}
-          {item.candidates.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.name}
-            </option>
-          ))}
-        </Select>
-        <TextInput
-          inputMode="numeric"
-          aria-label={`Gramas de ${item.name}`}
-          value={item.grams ? String(item.grams) : ''}
-          onChange={(e) => onChange({ grams: Number(e.target.value.replace(/\D/g, '')) || 0 })}
-          className="text-center"
-        />
-      </div>
-      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted">
-        <span>
-          {food
-            ? `${formatNumber(scale(food.per100, item.grams).kcal, 0)} kcal em ${formatNumber(item.grams, 0)} g`
-            : 'Escolha um alimento ou remova o item'}
-        </span>
-        {!searching && (
-          <button type="button" className="font-medium text-accent-ink" onClick={() => setSearching(true)}>
-            Buscar outro
-          </button>
-        )}
-      </div>
-      {searching && <SearchAgain initial={item.search} onSearch={onSearch} />}
-    </li>
-  )
-}
-
-/** Retypes the search words for one item when the suggested foods aren't right. */
-function SearchAgain({ initial, onSearch }: { initial: string; onSearch: (search: string) => void }) {
-  const [text, setText] = useState(initial)
-  return (
-    <form
-      className="mt-2 flex gap-2"
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (text.trim()) onSearch(text)
-      }}
-    >
-      <TextInput value={text} onChange={(e) => setText(e.target.value)} aria-label="Buscar outro alimento" className="h-9 text-sm" />
-      <Button type="submit" size="sm">
-        Buscar
-      </Button>
-    </form>
   )
 }

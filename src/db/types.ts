@@ -272,7 +272,7 @@ export interface Food extends Synced {
   unit?: FoodUnit
   /** The values were typed per portion (the first one), as on the package label: the form shows them that way again. */
   labelPerPortion?: boolean
-  source: 'custom' | 'openfoodfacts' | 'recipe' | 'health-connect'
+  source: 'custom' | 'openfoodfacts' | 'recipe' | 'health-connect' | 'ai'
   /** The TACO food this one replaces in searches: the user's own version of it. */
   basedOn?: string
   /** For recipes: what went in, with each food's values as they were when added. */

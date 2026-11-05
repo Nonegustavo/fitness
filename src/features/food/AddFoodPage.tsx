@@ -14,7 +14,7 @@ import { formatNumber } from '../../lib/format'
 import { useSyncState } from '../../sync/controller'
 import { BarcodeScanner } from './BarcodeScanner'
 import { FoodForm, type FoodDraft } from './FoodForm'
-import { buildIndex, fromCustom, logFood, recentForMeal, searchFoods, usualAmount, TACO_SOURCE, useFoodCatalog, useFoodPrefs, weighed, type FoodItem } from './foods'
+import { buildIndex, fromCustom, logFood, recentForMeal, searchFoods, usualAmount, TACO_SOURCE, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
 import { amountLabel, logItems, MEAL_LABEL, mealAt, MEALS, nutrientsFor, sumNutrients, useFoodLogs, useSavedMeals } from './nutrition'
 import { fetchProduct } from './openFoodFacts'
 import type { MealSource } from './photo'
@@ -58,8 +58,6 @@ export default function AddFoodPage() {
   const savedMeals = useSavedMeals()
   const lastMonth = useFoodLogs(shiftDay(today, -30), today)
   const index = useMemo(() => buildIndex(catalog), [catalog])
-  // The plate analysis estimates grams, so it only matches foods that have a weight.
-  const weighedIndex = useMemo(() => buildIndex(weighed(catalog)), [catalog])
   const byId = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog])
   const results = useMemo(() => searchFoods(index, query, prefs), [index, query, prefs])
 
@@ -329,8 +327,6 @@ export default function AddFoodPage() {
           initialMeal={meal}
           date={date}
           time={time ?? undefined}
-          index={weighedIndex}
-          prefs={prefs}
           onClose={() => setReview(null)}
           onDone={(count, logged) =>
             toast({ message: `${count} ${count === 1 ? 'item adicionado' : 'itens adicionados'} · ${MEAL_LABEL[logged]}` })
@@ -352,7 +348,7 @@ export default function AddFoodPage() {
   )
 }
 
-/** "2 ovos mexidos e 1 pão francês": the same analysis as the photo, from words. */
+/** "2 ovos mexidos", "1 pão francês": the list of what was eaten, which goes straight to the macros. */
 function DescribeModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (text: string) => void }) {
   const [text, setText] = useState('')
   return (
@@ -366,19 +362,19 @@ function DescribeModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
       >
         <textarea
           autoFocus
-          rows={4}
-          maxLength={1000}
+          rows={5}
+          maxLength={2000}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Ex.: 2 ovos mexidos, 1 pão francês com manteiga e um café com leite"
+          placeholder={'Ex.:\n2 ovos mexidos\n1 pão francês com manteiga\n1 xícara de café com leite'}
           className="w-full resize-y rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none transition placeholder:text-muted focus:border-accent-ink focus:ring-2 focus:ring-accent/30"
         />
         <p className="text-xs text-muted">
-          Diga as quantidades quando souber (“200 g de frango”, “1 concha de feijão”). O resto é estimado e você confere
-          antes de adicionar.
+          Um item por linha, com a quantidade quando souber (“200 g de frango”, “1 concha de feijão”); sem ela, vale uma
+          porção comum. Você confere os gramas e os macros antes de adicionar.
         </p>
         <Button type="submit" variant="primary" className="w-full" disabled={!text.trim()}>
-          Separar os alimentos
+          Calcular os macros
         </Button>
       </form>
     </Modal>

@@ -1,9 +1,11 @@
+import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
+import { save } from '../../db/repo'
+import { db } from '../../db/schema'
 import type { FoodPref, Settings } from '../../db/types'
-import { buildIndex, searchFoods, TACO_FOODS, weighed } from './foods'
+import { buildIndex, fromCustom, searchFoods, TACO_FOODS, weighed, weighedVersion, weighFood } from './foods'
 import { amountLabel, goalsFor, kcalFromMacros, mealAt, nutrientsFor, scale, sumNutrients } from './nutrition'
 import { parseProduct } from './openFoodFacts'
-import { matchItems, parseAnalysis } from './photo'
 
 const index = buildIndex(TACO_FOODS)
 const noPrefs = new Map<string, FoodPref>()
@@ -84,51 +86,53 @@ describe('nutrition', () => {
   })
 })
 
-describe('photo analysis', () => {
-  it('keeps well-formed items and drops the rest', () => {
-    const analysis = parseAnalysis({
-      items: [
-        { name: 'Arroz branco', search: 'arroz tipo 1 cozido', grams: 152.4, confidence: 'alta' },
-        { name: 'Sem peso', search: 'x', grams: 0, confidence: 'alta' },
-        { name: 'Molho', grams: 30, confidence: 'talvez' },
-        'lixo',
-      ],
-      notes: 'Óleo do preparo não aparece.',
-    })
-    expect(analysis).toEqual({
-      notes: 'Óleo do preparo não aparece.',
-      items: [
-        { name: 'Arroz branco', search: 'arroz tipo 1 cozido', grams: 152, confidence: 'alta' },
-        { name: 'Molho', search: 'Molho', grams: 30, confidence: 'media' },
-      ],
-    })
-    expect(parseAnalysis(null)).toEqual({ items: [], notes: '' })
+describe('a food measured in portions, logged in grams', () => {
+  it('turns into a food measured in grams, given what a portion weighs', () => {
+    // One portion of bread from Health Connect: 2 slices, 50 g.
+    const bread = { per100: { kcal: 120, protein: 5, carbs: 21, fat: 1.8, fiber: 3.7 }, unit: 'portion' as const }
+    const weighedBread = weighedVersion(bread, 50)
+    expect(weighedBread.unit).toBeUndefined()
+    expect(weighedBread.per100.kcal).toBeCloseTo(240)
+    expect(weighedBread.per100.carbs).toBeCloseTo(42)
+    expect(weighedBread.per100.fat).toBeCloseTo(3.6)
+    expect(weighedBread.per100.fiber).toBeCloseTo(7.4)
+    // Only the nutrients it had: no sodium appears.
+    expect('sodium' in weighedBread.per100).toBe(false)
+    expect(weighedBread.portions).toEqual([{ label: 'porção', grams: 50 }])
+    // 75 g of it is the same as 1,5 portion was.
+    expect(nutrientsFor(weighedBread.per100, 75).kcal).toBeCloseTo(nutrientsFor(bread.per100, 1.5, 'portion').kcal)
   })
 
-  it('pairs each item with foods from the table', () => {
-    const [rice, beans] = matchItems(
-      {
-        notes: '',
-        items: [
-          { name: 'Arroz branco', search: 'arroz tipo 1 cozido', grams: 150, confidence: 'alta' },
-          { name: 'Feijão', search: 'feijao carioca cozido', grams: 100, confidence: 'media' },
-        ],
-      },
-      index,
-      noPrefs,
-    )
-    expect(rice.candidates[0].name).toBe('Arroz, tipo 1, cozido')
-    expect(rice.foodId).toBe(rice.candidates[0].id)
-    expect(beans.candidates[0].name).toBe('Feijão, carioca, cozido')
+  it('keeps the portions a food already had after the new one', () => {
+    const food = { per100: { kcal: 90, protein: 6, carbs: 1, fat: 7 }, portions: [{ label: '1 unidade', grams: 50 }] }
+    expect(weighedVersion(food, 45).portions).toEqual([
+      { label: 'porção', grams: 45 },
+      { label: '1 unidade', grams: 50 },
+    ])
+    // A stale "porção" is replaced rather than repeated.
+    expect(weighedVersion({ ...food, portions: [{ label: 'porção', grams: 30 }] }, 45).portions).toEqual([{ label: 'porção', grams: 45 }])
   })
 
-  it('falls back to looser searches when the exact words find nothing', () => {
-    const [banana] = matchItems(
-      { notes: '', items: [{ name: 'Banana', search: 'banana prata madura grande', grams: 90, confidence: 'alta' }] },
-      index,
-      noPrefs,
-    )
-    expect(banana.candidates[0].name).toMatch(/^Banana/)
+  it('saves the weight in the food, and its shortcut and last amount become grams', async () => {
+    const bread = await save(db.foods, {
+      name: 'Pão de forma',
+      per100: { kcal: 120, protein: 5, carbs: 21, fat: 1.8 },
+      unit: 'portion',
+      source: 'health-connect',
+    })
+    await save(db.foodPrefs, { id: bread.id, favorite: 1, lastGrams: 2, quick: { grams: 1 } })
+    const item = await weighFood(fromCustom(bread), 50)
+    expect(item).toMatchObject({ id: bread.id, unit: undefined, portions: [{ label: 'porção', grams: 50 }] })
+
+    const stored = await db.foods.get(bread.id)
+    expect(stored && 'unit' in stored).toBe(false)
+    expect(stored).toMatchObject({ source: 'health-connect', dirty: 1, portions: [{ label: 'porção', grams: 50 }] })
+    expect(stored?.per100.kcal).toBeCloseTo(240)
+    expect(await db.foodPrefs.get(bread.id)).toMatchObject({
+      favorite: 1,
+      lastGrams: 100,
+      quick: { grams: 50, portion: { label: 'porção', grams: 50 } },
+    })
   })
 })
 

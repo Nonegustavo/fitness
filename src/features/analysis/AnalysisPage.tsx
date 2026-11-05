@@ -1,5 +1,5 @@
-import { Check, ChevronRight, ClipboardCopy, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
-import { useState } from 'react'
+import { Check, ChevronRight, ClipboardCopy, Eye, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Confirm, Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
@@ -10,6 +10,7 @@ import { patch } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
 import type { DailyInsight } from '../../db/types'
 import { formatDay, formatTime, relativeDay } from '../../lib/dates'
+import { formatFixed, formatNumber } from '../../lib/format'
 import { useSyncState } from '../../sync/controller'
 import { AREAS } from './areas'
 import { CHAT_INSTRUCTIONS, chatMessage } from './chatPrompt'
@@ -175,6 +176,7 @@ function ChatCard({ day, today }: { day: string; today: string }) {
   const toast = useToast()
   const [withInstructions, setWithInstructions] = useState(true)
   const [fallback, setFallback] = useState<string | null>(null)
+  const [previewing, setPreviewing] = useState(false)
 
   async function copy(text: string, what: string) {
     try {
@@ -207,11 +209,15 @@ function ChatCard({ day, today }: { day: string; today: string }) {
           <ClipboardCopy size={16} /> Copiar resumo {day === today ? 'de hoje' : 'do dia'}
         </Button>
         <Button onClick={() => void copy(CHAT_INSTRUCTIONS, 'Instruções')}>Copiar só as instruções</Button>
+        <Button variant="ghost" onClick={() => setPreviewing(true)}>
+          <Eye size={16} /> Ver o que a IA recebe
+        </Button>
       </div>
       <p className="mt-3 text-xs text-muted">
         Dica: no claude.ai, crie um Projeto “Treinador”, cole as instruções nas instruções do projeto e mande só o resumo
         a cada dia, sempre na mesma conversa ou em conversas do projeto.
       </p>
+      {previewing && <ContextPreview day={day} onClose={() => setPreviewing(false)} />}
       {fallback && (
         <Modal open title="Copie o texto" onClose={() => setFallback(null)}>
           <textarea
@@ -225,5 +231,45 @@ function ChatCard({ day, today }: { day: string; today: string }) {
         </Modal>
       )}
     </Card>
+  )
+}
+
+/** Opus 5.5's price for reading, in dollars per token. */
+const INPUT_PRICE = 4 / 1_000_000
+/** About how many characters of Portuguese make a token. */
+const CHARS_PER_TOKEN = 3.5
+
+/** The summary exactly as the analysis reads it, with its size: to see how it's built. */
+function ContextPreview({ day, onClose }: { day: string; onClose: () => void }) {
+  const [text, setText] = useState<string>()
+  useEffect(() => {
+    let current = true
+    void contextFor(day).then((built) => current && setText(built))
+    return () => {
+      current = false
+    }
+  }, [day])
+  const tokens = text ? text.length / CHARS_PER_TOKEN : 0
+  return (
+    <Modal open title="O que a IA recebe" onClose={onClose}>
+      {text === undefined ? (
+        <p className="flex items-center gap-2 py-6 text-sm text-ink-2">
+          <LoaderCircle size={18} className="animate-spin" /> Montando o resumo…
+        </p>
+      ) : (
+        <>
+          <p className="mb-2 text-xs text-muted">
+            {formatNumber(text.length, 0)} caracteres · cerca de {formatNumber(tokens / 1000, 1)} mil tokens · uns US$ {formatFixed(tokens * INPUT_PRICE, 3)} para a IA
+            ler (fora as instruções e a resposta).
+          </p>
+          <textarea
+            readOnly
+            rows={18}
+            value={text}
+            className="w-full rounded-xl border border-line bg-surface p-3 font-mono text-xs text-ink"
+          />
+        </>
+      )}
+    </Modal>
   )
 }

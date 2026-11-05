@@ -4,10 +4,10 @@ import { Link } from 'react-router'
 import { Modal } from '../../components/Modal'
 import { toneColor } from '../../components/tone'
 import { Button, Card, cx, Empty, SkeletonCard, SkeletonLines } from '../../components/ui'
-import { dayRange, formatTime, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
+import { dayRange, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { useStartWorkout } from '../training/components'
 import { findActive, useSessions } from '../training/training'
-import { byDay, shortTitle, type AgendaItem } from './agenda'
+import { byDay, type AgendaItem } from './agenda'
 import { AgendaIcon, AgendaItems, DayDetails, dayTitle, KIND_LABELS, KIND_TONES } from './components'
 import { useAgenda, useTodayTemplate } from './plans'
 
@@ -118,9 +118,13 @@ function Dot({ item, onAccent }: { item: AgendaItem; onAccent: boolean }) {
   return <span className="size-2 rounded-full" style={style} />
 }
 
+/** How many workouts the "Em foco" card lists: today's, then the next ones. */
+const NEXT_WORKOUTS = 5
+
 /**
- * "Em foco": every workout of today, gym and runs, with their actions (start, time, open what was
- * done). Without a gym workout today, the rotation's next template to start; and what comes next.
+ * "Em foco": today's workouts, gym and runs, with their actions (start, time, open what was done),
+ * then the next ones whatever the day, each with its day ("Amanhã", "Sexta, 7/11"). Without a gym
+ * workout today, the rotation's next template to start.
  */
 export function TodayWorkoutsCard({ today }: { today: DayKey }) {
   const agenda = useAgenda(today, shiftDay(today, 13), today)
@@ -128,15 +132,17 @@ export function TodayWorkoutsCard({ today }: { today: DayKey }) {
   const sessions = useSessions()
   const start = useStartWorkout()
   if (!agenda || !sessions) return <SkeletonCard lines={3} />
-  const todayItems = agenda.filter((item) => item.date === today && item.kind !== 'rest')
-  const next = agenda.find((item) => item.date > today && item.status === 'planned' && item.kind !== 'rest')
+  const workouts = agenda.filter((item) => item.kind !== 'rest')
+  const todayItems = workouts.filter((item) => item.date === today)
+  const ahead = workouts.filter((item) => item.date > today && item.status === 'planned')
+  const shown = [...todayItems, ...ahead].slice(0, Math.max(NEXT_WORKOUTS, todayItems.length))
   const gymToday = todayItems.some((item) => item.kind === 'gym')
   return (
-    <Card icon={Dumbbell} tone="training" title="Treinos de hoje" action={calendarLink}>
-      {todayItems.length > 0 ? (
-        <AgendaItems items={todayItems} today={today} />
+    <Card icon={Dumbbell} tone="training" title="Próximos treinos" action={calendarLink}>
+      {shown.length > 0 ? (
+        <AgendaItems items={shown} today={today} showDay />
       ) : (
-        <p className="py-1 text-sm text-ink-2">Nada programado para hoje.</p>
+        <p className="py-1 text-sm text-ink-2">Nada programado nas próximas duas semanas.</p>
       )}
       {!findActive(sessions) && !gymToday && todays && (
         <div className="mt-2 flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2">
@@ -149,12 +155,6 @@ export function TodayWorkoutsCard({ today }: { today: DayKey }) {
             <Play size={14} /> Iniciar
           </Button>
         </div>
-      )}
-      {next && (
-        <p className="mt-2 text-xs text-muted first-letter:uppercase">
-          Próximo: {dayTitle(next.date, today)}
-          {next.time !== undefined && ` às ${formatTime(next.time)}`} · {shortTitle(next)}
-        </p>
       )}
     </Card>
   )

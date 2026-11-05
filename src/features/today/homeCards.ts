@@ -36,7 +36,7 @@ export interface HomeElement {
 
 /** Every element the Hoje screen offers; each one has a big card and a small one. */
 export const HOME_ELEMENTS: HomeElement[] = [
-  { id: 'workout', label: 'Treinos de hoje', detail: 'Musculação e corrida do dia, com a próxima ficha e o próximo treino', icon: Dumbbell, tone: 'training' },
+  { id: 'workout', label: 'Próximos treinos', detail: 'Os de hoje e os próximos, com o dia de cada um, e a próxima ficha da sequência', icon: Dumbbell, tone: 'training' },
   { id: 'sleep', label: 'Sono', detail: 'Nota, horários e as fases da última noite', icon: Moon, tone: 'sleep' },
   { id: 'food', label: 'Alimentação', detail: 'Calorias e macros do dia', icon: Utensils, tone: 'food' },
   { id: 'water', label: 'Água', detail: 'Total do dia contra a meta, com botões de 1 toque', icon: GlassWater, tone: 'water' },
