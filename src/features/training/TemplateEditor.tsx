@@ -1,18 +1,22 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Archive, ArchiveRestore, Plus, Trash2, X } from 'lucide-react'
+import { Archive, ArchiveRestore, Flame, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Confirm } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
 import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, Switch, TextInput } from '../../components/ui'
+import { useSettings } from '../../db/hooks'
 import { patch, remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { Exercise, ExerciseType, PlannedSet, SetKind, WorkoutTemplate } from '../../db/types'
+import type { Exercise, ExerciseType, GymSetup, PlannedSet, SetKind, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import { formatClock, parseClock, parseDecimal } from '../../lib/format'
 import { newId } from '../../lib/ids'
 import { EQUIPMENT, MUSCLES } from './catalog'
 import { ExercisePicker } from './ExercisePicker'
-import { DEFAULT_REST_SEC, DEFAULT_WARMUP_REST_SEC, useExerciseMap, useTemplates } from './training'
+import { DEFAULT_GYM, LOAD_STEP, lastPerformance } from './stats'
+import { DEFAULT_REST_SEC, DEFAULT_WARMUP_REST_SEC, useExerciseMap, useSessions, useTemplates } from './training'
+import { replaceWarmups, suggestWarmup, type WarmupSet } from './warmup'
+import { WarmupPreview } from './WarmupPreview'
 
 // The form keeps numbers as typed ("62,5") and parses them on save.
 interface DraftSet {
@@ -53,6 +57,20 @@ const newDraftSet = (kind: SetKind = 'normal', from?: DraftSet): DraftSet => ({
   weight: from?.weight ?? '',
   duration: from?.duration ?? '',
 })
+
+const draftWarmup = ({ weightKg, reps }: WarmupSet): DraftSet => ({
+  key: newId(),
+  kind: 'warmup',
+  reps: String(reps),
+  repsMax: '',
+  weight: asText(weightKg),
+  duration: '',
+})
+
+/** The first working set's load the last time the exercise was done. */
+const lastLoad = (sessions: WorkoutSession[] | undefined, exerciseId: string): number | undefined =>
+  lastPerformance(sessions ?? [], exerciseId, Infinity)?.exercise.sets.find((set) => set.done && set.kind === 'normal')
+    ?.weightKg
 
 const newDraftExercise = (exerciseId: string): DraftExercise => ({
   key: newId(),
@@ -107,6 +125,8 @@ export default function TemplateEditor() {
   const template = useLiveQuery(async () => (isNew ? null : ((await db.workoutTemplates.get(id)) ?? null)), [id, isNew])
   const templates = useTemplates()
   const exercises = useExerciseMap()
+  const sessions = useSessions()
+  const gym = useSettings().gym ?? DEFAULT_GYM
   const [draft, setDraft] = useState<Draft | null>(isNew ? { name: '', notes: '', exercises: [] } : null)
   const [picking, setPicking] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -211,6 +231,8 @@ export default function TemplateEditor() {
               index={draft.exercises.indexOf(exercise)}
               isLast={draft.exercises.indexOf(exercise) === draft.exercises.length - 1}
               nextName={exercises.get(draft.exercises[draft.exercises.indexOf(exercise) + 1]?.exerciseId ?? '')?.name}
+              lastKg={lastLoad(sessions, exercise.exerciseId)}
+              gym={gym}
               handle={handle}
               onChange={(change) => updateExercise(exercise.key, change)}
               onRemove={() =>
@@ -281,6 +303,8 @@ function ExerciseEditor({
   index,
   isLast,
   nextName,
+  lastKg,
+  gym,
   handle,
   onChange,
   onRemove,
@@ -291,12 +315,21 @@ function ExerciseEditor({
   isLast: boolean
   /** The exercise after this one, for the bi-set. */
   nextName?: string
+  /** The first working set's load last time, for the warm-up when the template has none. */
+  lastKg?: number
+  gym: GymSetup
   /** The grip that drags the exercise to another position. */
   handle: ReactNode
   onChange: (change: (exercise: DraftExercise) => DraftExercise) => void
   onRemove: () => void
 }) {
+  const [warming, setWarming] = useState(false)
   const type = info?.type ?? 'weight_reps'
+  // The warm-up climbs to the first working set's load, or last time's.
+  const canWarm = type === 'weight_reps' && !!info && LOAD_STEP[info.equipment] > 0
+  const firstWorking = exercise.sets.find((set) => set.kind === 'normal')
+  const workKg = (firstWorking && parseDecimal(firstWorking.weight)) ?? lastKg
+  const warmup = warming && canWarm && info && workKg !== undefined ? suggestWarmup(workKg, info.equipment, gym) : []
   const columns =
     type === 'weight_reps'
       ? 'grid-cols-[2.5rem_1fr_1fr_1fr_2.5rem]'
@@ -451,15 +484,33 @@ function ExerciseEditor({
             </div>
           )
         })}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() =>
-            onChange((current) => ({ ...current, sets: [...current.sets, newDraftSet('normal', current.sets.at(-1))] }))
-          }
-        >
-          <Plus size={16} /> Série
-        </Button>
+        <div className="flex flex-wrap gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              onChange((current) => ({ ...current, sets: [...current.sets, newDraftSet('normal', current.sets.at(-1))] }))
+            }
+          >
+            <Plus size={16} /> Série
+          </Button>
+          {canWarm && (
+            <Button size="sm" variant="ghost" onClick={() => setWarming(true)}>
+              <Flame size={16} /> Gerar aquecimento
+            </Button>
+          )}
+        </div>
+        {warming && canWarm && (
+          <WarmupPreview
+            workKg={workKg}
+            warmup={warmup}
+            onClose={() => setWarming(false)}
+            onUse={() => {
+              setWarming(false)
+              onChange((current) => ({ ...current, sets: replaceWarmups(current.sets, warmup.map(draftWarmup)) }))
+            }}
+          />
+        )}
         <p className="text-xs text-muted">Toque no número da série para marcá-la como aquecimento (A).</p>
       </div>
     </Card>

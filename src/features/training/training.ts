@@ -167,6 +167,24 @@ export const completeSet = (
     changeSet(session, exerciseKey, setKey, (set) => ({ ...set, ...values, done: true, completedAt: at })),
   )
 
+/**
+ * The working set checked off last (by when, then by place), leaving out timed exercises: where the
+ * RIR picker opens. Undefined before the first one.
+ */
+export function lastCheckedSet(session: WorkoutSession, timed: (exerciseId: string) => boolean): string | undefined {
+  let found: string | undefined
+  let latest = -Infinity
+  for (const exercise of session.exercises) {
+    if (timed(exercise.exerciseId)) continue
+    for (const set of exercise.sets) {
+      if (!set.done || set.kind !== 'normal' || (set.completedAt ?? 0) < latest) continue
+      latest = set.completedAt ?? 0
+      found = set.key
+    }
+  }
+  return found
+}
+
 /** The weight still to lift moved by a step, on every working set not done yet. */
 export function shiftLoad(exercise: SessionExercise, step: number, from: number): SessionExercise {
   const next = Math.max(0, Math.round((from + step) * 100) / 100)

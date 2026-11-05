@@ -53,6 +53,15 @@ export function formatSet(
   return `${formatNumber(set.weightKg, 2)}×${set.reps ?? '?'}`
 }
 
+/** Reps in reserve: "RIR 2", and "RIR 4+" for 4 or more. */
+export const formatRir = (rir: number): string => (rir >= 4 ? 'RIR 4+' : `RIR ${rir}`)
+
+/** "80×8 RIR 2", or the set alone when no RIR was told. */
+export function formatSetWithRir(set: { weightKg?: number; reps?: number; durationSec?: number; rir?: number }, type: ExerciseType): string {
+  const text = formatSet(set, type)
+  return set.rir === undefined || type === 'time' ? text : `${text} ${formatRir(set.rir)}`
+}
+
 /** "1RM 83,3": an estimated one-rep max, to a tenth of a kilo. */
 export const formatE1rm = (kg: number): string => `1RM ${formatNumber(kg, 1)}`
 

@@ -11,8 +11,9 @@ import type { ExerciseType, PerformedSet, SessionExercise, WorkoutSession } from
 import { formatDay, type DayKey } from '../../lib/dates'
 import { formatClock, formatFixed, formatNumber } from '../../lib/format'
 import type { DayValue } from '../../lib/stats'
-import { EQUIPMENT, formatSet, MUSCLES } from './catalog'
+import { EQUIPMENT, formatSetWithRir, MUSCLES } from './catalog'
 import { ExerciseForm } from './ExerciseForm'
+import { HowToCard } from './HowTo'
 import { bestE1rm, workingSets } from './stats'
 import { useSessions } from './training'
 
@@ -125,6 +126,7 @@ export default function ExerciseDetail() {
           <p className="text-sm text-ink-2">{exercise.notes}</p>
         </Card>
       )}
+      <HowToCard exercise={exercise} />
 
       {entries.length === 0 ? (
         <Card>
@@ -184,7 +186,7 @@ export default function ExerciseDetail() {
                     </p>
                     <p className="text-xs text-muted">
                       {workingSets(e)
-                        .map((set) => formatSet(set, type))
+                        .map((set) => formatSetWithRir(set, type))
                         .join(' · ')}
                     </p>
                   </Link>

@@ -4,7 +4,9 @@ import { Modal } from '../../components/Modal'
 import { Button, cx, Empty, TextInput } from '../../components/ui'
 import type { Exercise, MuscleGroup } from '../../db/types'
 import { EQUIPMENT, MUSCLES } from './catalog'
+import { exerciseThumb } from './exerciseMedia'
 import { ExerciseForm } from './ExerciseForm'
+import { MediaThumb } from './HowTo'
 import { useExercises } from './training'
 
 const normalize = (text: string) =>
@@ -101,6 +103,7 @@ export function ExercisePicker({ onClose, onPick }: { onClose: () => void; onPic
                 >
                   {checked && <Check size={16} />}
                 </span>
+                <MediaThumb src={exerciseThumb(exercise)} className="h-9 w-12" />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{exercise.name}</span>
                   <span className="block text-xs text-muted">

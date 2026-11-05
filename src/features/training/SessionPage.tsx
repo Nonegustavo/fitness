@@ -22,6 +22,7 @@ import { celebrate } from '../../components/celebrate'
 import { Confirm, Modal } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
 import { Button, Card, cx, DecimalInput, Empty, IconButton, Page, SkeletonCard, Stat, TextInput } from '../../components/ui'
+import { useSettings } from '../../db/hooks'
 import { mutate } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Exercise, ExerciseType, PerformedSet, SessionExercise, WorkoutSession } from '../../db/types'
@@ -34,14 +35,20 @@ import { Elapsed } from './components'
 import { ExercisePicker } from './ExercisePicker'
 import { startRest, stopRest } from './restTimer'
 import { checkedValues, previousSets } from './setValues'
+import { RirPicker, RirToggle } from './RirPicker'
+import { cancelSetTimer, completeSetTimer, startSetTimer, stopSetTimer, useSetTimer } from './setTimer'
+import { SetTimerButton, SetTimerClock } from './SetTimerControls'
+import { firstWorkingLoad, replaceWarmups, suggestWarmup, warmupSets } from './warmup'
+import { WarmupPreview } from './WarmupPreview'
 import { LoadStepper, PlatesModal, SwapModal } from './GymTools'
 import {
   compareSet,
+  DEFAULT_GYM,
   LOAD_STEP,
   lastPerformance,
+  loadSuggestion,
   personalRecords,
   setE1rm,
-  suggestNextWeight,
   summarize,
   type Performance,
   type SetComparison,
@@ -55,6 +62,7 @@ import {
   deleteWorkout,
   exerciseBlocks,
   finishWorkout,
+  lastCheckedSet,
   matchTemplate,
   newSessionExercise,
   removeExercise,
@@ -231,6 +239,7 @@ export default function SessionPage() {
           onClose={() => setDialog(null)}
           onConfirm={() => {
             stopRest()
+            cancelSetTimer(session.id)
             void finishWorkout(session.id).then(celebrate)
           }}
         />
@@ -244,6 +253,7 @@ export default function SessionPage() {
           onClose={() => setDialog(null)}
           onConfirm={() => {
             stopRest()
+            cancelSetTimer(session.id)
             void deleteWorkout(session.id).then(() => navigate('/treinos'))
           }}
         />
@@ -285,6 +295,10 @@ function ExerciseCard({
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [swapping, setSwapping] = useState(false)
   const [plates, setPlates] = useState(false)
+  const [warming, setWarming] = useState(false)
+  // Where the user moved the RIR picker, holding while the same set stays the one checked last.
+  const [rirChoice, setRirChoice] = useState<{ key: string | null; after: string | undefined }>()
+  const gym = useSettings().gym ?? DEFAULT_GYM
   const setPeaks = exercise.sets.flatMap((set) => {
     const peak = peaks?.get(set.key)
     return peak === undefined ? [] : [peak]
@@ -293,8 +307,8 @@ function ExerciseCard({
   const update = (change: (exercise: SessionExercise) => SessionExercise | null) =>
     void updateSession(session.id, (current) => changeExercise(current, exercise.key, change))
 
-  const suggestion = active && info && last ? suggestNextWeight(last.exercise.sets, info.equipment) : undefined
-  const canApply = exercise.sets.some((set) => set.kind === 'normal' && !set.done && set.weightKg !== suggestion)
+  const suggestion = active && info && last ? loadSuggestion(last.exercise.sets, info.equipment) : undefined
+  const canApply = exercise.sets.some((set) => set.kind === 'normal' && !set.done && set.weightKg !== suggestion?.weightKg)
   const lastWorking = last?.exercise.sets.filter((set) => set.done && set.kind === 'normal') ?? []
 
   // Pair each set with the same set (same kind, same position) from last time, as the notification does.
@@ -305,10 +319,14 @@ function ExerciseCard({
     label: set.kind === 'warmup' ? 'A' : String(++normals),
     previous: lastSets[i],
   }))
+  // A timed exercise in a workout running has a ▶ for each set, before the check.
+  const timed = active && type === 'time'
   const columns =
     type === 'weight_reps'
       ? 'grid-cols-[1.75rem_minmax(0,1fr)_4.25rem_3.75rem_2.75rem]'
-      : 'grid-cols-[1.75rem_minmax(0,1fr)_4.75rem_2.75rem]'
+      : timed
+        ? 'grid-cols-[1.75rem_minmax(0,1fr)_4.75rem_2.5rem_2.75rem]'
+        : 'grid-cols-[1.75rem_minmax(0,1fr)_4.75rem_2.75rem]'
 
   // Bi-sets: this one and the next are done alternating, with the rest after the pair.
   const next = session.exercises[index + 1]
@@ -319,6 +337,8 @@ function ExerciseCard({
   const nameOf = (id: string) => library.find((e) => e.id === id)?.name ?? 'o próximo'
   const name = info?.name ?? 'Exercício removido'
   const hasWarmups = exercise.sets.some((set) => set.kind === 'warmup')
+  // Warm-ups climb to a load: none at body weight or for timed exercises.
+  const canWarm = active && type === 'weight_reps' && !!info && LOAD_STEP[info.equipment] > 0
 
   // The "⋯" sheet. Swapping and bi-sets are for a workout in progress; a finished one keeps the rest.
   const actions: (MenuAction | false | undefined)[] = [
@@ -332,6 +352,12 @@ function ExerciseCard({
       },
     { label: 'Adicionar série', icon: Plus, onClick: () => update((current) => addSet(current, 'normal')) },
     { label: 'Adicionar aquecimento', icon: Flame, onClick: () => update((current) => addSet(current, 'warmup')) },
+    canWarm && {
+      label: 'Sugerir aquecimento',
+      detail: 'Séries leves até a carga da primeira série',
+      icon: TrendingUp,
+      onClick: () => setWarming(true),
+    },
     {
       label: 'Remover última série',
       icon: Minus,
@@ -347,6 +373,18 @@ function ExerciseCard({
   const nextLoad = firstLeft && (firstLeft.set.weightKg ?? firstLeft.previous?.weightKg ?? firstLeft.set.target?.weightKg)
   const barbell = info?.equipment === 'barbell' || info?.equipment === 'smith'
   const step = info && LOAD_STEP[info.equipment] > 0 ? LOAD_STEP[info.equipment] : 2.5
+
+  // The warm-up climbs to the first working set's load: typed, or last time's, or the template's.
+  const workKg = firstWorkingLoad(exercise.sets, lastSets)
+  const warmup = warming && canWarm && info && workKg !== undefined ? suggestWarmup(workKg, info.equipment, gym) : []
+
+  // The RIR picker opens under the working set checked last in the workout; "RIR" on another set
+  // moves it there (or closes it) until the next set is checked.
+  const checkedLast = active
+    ? lastCheckedSet(session, (id) => library.find((e) => e.id === id)?.type === 'time')
+    : undefined
+  const rirKey = rirChoice && rirChoice.after === checkedLast ? rirChoice.key : checkedLast
+  const toggleRir = (key: string) => setRirChoice({ key: rirKey === key ? null : key, after: checkedLast })
 
   return (
     <Card className={cx(inSuperset && 'border-l-4 border-l-(--tone-training)')}>
@@ -387,12 +425,14 @@ function ExerciseCard({
           Última vez ({formatDay(last.session.date, 'd/M')}): {lastWorking.map((set) => formatSet(set, type)).join(' · ')}
         </p>
       )}
-      {suggestion !== undefined && canApply && (
+      {suggestion && canApply && (
         <div className="mt-2 flex items-center gap-3 rounded-xl bg-surface-2 p-2.5 text-sm">
           <TrendingUp size={18} className="shrink-0 text-accent-ink" />
           <p className="flex-1">
-            Você bateu o topo das repetições em todas as séries. Que tal{' '}
-            <strong>{formatNumber(suggestion, 2)} kg</strong>?
+            {suggestion.reason === 'rir'
+              ? 'Sobraram 3 ou mais repetições em todas as séries.'
+              : 'Você bateu o topo das repetições em todas as séries.'}{' '}
+            Que tal <strong>{formatNumber(suggestion.weightKg, 2)} kg</strong>?
           </p>
           <Button
             size="sm"
@@ -400,7 +440,7 @@ function ExerciseCard({
               update((current) => ({
                 ...current,
                 sets: current.sets.map((set) =>
-                  set.kind === 'normal' && !set.done ? { ...set, weightKg: suggestion } : set,
+                  set.kind === 'normal' && !set.done ? { ...set, weightKg: suggestion.weightKg } : set,
                 ),
               }))
             }
@@ -408,6 +448,17 @@ function ExerciseCard({
             Usar
           </Button>
         </div>
+      )}
+      {warming && canWarm && (
+        <WarmupPreview
+          workKg={workKg}
+          warmup={warmup}
+          onClose={() => setWarming(false)}
+          onUse={() => {
+            setWarming(false)
+            update((current) => ({ ...current, sets: replaceWarmups(current.sets, warmupSets(warmup)) }))
+          }}
+        />
       )}
 
       {active && type === 'weight_reps' && nextLoad !== undefined && (
@@ -425,6 +476,7 @@ function ExerciseCard({
           <span className="text-center">Anterior</span>
           {type === 'weight_reps' && <span className="text-center">kg</span>}
           <span className="text-center">{type === 'time' ? 'Tempo' : 'Reps'}</span>
+          {timed && <span />}
           <span />
         </div>
         {rows.map(({ set, label, previous }) => (
@@ -439,6 +491,9 @@ function ExerciseCard({
             columns={columns}
             restLabel={info?.name ?? 'Descanso'}
             rest={active ? restSecAfter(session.exercises, index, set.kind) : 0}
+            timed={timed}
+            rirOpen={rirKey === set.key}
+            onToggleRir={() => toggleRir(set.key)}
           />
         ))}
       </div>
@@ -632,6 +687,9 @@ function SetRow({
   columns,
   restLabel,
   rest,
+  timed,
+  rirOpen,
+  onToggleRir,
 }: {
   sessionId: string
   exercise: SessionExercise
@@ -643,6 +701,11 @@ function SetRow({
   restLabel: string
   /** Seconds of rest once the set is checked; 0 for none. */
   rest: number
+  /** A timed set of a workout running: it has a ▶ that times it. */
+  timed: boolean
+  /** The reps-in-reserve picker shows under it. */
+  rirOpen: boolean
+  onToggleRir: () => void
 }) {
   // Text as typed, written to the workout on blur or when the set is checked.
   const [weight, setWeight] = useState(asText(set.weightKg))
@@ -676,9 +739,31 @@ function SetRow({
     }
   }
 
+  // The timer running for this set, if any (the notification may have checked the set meanwhile).
+  const timer = useSetTimer()
+  const timing = timer?.setKey === set.key && !set.done ? timer : undefined
+
+  // ▶ counts down from the time typed, or last time's, or the template's; up when there's none.
+  function startTimer() {
+    const from = parseClock(duration) ?? fallback.durationSec
+    startSetTimer({
+      sessionId,
+      exerciseKey: exercise.key,
+      setKey: set.key,
+      targetSec: from || undefined,
+      restSec: rest,
+      label: restLabel,
+    })
+  }
+
   function toggle() {
+    if (timing) {
+      tapFeedback()
+      completeSetTimer()
+      return
+    }
     if (set.done) {
-      void write({ done: false, completedAt: undefined })
+      void write({ done: false, completedAt: undefined, rir: undefined })
       return
     }
     const done = withHints(typed())
@@ -699,6 +784,8 @@ function SetRow({
   const values = set.done ? set : shown.some((text) => text.trim() !== '') ? withHints(typed()) : undefined
   const comparison = working && values ? compareSet(values, previous, type) : undefined
   const before = working && type === 'weight_reps' && previous ? setE1rm(previous) : undefined
+  // Reps in reserve, once a working set with reps is checked.
+  const rirShown = set.done && working && type !== 'time'
 
   return (
     <div
@@ -721,16 +808,20 @@ function SetRow({
         />
       )}
       {type === 'time' ? (
-        <TextInput
-          ref={durationInput}
-          className="h-10 px-1 text-center"
-          inputMode="numeric"
-          aria-label={`Tempo da série ${label}`}
-          placeholder={fallback.durationSec === undefined ? '0:30' : formatClock(fallback.durationSec)}
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
-          onBlur={commit}
-        />
+        timing ? (
+          <SetTimerClock timer={timing} label={label} />
+        ) : (
+          <TextInput
+            ref={durationInput}
+            className="h-10 px-1 text-center"
+            inputMode="numeric"
+            aria-label={`Tempo da série ${label}`}
+            placeholder={fallback.durationSec === undefined ? '0:30' : formatClock(fallback.durationSec)}
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            onBlur={commit}
+          />
+        )
       ) : (
         <TextInput
           ref={repsInput}
@@ -743,6 +834,12 @@ function SetRow({
           onBlur={commit}
         />
       )}
+      {timed &&
+        (set.done ? (
+          <span />
+        ) : (
+          <SetTimerButton running={!!timing} label={label} onStart={startTimer} onStop={stopSetTimer} />
+        ))}
       <button
         type="button"
         aria-label={set.done ? `Desmarcar série ${label}` : `Concluir série ${label}`}
@@ -755,7 +852,7 @@ function SetRow({
       >
         <Check size={20} />
       </button>
-      {(before !== undefined || comparison) && (
+      {(before !== undefined || comparison || rirShown) && (
         <>
           <span />
           <span className="truncate text-center text-[11px] leading-tight text-muted tabular-nums">
@@ -764,8 +861,10 @@ function SetRow({
           <span className={cx(type === 'weight_reps' && 'col-span-2')}>
             {comparison && <ComparisonLine comparison={comparison} />}
           </span>
+          {rirShown && <RirToggle rir={set.rir} open={rirOpen} label={label} onToggle={onToggleRir} />}
         </>
       )}
+      {rirShown && rirOpen && <RirPicker rir={set.rir} label={label} onChange={(rir) => void write({ rir })} />}
     </div>
   )
 }

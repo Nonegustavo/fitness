@@ -6,6 +6,8 @@ import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Equipment, Exercise, ExerciseType, MuscleGroup } from '../../db/types'
 import { EQUIPMENT, EXERCISE_TYPES, MUSCLES } from './catalog'
+import { exerciseThumb, mediaIdOf, mediaLabel, noMedia } from './exerciseMedia'
+import { MediaPicker, MediaThumb } from './HowTo'
 
 export function ExerciseForm({
   exercise,
@@ -23,6 +25,11 @@ export function ExerciseForm({
   const [equipment, setEquipment] = useState<Equipment>(exercise?.equipment ?? 'machine')
   const [type, setType] = useState<ExerciseType>(exercise?.type ?? 'weight_reps')
   const [notes, setNotes] = useState(exercise?.notes ?? '')
+  // The free-exercise-db exercise linked for the pictures and steps; saved with the rest.
+  const [mediaId, setMediaId] = useState(exercise?.mediaId)
+  const [picking, setPicking] = useState(false)
+  const media = { id: exercise?.id ?? '', mediaId }
+  const linked = mediaIdOf(media)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -34,6 +41,7 @@ export function ExerciseForm({
       equipment,
       type,
       notes: notes.trim() || undefined,
+      mediaId,
     })
     onSaved?.(saved)
     onClose()
@@ -84,6 +92,17 @@ export function ExerciseForm({
         <Field label="Observações">
           <TextInput value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
         </Field>
+        <Field label="Fotos e passo a passo" group>
+          <div className="flex items-center gap-3">
+            <MediaThumb src={exerciseThumb(media)} className="h-10 w-14" />
+            <span className="min-w-0 flex-1 truncate text-sm">
+              {linked ? mediaLabel(linked) : <span className="text-muted">Nenhum</span>}
+            </span>
+            <Button size="sm" onClick={() => setPicking(true)}>
+              {linked ? 'Trocar' : 'Vincular fotos'}
+            </Button>
+          </div>
+        </Field>
         <div className="flex gap-2">
           {exercise && (
             <Button variant="danger" onClick={() => void onDelete()}>
@@ -95,6 +114,14 @@ export function ExerciseForm({
           </Button>
         </div>
       </form>
+      {picking && (
+        <MediaPicker
+          query={name}
+          current={linked}
+          onClose={() => setPicking(false)}
+          onPick={(next) => setMediaId(next ?? noMedia(exercise?.id))}
+        />
+      )}
     </Modal>
   )
 }

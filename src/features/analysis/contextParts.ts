@@ -45,6 +45,7 @@ import { STREAK_LABELS, streaks, type StreakKind } from '../streaks/streaks'
 import { MUSCLES } from '../training/catalog'
 import { DISCOMFORT_AREAS } from '../training/discomfort'
 import { bestE1rm, epley, needsDeload, recentEffort, setsByMuscle, stalledExercises, summarize, workingSets } from '../training/stats'
+import { setsWithRir } from './gymSets'
 
 /** A workout's comment (what the user told the coach), at most. */
 const NOTE_CHARS = 400
@@ -189,7 +190,8 @@ export function gymText(session: WorkoutSession, exercises: Map<string, Exercise
     const working = workingSets(exercise)
     if (working.length === 0) return []
     const best = bestSet(working)
-    return [`${exercises.get(exercise.exerciseId)?.name ?? 'Exercício'} ${working.length} séries${best ? ` (melhor ${best})` : ''}`]
+    const rir = setsWithRir(working, exercises.get(exercise.exerciseId)?.type ?? 'weight_reps')
+    return [`${exercises.get(exercise.exerciseId)?.name ?? 'Exercício'} ${working.length} séries${best ? ` (melhor ${best})` : ''}${rir ? `: ${rir}` : ''}`]
   })
   const time = watch ? watch.timerSec * 1000 : durationMs
   const measured = present([

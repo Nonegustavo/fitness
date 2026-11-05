@@ -75,7 +75,8 @@ export function setRestAlertGate(gate: (endsAt: number) => boolean): void {
 
 let audio: AudioContext | undefined
 
-function unlockAudio() {
+/** Call from a tap: browsers only let a page make sound after a user gesture. */
+export function unlockAudio(): void {
   try {
     audio ??= new AudioContext()
     void audio.resume()
@@ -84,9 +85,14 @@ function unlockAudio() {
   }
 }
 
-/** Two short beeps and a vibration. */
+/** The end of the rest: rings, unless the notification already did. */
 export function alertRestOver(): void {
   if (timer && !ringsInApp(timer.endsAt)) return
+  ringAlert()
+}
+
+/** Two short beeps and a vibration (the end of a rest, or of a timed set). */
+export function ringAlert(): void {
   navigator.vibrate?.([200, 100, 200])
   if (!audio) return
   for (const [offset, frequency] of [

@@ -147,21 +147,37 @@ export const LOAD_STEP: Record<Equipment, number> = {
   band: 0,
 }
 
+export interface LoadSuggestion {
+  weightKg: number
+  /** Every set reached the top of its reps, or every set had 3 or more reps in reserve. */
+  reason: 'top' | 'rir'
+}
+
 /**
- * Double progression: once every working set reached the top of its rep target,
- * suggest the next load step. Undefined when it isn't time to go up yet.
+ * Double progression: once every working set reached the top of its rep target, the next load step.
+ * The reps in reserve, when told, weigh in: 3 or more left in every set is reason enough to go up,
+ * and a last set at 0–1 from failure means the load is still enough. Undefined when it isn't time to
+ * go up yet.
  */
-export function suggestNextWeight(last: PerformedSet[], equipment: Equipment): number | undefined {
+export function loadSuggestion(last: PerformedSet[], equipment: Equipment): LoadSuggestion | undefined {
   const working = last.filter((set) => set.done && set.kind === 'normal')
   const step = LOAD_STEP[equipment]
   if (working.length === 0 || step === 0) return undefined
+  const heaviest = Math.max(...working.map((set) => set.weightKg ?? 0))
+  if (heaviest <= 0) return undefined
+  const finalRir = working.at(-1)?.rir
+  if (finalRir !== undefined && finalRir <= 1) return undefined
   const reachedTop = working.every((set) => {
     const top = set.target?.repsMax ?? set.target?.reps
     return top !== undefined && set.reps !== undefined && set.reps >= top
   })
-  const heaviest = Math.max(...working.map((set) => set.weightKg ?? 0))
-  return reachedTop && heaviest > 0 ? heaviest + step : undefined
+  if (reachedTop) return { weightKg: heaviest + step, reason: 'top' }
+  if (working.every((set) => set.rir !== undefined && set.rir >= 3)) return { weightKg: heaviest + step, reason: 'rir' }
+  return undefined
 }
+
+export const suggestNextWeight = (last: PerformedSet[], equipment: Equipment): number | undefined =>
+  loadSuggestion(last, equipment)?.weightKg
 
 /** The template after the one used last, wrapping around (A → B → C → A); archived ones are out. */
 export function nextTemplate(templates: WorkoutTemplate[], sessions: WorkoutSession[]): WorkoutTemplate | undefined {

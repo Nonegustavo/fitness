@@ -78,6 +78,87 @@ const SEEDS: Seed[] = [
   ['ex-escada', 'Escada', 'cardio', 'machine', 'time'],
 ]
 
+/**
+ * The free-exercise-db exercise (its id) of each default one, for its pictures and steps, matched by
+ * hand against the dataset's dist/exercises.json. Kept apart from the seeded rows so libraries seeded
+ * before it get the pictures too; an exercise's own `mediaId` (the user's choice) wins over it.
+ */
+export const DEFAULT_MEDIA: Record<string, string> = {
+  'ex-supino-reto-barra': 'Barbell_Bench_Press_-_Medium_Grip',
+  'ex-supino-inclinado-barra': 'Barbell_Incline_Bench_Press_-_Medium_Grip',
+  'ex-supino-reto-halteres': 'Dumbbell_Bench_Press',
+  'ex-supino-inclinado-halteres': 'Incline_Dumbbell_Press',
+  'ex-supino-maquina': 'Machine_Bench_Press',
+  'ex-crucifixo-halteres': 'Dumbbell_Flyes',
+  'ex-peck-deck': 'Butterfly',
+  'ex-crossover': 'Cable_Crossover',
+  'ex-flexao': 'Pushups',
+  'ex-paralelas': 'Dips_-_Chest_Version',
+
+  'ex-puxada-frontal': 'Wide-Grip_Lat_Pulldown',
+  'ex-barra-fixa': 'Pullups',
+  'ex-remada-curvada': 'Bent_Over_Barbell_Row',
+  'ex-remada-unilateral': 'One-Arm_Dumbbell_Row',
+  'ex-remada-baixa': 'Seated_Cable_Rows',
+  'ex-remada-cavalinho': 'T-Bar_Row_with_Handle',
+  'ex-pulldown': 'Straight-Arm_Pulldown',
+  'ex-levantamento-terra': 'Barbell_Deadlift',
+  'ex-hiperextensao': 'Hyperextensions_Back_Extensions',
+  'ex-encolhimento': 'Dumbbell_Shrug',
+
+  'ex-desenvolvimento-halteres': 'Dumbbell_Shoulder_Press',
+  'ex-desenvolvimento-barra': 'Barbell_Shoulder_Press',
+  'ex-elevacao-lateral': 'Side_Lateral_Raise',
+  'ex-elevacao-lateral-polia': 'Standing_Low-Pulley_Deltoid_Raise',
+  'ex-elevacao-frontal': 'Front_Dumbbell_Raise',
+  'ex-crucifixo-inverso': 'Reverse_Flyes',
+  'ex-face-pull': 'Face_Pull',
+
+  'ex-rosca-direta': 'Barbell_Curl',
+  'ex-rosca-alternada': 'Dumbbell_Alternate_Bicep_Curl',
+  'ex-rosca-martelo': 'Hammer_Curls',
+  'ex-rosca-scott': 'Machine_Preacher_Curls',
+  'ex-rosca-polia': 'Standing_Biceps_Cable_Curl',
+
+  'ex-triceps-corda': 'Triceps_Pushdown_-_Rope_Attachment',
+  'ex-triceps-barra': 'Triceps_Pushdown',
+  'ex-triceps-testa': 'Lying_Triceps_Press',
+  'ex-triceps-frances': 'Seated_Triceps_Press',
+  'ex-mergulho-banco': 'Bench_Dips',
+
+  'ex-rosca-punho': 'Seated_Palm-Up_Barbell_Wrist_Curl',
+
+  'ex-agachamento-livre': 'Barbell_Squat',
+  'ex-agachamento-smith': 'Smith_Machine_Squat',
+  'ex-leg-press': 'Leg_Press',
+  'ex-hack': 'Hack_Squat',
+  'ex-cadeira-extensora': 'Leg_Extensions',
+  'ex-afundo': 'Dumbbell_Lunges',
+  'ex-bulgaro': 'Split_Squat_with_Dumbbells',
+
+  'ex-mesa-flexora': 'Lying_Leg_Curls',
+  'ex-cadeira-flexora': 'Seated_Leg_Curl',
+  'ex-stiff': 'Stiff-Legged_Barbell_Deadlift',
+
+  'ex-elevacao-pelvica': 'Barbell_Hip_Thrust',
+  'ex-abdutora': 'Thigh_Abductor',
+  'ex-gluteo-polia': 'One-Legged_Cable_Kickback',
+  'ex-adutora': 'Thigh_Adductor',
+
+  'ex-panturrilha-pe': 'Standing_Calf_Raises',
+  'ex-panturrilha-sentado': 'Seated_Calf_Raise',
+
+  'ex-abdominal': 'Crunches',
+  'ex-prancha': 'Plank',
+  'ex-elevacao-pernas': 'Flat_Bench_Lying_Leg_Raise',
+  'ex-abdominal-polia': 'Cable_Crunch',
+
+  'ex-esteira': 'Running_Treadmill',
+  'ex-bicicleta': 'Bicycling_Stationary',
+  'ex-eliptico': 'Elliptical_Trainer',
+  'ex-escada': 'Step_Mill',
+}
+
 /** The starting library. Fixed ids and updatedAt 0, like the other seeded rows. */
 export const DEFAULT_EXERCISES: Exercise[] = SEEDS.map(([id, name, muscle, equipment, type = 'weight_reps']) => ({
   id,

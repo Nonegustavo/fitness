@@ -5,6 +5,7 @@ import {
   DEFAULT_WARMUP_REST_SEC,
   exerciseBlocks,
   keepDone,
+  lastCheckedSet,
   matchTemplate,
   removeExercise,
   reorderExercises,
@@ -174,6 +175,39 @@ describe('sets and exercises during a workout', () => {
     // The first of a pair: the second one stays as it was.
     expect(notation(removeExercise(session(workout('a+b c')), 'a').exercises)).toBe('b c')
     expect(removeExercise(session(workout('a b')), 'z').exercises).toHaveLength(2)
+  })
+})
+
+describe('the set checked last', () => {
+  const checked = (key: string, completedAt?: number, kind: PerformedSet['kind'] = 'normal'): PerformedSet => ({
+    key,
+    kind,
+    done: true,
+    completedAt,
+  })
+  const session = (exercises: SessionExercise[]): WorkoutSession => ({
+    id: 's',
+    name: 'A',
+    date: '2026-11-05',
+    startedAt: 0,
+    exercises,
+    updatedAt: 0,
+    deleted: 0,
+    dirty: 0,
+  })
+
+  it('is the working set checked latest, leaving out warm-ups and timed exercises', () => {
+    const list = [
+      exercise({ key: 'a', exerciseId: 'bench', sets: [checked('a1', 10), checked('a2', 30), { key: 'a3', kind: 'normal', done: false }] }),
+      exercise({ key: 'b', exerciseId: 'row', sets: [checked('b1', 20), checked('bw', 40, 'warmup')] }),
+      exercise({ key: 'c', exerciseId: 'plank', sets: [checked('c1', 50)] }),
+    ]
+    expect(lastCheckedSet(session(list), (id) => id === 'plank')).toBe('a2')
+    expect(lastCheckedSet(session([]), () => false)).toBeUndefined()
+  })
+
+  it('falls back to the order without the times', () => {
+    expect(lastCheckedSet(session([exercise({ sets: [checked('1'), checked('2')] })]), () => false)).toBe('2')
   })
 })
 

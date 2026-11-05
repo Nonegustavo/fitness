@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatComparison, formatE1rm, formatSet } from './catalog'
+import { formatComparison, formatE1rm, formatRir, formatSet, formatSetWithRir } from './catalog'
 
 describe('formatSet', () => {
   it('writes load × reps, and PC (peso corporal) for sets without a load', () => {
@@ -13,6 +13,14 @@ describe('formatSet', () => {
   it('writes the duration of timed sets', () => {
     expect(formatSet({ durationSec: 45 }, 'time')).toBe('0:45')
     expect(formatSet({}, 'time')).toBe('')
+  })
+
+  it('adds the reps in reserve when told', () => {
+    expect(formatSetWithRir({ weightKg: 80, reps: 8, rir: 2 }, 'weight_reps')).toBe('80×8 RIR 2')
+    expect(formatSetWithRir({ reps: 12, rir: 5 }, 'reps')).toBe('PC×12 RIR 4+')
+    expect(formatSetWithRir({ weightKg: 80, reps: 8, rir: 0 }, 'weight_reps')).toBe('80×8 RIR 0')
+    expect(formatSetWithRir({ weightKg: 80, reps: 8 }, 'weight_reps')).toBe('80×8')
+    expect(formatRir(4)).toBe('RIR 4+')
   })
 })
 

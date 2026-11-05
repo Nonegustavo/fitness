@@ -4,6 +4,7 @@ import {
   compareSet,
   epley,
   lastPerformance,
+  loadSuggestion,
   nextTemplate,
   personalRecords,
   setE1rm,
@@ -141,6 +142,26 @@ describe('suggestNextWeight', () => {
 
   it('needs a rep target', () => {
     expect(suggestNextWeight([set(60, 12)], 'barbell')).toBeUndefined()
+  })
+
+  it('goes up when every set had 3 or more reps in reserve, even short of the top', () => {
+    const easy = [set(60, 9, { target, rir: 3 }), set(60, 9, { target, rir: 4 })]
+    expect(loadSuggestion(easy, 'barbell')).toEqual({ weightKg: 62.5, reason: 'rir' })
+    // Without a rep target too.
+    expect(suggestNextWeight([set(20, 10, { rir: 3 })], 'dumbbell')).toBe(22)
+    // One set with less in reserve, or one not told, isn't enough.
+    expect(suggestNextWeight([set(60, 9, { target, rir: 3 }), set(60, 9, { target, rir: 2 })], 'barbell')).toBeUndefined()
+    expect(suggestNextWeight([set(60, 9, { target, rir: 3 }), set(60, 9, { target })], 'barbell')).toBeUndefined()
+  })
+
+  it('stays when the last set was 0 or 1 rep from failure, even at the top', () => {
+    expect(suggestNextWeight([set(60, 12, { target, rir: 2 }), set(60, 12, { target, rir: 1 })], 'barbell')).toBeUndefined()
+    expect(suggestNextWeight([set(60, 12, { target }), set(60, 12, { target, rir: 0 })], 'barbell')).toBeUndefined()
+    // Only the last set counts for this: an earlier hard set doesn't hold the load back.
+    expect(loadSuggestion([set(60, 12, { target, rir: 0 }), set(60, 12, { target, rir: 2 })], 'barbell')).toEqual({
+      weightKg: 62.5,
+      reason: 'top',
+    })
   })
 })
 
