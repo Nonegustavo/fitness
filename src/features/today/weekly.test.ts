@@ -38,4 +38,38 @@ describe('weekStats', () => {
     expect(week.weightChange).toBeCloseTo(-0.5)
     expect(week.waterL).toBeUndefined()
   })
+
+  it('leaves the skipped days out of the habits', () => {
+    const habit = {
+      ...meta,
+      id: 'sun',
+      name: 'Sol',
+      kind: 'check' as const,
+      polarity: 'good' as const,
+      startDate: '2026-10-01',
+      archived: 0 as const,
+      order: 0,
+    }
+    const log = (date: string, value: number, skipped?: 1) => ({ ...meta, id: `sun:${date}`, habitId: 'sun', date, value, skipped })
+    const week = weekStats('2026-10-26', '2026-11-01', {
+      foodLogs: [],
+      sessions: [],
+      activityDates: [],
+      health: [],
+      weightTrend: [],
+      water: [],
+      habits: [habit],
+      // Done 3 days, skipped 3 (rain), missed 1: 3 of the 4 days that count.
+      habitLogs: [
+        log('2026-10-26', 1),
+        log('2026-10-27', 0, 1),
+        log('2026-10-28', 0, 1),
+        log('2026-10-29', 1),
+        log('2026-10-30', 0, 1),
+        log('2026-10-31', 1),
+      ],
+      goalOn: () => undefined,
+    })
+    expect(week.habits).toBe(0.75)
+  })
 })

@@ -76,6 +76,23 @@ describe('streaks', () => {
     expect(streaks({ ...base, habits, habitLogs }, today).habits).toEqual({ count: 3, today: true })
     expect(streaks({ ...base, habits: [habit({ archived: 1 })] }, today).habits).toBeUndefined()
   })
+
+  it('steps over days with every habit skipped, and asks a day only for the habits not skipped', () => {
+    const habits = [habit({ id: 'a' }), habit({ id: 'b' })]
+    const skip = { value: 0, skipped: 1 as const }
+    const habitLogs = [
+      { id: 'a:2026-10-31', value: 1 },
+      { id: 'a:2026-11-01', value: 1 },
+      { id: 'b:2026-11-01', value: 1 },
+      { id: 'a:2026-11-02', ...skip },
+      { id: 'b:2026-11-02', ...skip },
+      { id: 'a:2026-11-03', value: 1 },
+      { id: 'b:2026-11-03', ...skip },
+      { id: 'a:2026-11-04', ...skip },
+      { id: 'b:2026-11-04', ...skip },
+    ]
+    expect(streaks({ ...base, habits, habitLogs }, today).habits).toEqual({ count: 2, today: false, skippedToday: true })
+  })
 })
 
 describe('milestoneMessage', () => {

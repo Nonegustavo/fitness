@@ -1,17 +1,20 @@
-import { NotebookPen } from 'lucide-react'
+import { Bandage, NotebookPen } from 'lucide-react'
 import { Link } from 'react-router'
 import { Card, cx, SkeletonCard } from '../../components/ui'
 import type { DayKey } from '../../lib/dates'
 import { ENERGY, MOODS, saveJournal, useJournalEntry, type Level } from './journal'
+import { painsOn, scoreOn, usePains } from './pains'
 
 /**
- * The diary on the Hoje screen, kept simple: a tap for the mood and the energy, and the day's
- * text as a preview that opens the diary to write.
+ * The diary on the Hoje screen, kept simple: a tap for the mood and the energy, the pains going on,
+ * and the day's text as a preview that opens the diary to write.
  */
 export function TodayJournalCard({ today }: { today: DayKey }) {
   const entry = useJournalEntry(today)
+  const pains = usePains()
   if (entry === undefined) return <SkeletonCard lines={3} />
   const text = entry?.text?.trim()
+  const hurting = painsOn(pains ?? [], today)
   return (
     <Card
       icon={NotebookPen}
@@ -27,6 +30,14 @@ export function TodayJournalCard({ today }: { today: DayKey }) {
         <Faces label="Humor" levels={MOODS} value={entry?.mood} onPick={(mood) => void saveJournal(today, { mood })} />
         <Faces label="Energia" levels={ENERGY} value={entry?.energy} onPick={(energy) => void saveJournal(today, { energy })} />
       </div>
+      {hurting.length > 0 && (
+        <Link to="/diario" className="mt-3 flex items-center gap-2 text-sm text-ink-2">
+          <Bandage size={16} aria-hidden className="shrink-0 text-muted" />
+          <span className="min-w-0 truncate">
+            {hurting.map((pain) => `${pain.name} ${scoreOn(pain, today) ?? '?'}/10`).join(' · ')}
+          </span>
+        </Link>
+      )}
       <Link
         to="/diario"
         className={cx('mt-3 block rounded-xl bg-surface-2 px-3 py-2 text-sm', text ? 'line-clamp-3 text-ink' : 'text-muted')}

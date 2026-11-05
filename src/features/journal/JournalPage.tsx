@@ -1,5 +1,5 @@
 import { NotebookPen } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { DayNav } from '../../components/DayNav'
 import { Button, Card, Empty, Page, TextInput } from '../../components/ui'
@@ -7,6 +7,7 @@ import { useToday } from '../../db/hooks'
 import { formatDay, type DayKey } from '../../lib/dates'
 import { JournalEditor } from './JournalEditor'
 import { ENERGY, levelOf, matchesSearch, MOODS, useJournal } from './journal'
+import { PainsCard } from './PainsCard'
 
 const PAGE = 30
 
@@ -15,6 +16,20 @@ export default function JournalPage() {
   const [params, setParams] = useSearchParams()
   const date = params.get('data') ?? today
   const setDate = (next: DayKey) => setParams(next === today ? {} : { data: next }, { replace: true })
+  // "?dor=nova" opens the form to add a pain; once open, the address keeps only the day.
+  const addPain = params.get('dor') === 'nova'
+  const onPainFormOpened = useCallback(
+    () =>
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current)
+          next.delete('dor')
+          return next
+        },
+        { replace: true },
+      ),
+    [setParams],
+  )
   const entries = useJournal()
   const [query, setQuery] = useState('')
   const [shown, setShown] = useState(PAGE)
@@ -27,6 +42,8 @@ export default function JournalPage() {
         <DayNav date={date} today={today} onChange={setDate} />
         <JournalEditor date={date} />
       </Card>
+
+      <PainsCard date={date} today={today} openAdd={addPain} onOpened={onPainFormOpened} />
 
       <Card title="Outros dias">
         <TextInput

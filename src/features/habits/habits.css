@@ -1,0 +1,27 @@
+/* The habit palette (HABIT_COLORS in look.tsx): each at 3:1 or more against the surfaces, in light
+   and dark. Blue and orange are the series colors, the look of a habit to do and of one to avoid. */
+:root {
+  --habit-blue: var(--series-1);
+  --habit-teal: #0d9488;
+  --habit-green: #16a34a;
+  --habit-amber: #d97706;
+  --habit-orange: var(--series-2);
+  --habit-red: #dc2626;
+  --habit-pink: #db2777;
+  --habit-purple: #9333ea;
+  --habit-indigo: #4f46e5;
+  --habit-gray: #64748b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --habit-teal: #2dd4bf;
+    --habit-green: #4ade80;
+    --habit-amber: #fbbf24;
+    --habit-red: #f87171;
+    --habit-pink: #f472b6;
+    --habit-purple: #c084fc;
+    --habit-indigo: #818cf8;
+    --habit-gray: #94a3b8;
+  }
+}

@@ -1,45 +1,79 @@
-import { Circle, CircleCheckBig, Minus, Plus } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { Minus, Plus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { celebrate } from '../../components/celebrate'
 import { useToast } from '../../components/Toast'
 import { cx, Empty, IconButton, SkeletonLines } from '../../components/ui'
-import type { Habit } from '../../db/types'
+import { useToday } from '../../db/hooks'
+import type { Habit, HabitLog } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { tapFeedback } from '../../lib/haptics'
-import { describeHabit, isSuccess, setHabitValue, useHabitLogs, useHabits } from './habits'
+import { dayGoals, dayState, keepOrder, orderForDay, type DayState } from './day'
+import { useLongPress, useReorderMotion } from './gestures'
+import { describeHabit, habitTime, setHabitValue, useHabitLogs, useHabits } from './habits'
+import { HabitBadge, habitColor, habitIcon, HabitMark, showsBadges } from './look'
+import { SkipSheet } from './SkipSheet'
 
-const setWithTap = (habit: Habit, date: DayKey, value: number) => {
-  tapFeedback()
-  void setHabitValue(habit, date, value)
+/** How long the list stays as it is after a tap before habits move to their places, so the check is seen. */
+const HOLD_MS = 700
+
+/** Long presses (and right clicks) mustn't select the text or open the phone's menu. */
+const NO_SELECT = 'select-none [-webkit-touch-callout:none]'
+
+interface ItemProps {
+  habit: Habit
+  log: HabitLog | undefined
+  onSet: (value: number) => void
+  onMenu: () => void
+  ref: (node: HTMLElement | null) => void
 }
 
 /**
- * The day's check-in: a toggle for yes/no habits, a stepper for counted ones. `compact` lays them
- * out as buttons two per row, without the description (the Hoje card).
+ * The day's check-in: a toggle for yes/no habits, a stepper for counted ones, in the order of the
+ * day (what's left to do first, by time). A long press says "hoje não vou fazer". `compact` lays
+ * them out as buttons two per row, without the description (the Hoje card).
  */
 export function HabitCheckList({ date, compact = false }: { date: DayKey; compact?: boolean }) {
+  const today = useToday()
   const habits = useHabits()
   const logs = useHabitLogs(date, date)
   const toast = useToast()
+  const [menu, setMenu] = useState<Habit>()
+  const [held, setHeld] = useState<{ date: DayKey; ids: string[] }>()
+  const release = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  // Completing the last habit to do of the day (not opening a day already complete) is worth a party.
-  const goals = (habits ?? []).filter((habit) => habit.archived === 0 && habit.polarity === 'good')
-  const logged = new Map((logs ?? []).map((log) => [log.habitId, log.value]))
-  const allDone = goals.length > 0 && goals.every((habit) => isSuccess(habit, logged.get(habit.id)))
-  const seen = useRef<{ date: DayKey; allDone: boolean }>(undefined)
+  const active = (habits ?? []).filter((habit) => habit.archived === 0)
+  const byHabit = new Map((logs ?? []).map((log) => [log.habitId, log]))
+  const target = orderForDay(active, byHabit).map((habit) => habit.id)
+  const ids = held?.date === date ? keepOrder(held.ids, target) : target
+  const itemRef = useReorderMotion(ids)
+
+  // Completing the last habit to do of the day (not opening a day already complete, nor skipping
+  // the last one left) is worth a party.
+  const goals = dayGoals(active, byHabit)
+  const allDone = goals.required.length > 0 && goals.left.length === 0
+  const doneCount = goals.done.length
+  const seen = useRef<{ date: DayKey; allDone: boolean; done: number }>(undefined)
   useEffect(() => {
     if (!habits || !logs) return
-    if (seen.current?.date === date && !seen.current.allDone && allDone) {
+    const before = seen.current
+    if (before?.date === date && !before.allDone && allDone && doneCount > before.done) {
       celebrate()
       toast({ message: 'Tudo feito hoje! ✨' })
     }
-    seen.current = { date, allDone }
-  }, [habits, logs, date, allDone, toast])
+    seen.current = { date, allDone, done: doneCount }
+  }, [habits, logs, date, allDone, doneCount, toast])
+
+  useEffect(() => () => clearTimeout(release.current), [])
+
+  /** Keeps the list as it is on screen for a moment, then lets it settle. */
+  function hold() {
+    setHeld((current) => (current?.date === date ? current : { date, ids }))
+    clearTimeout(release.current)
+    release.current = setTimeout(() => setHeld(undefined), HOLD_MS)
+  }
 
   if (!habits) return <SkeletonLines lines={3} />
-
-  const active = habits.filter((habit) => habit.archived === 0)
   if (active.length === 0) {
     return (
       <Empty>
@@ -51,100 +85,152 @@ export function HabitCheckList({ date, compact = false }: { date: DayKey; compac
     )
   }
 
-  const values = new Map((logs ?? []).map((log) => [log.habitId, log.value]))
-  if (compact) {
-    return (
-      <div className="grid grid-cols-2 gap-2">
-        {active.map((habit) => (
-          <HabitChip key={habit.id} habit={habit} date={date} value={values.get(habit.id) ?? 0} />
-        ))}
-      </div>
-    )
-  }
+  const byId = new Map(active.map((habit) => [habit.id, habit]))
+  const shown = ids.flatMap((id) => byId.get(id) ?? [])
+  const item = (habit: Habit): ItemProps & { key: string } => ({
+    key: habit.id,
+    habit,
+    log: byHabit.get(habit.id),
+    ref: itemRef(habit.id),
+    onSet: (value) => {
+      hold()
+      tapFeedback()
+      void setHabitValue(habit, date, value)
+    },
+    // Only a habit to do can be skipped: one to avoid either happened or not, and setting the day
+    // aside would hide it from the correlations.
+    onMenu: () => {
+      if (habit.polarity === 'good') setMenu(habit)
+      else toast({ message: 'Só os hábitos a fazer podem ser pulados.' })
+    },
+  })
+  const badges = showsBadges(active)
+
   return (
-    <ul className="divide-y divide-line">
-      {active.map((habit) => (
-        <HabitRow key={habit.id} habit={habit} date={date} value={values.get(habit.id) ?? 0} />
-      ))}
-    </ul>
+    <>
+      {compact ? (
+        <div className="relative grid grid-cols-2 gap-2">
+          {shown.map((habit) => {
+            const { key, ...props } = item(habit)
+            return <HabitChip key={key} {...props} />
+          })}
+        </div>
+      ) : (
+        <ul className="relative divide-y divide-line">
+          {shown.map((habit) => {
+            const { key, ...props } = item(habit)
+            return <HabitRow key={key} {...props} badge={badges} />
+          })}
+        </ul>
+      )}
+      {menu && (
+        <SkipSheet
+          habit={menu}
+          date={date}
+          today={today}
+          log={byHabit.get(menu.id)}
+          onChange={hold}
+          onClose={() => setMenu(undefined)}
+        />
+      )}
+    </>
   )
 }
 
+const skipText = (log: HabitLog | undefined) => (log?.note ? `pulado · ${log.note}` : 'pulado')
+
+const label = (habit: Habit, state: DayState, log: HabitLog | undefined) =>
+  state === 'skipped' ? `${habit.name}, ${skipText(log)}` : habit.name
+
 /** A habit as one button (yes/no) or a small stepper (counted), for the compact list. */
-function HabitChip({ habit, date, value }: { habit: Habit; date: DayKey; value: number }) {
-  const done = value > 0
-  const color = habit.polarity === 'good' ? 'var(--series-1)' : 'var(--series-2)'
+function HabitChip({ habit, log, onSet, onMenu, ref }: ItemProps) {
+  const press = useLongPress(onMenu)
+  const state = dayState(habit, log)
+  const value = log?.value ?? 0
+  const color = habitColor(habit)
+  const skipped = state === 'skipped'
+  const name = (
+    <span className="min-w-0 flex-1">
+      <span className={cx('line-clamp-2 leading-tight', skipped && 'text-muted')}>{habit.name}</span>
+      {skipped && <span className="block truncate text-xs text-muted">{skipText(log)}</span>}
+    </span>
+  )
   if (habit.kind === 'check') {
+    const marked = state === 'done' || state === 'happened'
     return (
       <button
+        ref={ref}
         type="button"
         role="checkbox"
-        aria-checked={done}
-        aria-label={habit.name}
-        onClick={() => setWithTap(habit, date, done ? 0 : 1)}
-        className="flex min-h-11 items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition active:scale-[0.97]"
-        style={{ background: done ? `color-mix(in oklab, ${color} 16%, var(--surface-2))` : 'var(--surface-2)' }}
+        aria-checked={marked}
+        aria-label={label(habit, state, log)}
+        {...press}
+        onClick={() => onSet(marked ? 0 : 1)}
+        className={cx('flex min-h-11 items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition active:scale-[0.97]', NO_SELECT)}
+        style={{ background: marked ? `color-mix(in oklab, ${color} 16%, var(--surface-2))` : 'var(--surface-2)' }}
       >
-        {done ? (
-          <CircleCheckBig size={18} className="shrink-0 animate-pop" style={{ color }} />
-        ) : (
-          <Circle size={18} className="shrink-0 text-baseline" />
-        )}
-        <span className="line-clamp-2 min-w-0 leading-tight">{habit.name}</span>
+        <HabitMark habit={habit} state={state} />
+        {name}
       </button>
     )
   }
+  const Icon = habitIcon(habit)
   return (
-    <div className="flex min-h-11 items-center gap-0.5 rounded-xl bg-surface-2 py-1 pr-1 pl-2.5 text-sm">
-      <span className="line-clamp-2 min-w-0 flex-1 leading-tight">{habit.name}</span>
-      <IconButton label={`Diminuir ${habit.name}`} className="size-7" disabled={value <= 0} onClick={() => setWithTap(habit, date, value - 1)}>
+    <div
+      ref={ref}
+      {...press}
+      className={cx('flex min-h-11 items-center gap-0.5 rounded-xl bg-surface-2 py-1 pr-1 pl-2.5 text-sm', NO_SELECT)}
+    >
+      {Icon && <Icon aria-hidden size={16} className="mr-1.5 shrink-0" style={{ color: skipped ? 'var(--muted)' : color }} />}
+      {name}
+      <IconButton label={`Diminuir ${habit.name}`} className="size-7" disabled={value <= 0} onClick={() => onSet(value - 1)}>
         <Minus size={14} />
       </IconButton>
-      <span className={cx('w-5 text-center font-semibold tabular-nums', !done && 'text-muted')}>{value}</span>
-      <IconButton label={`Aumentar ${habit.name}`} className="size-7" onClick={() => setWithTap(habit, date, value + 1)}>
+      <span className={cx('w-5 text-center font-semibold tabular-nums', (value === 0 || skipped) && 'text-muted')}>{value}</span>
+      <IconButton label={`Aumentar ${habit.name}`} className="size-7" onClick={() => onSet(value + 1)}>
         <Plus size={14} />
       </IconButton>
     </div>
   )
 }
 
-function HabitRow({ habit, date, value }: { habit: Habit; date: DayKey; value: number }) {
-  const done = value > 0
-  // Blue marks a good habit done; orange marks a habit to avoid that happened.
-  const doneColor = habit.polarity === 'good' ? 'text-series-1' : 'text-series-2'
+function HabitRow({ habit, log, onSet, onMenu, ref, badge }: ItemProps & { badge: boolean }) {
+  const press = useLongPress(onMenu)
+  const state = dayState(habit, log)
+  const value = log?.value ?? 0
+  const skipped = state === 'skipped'
+  const marked = state === 'done' || state === 'happened'
+  const detail = skipped
+    ? `Pulado${log?.note ? ` · ${log.note}` : ''}`
+    : [habitTime(habit), describeHabit(habit)].filter(Boolean).join(' · ')
 
   return (
-    <li className="flex items-center gap-3 py-1.5">
+    <li ref={ref} {...press} className={cx('flex items-center gap-3 bg-surface py-1.5', NO_SELECT)}>
+      {badge && <HabitBadge habit={habit} muted={skipped} />}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{habit.name}</p>
-        <p className="text-xs text-muted">{describeHabit(habit)}</p>
+        <p className={cx('truncate text-sm font-medium', skipped && 'text-muted')}>{habit.name}</p>
+        <p className="truncate text-xs text-muted">{detail}</p>
       </div>
       {habit.kind === 'check' ? (
         <button
           type="button"
           role="checkbox"
-          aria-checked={done}
-          aria-label={habit.name}
-          onClick={() => setWithTap(habit, date, done ? 0 : 1)}
+          aria-checked={marked}
+          aria-label={label(habit, state, log)}
+          onClick={() => onSet(marked ? 0 : 1)}
           className="inline-flex size-11 items-center justify-center rounded-full transition active:scale-90"
         >
-          {done ? (
-            <CircleCheckBig size={28} className={cx(doneColor, 'animate-pop')} />
-          ) : (
-            <Circle size={28} className="text-baseline" />
-          )}
+          <HabitMark habit={habit} state={state} size={28} icon={false} />
         </button>
       ) : (
         <div className="flex items-center">
-          <IconButton
-            label={`Diminuir ${habit.name}`}
-            disabled={value <= 0}
-            onClick={() => setWithTap(habit, date, value - 1)}
-          >
+          <IconButton label={`Diminuir ${habit.name}`} disabled={value <= 0} onClick={() => onSet(value - 1)}>
             <Minus size={18} />
           </IconButton>
-          <span className={cx('w-8 text-center text-lg font-semibold tabular-nums', !done && 'text-muted')}>{value}</span>
-          <IconButton label={`Aumentar ${habit.name}`} onClick={() => setWithTap(habit, date, value + 1)}>
+          <span className={cx('w-8 text-center text-lg font-semibold tabular-nums', (value === 0 || skipped) && 'text-muted')}>
+            {value}
+          </span>
+          <IconButton label={`Aumentar ${habit.name}`} onClick={() => onSet(value + 1)}>
             <Plus size={18} />
           </IconButton>
         </div>

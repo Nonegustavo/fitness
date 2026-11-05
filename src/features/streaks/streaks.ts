@@ -1,7 +1,7 @@
 import type { FoodLog, Habit, HabitLog, MacroGoals, WaterLog } from '../../db/types'
 import { shiftDay, type DayKey } from '../../lib/dates'
 import { formatClock, formatNumber } from '../../lib/format'
-import { habitLogId, isSuccess } from '../habits/habits'
+import { habitLogId, isSkipped, isSuccess } from '../habits/habits'
 import type { Records } from '../running/running'
 
 /** The goals kept day after day that count as a streak. */
@@ -24,21 +24,26 @@ export interface Streak {
   count: number
   /** Whether today is already met (or else the streak runs up to yesterday, still alive). */
   today: boolean
+  /** Today was set aside (every habit skipped): it asks for nothing and the streak goes on. */
+  skippedToday?: true
 }
 
 /**
  * Days in a row meeting a goal, up to today. Today only counts once it's met, so a goal not met
- * yet today doesn't break yesterday's streak.
+ * yet today doesn't break yesterday's streak. A day `met` calls undefined (set aside) is stepped
+ * over: it neither counts nor breaks.
  */
-export function dayStreak(met: (date: DayKey) => boolean, today: DayKey, maxDays = STREAK_DAYS): Streak {
+export function dayStreak(met: (date: DayKey) => boolean | undefined, today: DayKey, maxDays = STREAK_DAYS): Streak {
   const metToday = met(today)
   let day = metToday ? today : shiftDay(today, -1)
   let count = 0
-  while (count < maxDays && met(day)) {
+  for (let walked = 0; count < maxDays && walked < 2 * maxDays; walked++, day = shiftDay(day, -1)) {
+    const kept = met(day)
+    if (kept === undefined) continue
+    if (!kept) break
     count++
-    day = shiftDay(day, -1)
   }
-  return { count, today: metToday }
+  return { count, today: metToday === true, ...(metToday === undefined && { skippedToday: true as const }) }
 }
 
 export interface StreakSources {
@@ -48,7 +53,7 @@ export interface StreakSources {
   /** The goals of a day (training days may differ); undefined without nutrition goals. */
   goalOn: (date: DayKey) => MacroGoals | undefined
   habits: Habit[]
-  habitLogs: Pick<HabitLog, 'id' | 'value'>[]
+  habitLogs: Pick<HabitLog, 'id' | 'value' | 'skipped'>[]
 }
 
 function sumBy<T>(items: T[], key: (item: T) => DayKey, value: (item: T) => number): Map<DayKey, number> {
@@ -73,12 +78,15 @@ export function streaks(s: StreakSources, today: DayKey): Partial<Record<StreakK
   }
   const active = s.habits.filter((habit) => !habit.archived)
   if (active.length > 0) {
-    const values = new Map(s.habitLogs.map((log) => [log.id, log.value]))
+    const logs = new Map(s.habitLogs.map((log) => [log.id, log]))
     result.habits = dayStreak((date) => {
-      const due = active.filter((habit) => habit.startDate <= date)
-      // A day only counts once something was logged on it: an empty day isn't a kept one.
-      const logged = due.some((habit) => values.has(habitLogId(habit.id, date)))
-      return logged && due.every((habit) => isSuccess(habit, values.get(habitLogId(habit.id, date))))
+      const started = active.filter((habit) => habit.startDate <= date)
+      const due = started.filter((habit) => !isSkipped(logs.get(habitLogId(habit.id, date))))
+      // A day with every habit skipped is set aside.
+      if (due.length === 0) return started.length > 0 ? undefined : false
+      // A day only counts once something was logged on it (a skip too): an empty day isn't a kept one.
+      const logged = started.some((habit) => logs.has(habitLogId(habit.id, date)))
+      return logged && due.every((habit) => isSuccess(habit, logs.get(habitLogId(habit.id, date))?.value))
     }, today)
   }
   return result

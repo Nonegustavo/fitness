@@ -51,6 +51,19 @@ describe('plannedReminders', () => {
     expect(plannedReminders([daily], [done], now)[0].date).toBe('2026-11-04')
   })
 
+  it('drops the reminder of a day skipped ("Hoje não vou fazer")', () => {
+    const daily = habit({ reminder: { time: '20:00', days: everyDay } })
+    const rain: HabitLog = { id: 'stretch:2026-11-03', habitId: 'stretch', date: '2026-11-03', value: 0, skipped: 1, note: 'chuva', ...meta }
+    expect(plannedReminders([daily], [rain], now)[0].date).toBe('2026-11-04')
+    // A skip undone (deleted) brings it back.
+    expect(plannedReminders([daily], [{ ...rain, deleted: 1 }], now)[0].date).toBe('2026-11-03')
+  })
+
+  it('rings at the habit time, which the reminder follows', () => {
+    const morning = habit({ time: '07:30', reminder: { time: '20:00', days: everyDay } })
+    expect(plannedReminders([morning], [], now)[0].at).toEqual(new Date(2026, 10, 4, 7, 30))
+  })
+
   it('waits for a count habit to reach its goal', () => {
     const water = habit({ kind: 'count', target: 8, reminder: { time: '20:00', days: everyDay } })
     const halfway: HabitLog = { id: 'stretch:2026-11-03', habitId: 'stretch', date: '2026-11-03', value: 4, ...meta }

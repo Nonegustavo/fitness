@@ -1,7 +1,7 @@
 import type { DailyHealth, FoodLog, Habit, HabitLog, MacroGoals, WaterLog, WorkoutSession } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import type { DayValue } from '../../lib/stats'
-import { valuesByHabit, successRate } from '../habits/habits'
+import { daysByHabit, NO_DAYS, successRate } from '../habits/habits'
 import { summarize } from '../training/stats'
 
 export interface WeekStats {
@@ -23,7 +23,7 @@ export interface WeekStats {
   weightChange?: number
   /** Average liters a day, over the days with water logged. */
   waterL?: number
-  /** Share of habit-days met. */
+  /** Share of habit-days met, the skipped ones left out. */
   habits?: number
 }
 
@@ -75,11 +75,11 @@ export function weekStats(from: DayKey, to: DayKey, s: WeekSources): WeekStats {
   const waterByDay = new Map<DayKey, number>()
   for (const log of s.water) if (inWeek(log.date)) waterByDay.set(log.date, (waterByDay.get(log.date) ?? 0) + log.ml)
 
-  const values = valuesByHabit(s.habitLogs)
+  const habitDays = daysByHabit(s.habitLogs)
   const rates = s.habits
     .filter((habit) => !habit.archived)
     .flatMap((habit) => {
-      const rate = successRate(habit, values.get(habit.id) ?? new Map(), from, to)
+      const rate = successRate(habit, habitDays.get(habit.id) ?? NO_DAYS, from, to)
       return rate === undefined ? [] : [rate]
     })
 

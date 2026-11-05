@@ -45,6 +45,7 @@ const days = (count: number) => (count === 1 ? 'dia' : 'dias')
 
 /** What to say under a streak: how far to the next mark, or that today still counts. */
 function hint(streak: Streak): string {
+  if (streak.skippedToday) return streak.count > 0 ? 'Hoje pulado · a sequência continua' : 'Hoje pulado'
   if (!streak.today) return streak.count > 0 ? 'Bata a meta hoje para continuar' : 'Comece hoje'
   const next = MILESTONES.find((mark) => mark > streak.count)
   return next ? `Hoje já conta · próxima marca: ${next} dias` : 'Hoje já conta'
@@ -96,7 +97,7 @@ export function StreaksSmall({ today }: { today: DayKey }) {
     <SmallCard icon={Flame} tone="habits" label="Sequências" to={best.to}>
       <Value value={streak.count} unit={`${days(streak.count)} seguidos`} />
       <Note>{STREAK_LABELS[best.kind]}</Note>
-      <Note>{streak.today ? 'Hoje já conta' : 'Falta hoje'}</Note>
+      <Note>{streak.today ? 'Hoje já conta' : streak.skippedToday ? 'Hoje pulado' : 'Falta hoje'}</Note>
     </SmallCard>
   )
 }

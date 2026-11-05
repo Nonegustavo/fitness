@@ -6,7 +6,7 @@ import { buildDailyData, type DailyData, type Sources } from './metrics'
 
 /** Every table the correlations (and the daily analysis) read, without deleted rows. */
 export async function loadSources(): Promise<Sources> {
-  const [health, weights, foodLogs, waterLogs, habits, habitLogs, activities, sessions, journal] = await Promise.all([
+  const [health, weights, foodLogs, waterLogs, habits, habitLogs, activities, sessions, journal, pains] = await Promise.all([
     db.dailyHealth.toArray(),
     db.weights.toArray(),
     db.foodLogs.toArray(),
@@ -16,6 +16,7 @@ export async function loadSources(): Promise<Sources> {
     db.activities.toArray(),
     db.workoutSessions.toArray(),
     db.journal.toArray(),
+    db.pains.toArray(),
   ])
   return {
     health: alive(health),
@@ -27,6 +28,7 @@ export async function loadSources(): Promise<Sources> {
     activities: alive(activities),
     sessions: alive(sessions),
     journal: alive(journal),
+    pains: alive(pains),
   }
 }
 

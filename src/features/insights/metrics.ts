@@ -5,6 +5,7 @@ import type {
   Habit,
   HabitLog,
   JournalEntry,
+  Pain,
   WaterLog,
   WeightEntry,
   WorkoutSession,
@@ -54,6 +55,8 @@ export interface Sources {
   activities: Activity[]
   sessions: WorkoutSession[]
   journal: JournalEntry[]
+  /** The pains told in the diary; only the daily analysis reads them. */
+  pains?: Pain[]
 }
 
 const BASE_METRICS: Metric[] = [
@@ -257,10 +260,12 @@ export function buildDailyData(sources: Sources, from: DayKey, to: DayKey): Dail
     add(rows, entry.id, 'energy', entry.energy)
   }
 
-  // Habits: a missing log on a day the habit existed means not done (0).
+  // Habits: a missing log on a day the habit existed means not done (0); a skipped day is missing,
+  // since it says nothing about what the habit does.
   const habitMetrics: Metric[] = []
   const values = new Map<string, number>()
   for (const log of sources.habitLogs) values.set(`${log.habitId}:${log.date}`, log.value)
+  const skipped = new Set(sources.habitLogs.filter((log) => log.skipped).map((log) => `${log.habitId}:${log.date}`))
   const today = dayKey()
   for (const habit of sources.habits) {
     const key = `habit:${habit.id}`
@@ -277,7 +282,7 @@ export function buildDailyData(sources: Sources, from: DayKey, to: DayKey): Dail
       cause: true,
     })
     for (const day of days) {
-      if (day < habit.startDate || day > today) continue
+      if (day < habit.startDate || day > today || skipped.has(`${habit.id}:${day}`)) continue
       const value = values.get(`${habit.id}:${day}`) ?? 0
       add(rows, day, key, binary ? (value > 0 ? 1 : 0) : value)
     }

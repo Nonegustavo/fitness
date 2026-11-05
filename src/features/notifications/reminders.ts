@@ -2,7 +2,7 @@ import type { Activity, DailyHealth, Habit, HabitLog, MealKey, SmartReminders, W
 import { dayKey, formatTime, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
-import { habitLogId, isSuccess } from '../habits/habits'
+import { habitLogId, habitTime, isSkipped, isSuccess } from '../habits/habits'
 
 /** Reminders go this far ahead, so they keep coming even if the app isn't opened for a while. */
 export const HORIZON_DAYS = 14
@@ -30,20 +30,22 @@ export function notificationId(key: string): number {
 
 /**
  * Every reminder from `now` to the horizon: on the habit's weekdays, at its time, skipping days
- * already met (a goal reached) or already logged (a habit to avoid).
+ * already met (a goal reached), already logged (a habit to avoid) or set aside ("Hoje não vou fazer").
  */
 export function plannedReminders(habits: Habit[], logs: HabitLog[], now: Date): PlannedReminder[] {
-  const values = new Map(logs.filter((log) => !log.deleted).map((log) => [log.id, log.value]))
+  const byId = new Map(logs.filter((log) => !log.deleted).map((log) => [log.id, log]))
   const planned: PlannedReminder[] = []
   for (const habit of habits) {
     const reminder = habit.reminder
     if (!reminder || habit.archived || habit.deleted || reminder.days.length === 0) continue
-    const [hour, minute] = reminder.time.split(':').map(Number)
+    const [hour, minute] = (habitTime(habit) ?? reminder.time).split(':').map(Number)
     for (let offset = 0; offset < HORIZON_DAYS; offset++) {
       const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, hour, minute)
       if (at <= now || !reminder.days.includes(at.getDay())) continue
       const date = dayKey(at)
-      const value = values.get(habitLogId(habit.id, date))
+      const log = byId.get(habitLogId(habit.id, date))
+      if (isSkipped(log)) continue
+      const value = log?.value
       if (habit.polarity === 'good' ? isSuccess(habit, value) : value !== undefined) continue
       planned.push({
         id: notificationId(habitLogId(habit.id, date)),

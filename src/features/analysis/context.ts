@@ -3,10 +3,12 @@ import { dayRange, formatDay, formatTime, shiftDay, weekStart, type DayKey } fro
 import { formatDuration, formatNumber } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
 import type { PlannedEvent } from '../garmin/calendar'
+import { habitTime } from '../habits/habits'
 import { describe, highlights, strengthLabel } from '../insights/analysis'
 import { buildDailyData, formatMetric, type DailyData, type DayRow, type Metric, type Sources } from '../insights/metrics'
 import { mean } from '../insights/stats'
 import { firstDayOf } from '../insights/useDailyData'
+import { painLines, painsText } from '../journal/pains'
 import {
   adherenceLines,
   bodyLines,
@@ -138,6 +140,8 @@ export function buildContext(input: ContextInput): string {
       }
       const diary = sources.journal.find((entry) => entry.id === day)?.text.trim()
       if (diary) out.push(`  Diário: "${diary.length > DIARY_CHARS ? `${diary.slice(0, DIARY_CHARS)}…` : diary}"`)
+      const pains = painsText(sources.pains ?? [], day)
+      if (pains) out.push(`  Dores (de 1 a 10): ${pains}`)
     })
 
   section(out, 'Semanas (domingo a sábado; da mais antiga à atual)', weekLines(sources, today))
@@ -162,6 +166,7 @@ export function buildContext(input: ContextInput): string {
     'Corpo',
     bodyLines({ weights: sources.weights, measurements: input.measurements ?? [], sites: settings.measurementSites, settings }, today),
   )
+  section(out, 'Dores e desconfortos (contadas no diário, de 1 a 10)', painLines(sources.pains ?? [], today))
   section(out, 'Energia e proteína', energyLines({ foodLogs: sources.foodLogs, weights: sources.weights, health: sources.health }, today))
   section(
     out,
@@ -219,10 +224,12 @@ const macros = (goals: { kcal: number; protein: number; carbs: number; fat: numb
 
 function describeHabit(habit: Habit): string {
   const aim = habit.polarity === 'good' ? 'fazer' : 'evitar'
-  if (habit.kind === 'check') return `${habit.name} (${aim})`
+  const time = habitTime(habit)
+  const at = time ? `, às ${time}` : ''
+  if (habit.kind === 'check') return `${habit.name} (${aim}${at})`
   const unit = habit.unit ? ` ${habit.unit}` : ''
   const target = habit.target === undefined ? '' : `, ${habit.polarity === 'good' ? 'meta' : 'limite'} ${formatNumber(habit.target)}${unit} por dia`
-  return `${habit.name} (${aim}, quantidade${target})`
+  return `${habit.name} (${aim}, quantidade${target}${at})`
 }
 
 function dayLine(
@@ -264,7 +271,13 @@ function dayLine(
   if (show('mood')) parts.push(`humor ${show('mood')}/5`)
   if (show('energy')) parts.push(`energia ${show('energy')}/5`)
 
+  // A skipped day has no value (it's missing in the correlations), but the reason says why.
+  const skips = new Map(sources.habitLogs.filter((log) => log.date === day && log.skipped).map((log) => [log.habitId, log.note]))
   const habitParts = habits.flatMap((habit) => {
+    if (skips.has(habit.id)) {
+      const note = skips.get(habit.id)?.trim()
+      return [`${habit.name} (pulado${note ? `: ${oneLine(note, 120)}` : ''})`]
+    }
     const v = value(`habit:${habit.id}`)
     if (v === undefined) return []
     return habit.kind === 'check' ? [`${habit.name} ${v > 0 ? 'sim' : 'não'}`] : [`${habit.name} ${formatNumber(v)}${habit.unit ? ` ${habit.unit}` : ''}`]

@@ -28,7 +28,7 @@ import { amountLabel, goalsFor, MEAL_LABEL, MEALS, sumNutrients } from '../food/
 import type { PlannedEvent } from '../garmin/calendar'
 import { hrvStatus } from '../garmin/recovery'
 import { describeStep, workoutBlocks } from '../garmin/workout'
-import { streak, successRate, valuesByHabit } from '../habits/habits'
+import { daysByHabit, NO_DAYS, skippedBetween, streak, successRate } from '../habits/habits'
 import { formatPace, isRun, personalRecords, pooledPace, weeklyVolume } from '../running/running'
 import { STREAK_LABELS, streaks, type StreakKind } from '../streaks/streaks'
 import { MUSCLES } from '../training/catalog'
@@ -283,7 +283,7 @@ export interface WeeksInput {
 export function weekLines(s: WeeksInput, today: DayKey, count = 8): string[] {
   const current = weekStart(today)
   const weightTrend = metricSeries(s.weights, (entry) => entry.weightKg).trend
-  const values = valuesByHabit(s.habitLogs)
+  const values = daysByHabit(s.habitLogs)
   const habits = s.habits.filter((habit) => !habit.archived)
   const lines: string[] = []
   for (let back = count; back >= 0; back--) {
@@ -312,7 +312,7 @@ export function weekLines(s: WeeksInput, today: DayKey, count = 8): string[] {
     const resting = average(health.flatMap((row) => (row.restingHr ? [row.restingHr] : [])))
     const weight = trendAt(weightTrend, to)
     const rates = habits.flatMap((habit) => {
-      const rate = successRate(habit, values.get(habit.id) ?? new Map(), from, to)
+      const rate = successRate(habit, values.get(habit.id) ?? NO_DAYS, from, to)
       return rate === undefined ? [] : [rate]
     })
     const eaten = [...food.values()]
@@ -596,13 +596,15 @@ export function adherenceLines(s: AdherenceInput, today: DayKey): string[] {
     )
   }
 
-  const values = valuesByHabit(s.habitLogs)
+  const values = daysByHabit(s.habitLogs)
   const habits = s.habits.filter((habit) => !habit.archived)
   for (const habit of habits) {
-    const days = values.get(habit.id) ?? new Map<DayKey, number>()
+    const days = values.get(habit.id) ?? NO_DAYS
     const rate = successRate(habit, days, from, shiftDay(today, -1))
     if (rate === undefined) continue
-    lines.push(`- Hábito «${habit.name}»: cumprido em ${Math.round(rate * 100)}% dos dias das últimas 2 semanas; sequência atual ${streak(habit, days, today)} dias`)
+    const skipped = skippedBetween(days, from, shiftDay(today, -1)).length
+    const aside = skipped ? ` (sem contar ${skipped} ${skipped === 1 ? 'dia pulado' : 'dias pulados'})` : ''
+    lines.push(`- Hábito «${habit.name}»: cumprido em ${Math.round(rate * 100)}% dos dias das últimas 2 semanas${aside}; sequência atual ${streak(habit, days, today)} dias`)
   }
 
   const trainingDays = new Set(s.sessions.filter((session) => session.endedAt).map((session) => session.date))

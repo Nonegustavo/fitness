@@ -292,9 +292,9 @@ async function reschedule(habits: Habit[], logs: HabitLog[]) {
   const old = scheduled.filter((notification) => (notification.extra as HabitExtra | undefined)?.kind === 'habit')
   if (old.length > 0) await LocalNotifications.cancel({ notifications: old.map(({ id }) => ({ id })) })
 
-  // A reminder already showing goes away once its day is logged.
+  // A reminder already showing goes away once its day is logged or skipped.
   const planned = plannedReminders(habits, logs, new Date())
-  const logged = new Set(logs.filter((log) => !log.deleted && log.value > 0).map((log) => log.id))
+  const logged = new Set(logs.filter((log) => !log.deleted && (log.value > 0 || log.skipped === 1)).map((log) => log.id))
   const { notifications: shown } = await LocalNotifications.getDeliveredNotifications()
   const done = shown.filter((notification) => {
     const extra = notification.extra as HabitExtra | undefined
