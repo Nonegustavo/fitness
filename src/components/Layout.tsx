@@ -6,8 +6,8 @@ import { Celebrations } from '../features/streaks/Celebrations'
 import { RestTimerBar } from '../features/training/RestTimerBar'
 import { useSettings } from '../db/hooks'
 import { QuickLogButton } from './QuickLog'
-import { bottomSections, SECTIONS } from './sections'
-import { toneColor, toneStyle } from './tone'
+import { bottomSections, SECTIONS, toneForPath } from './sections'
+import { toneColor, ToneContext, toneStyle } from './tone'
 import { cx } from './ui'
 
 const bottomClass = (active: boolean) =>
@@ -78,71 +78,80 @@ export function Layout() {
   // Screens reached from "Mais" that aren't sections of their own (Passos, the week's summary) count too.
   const underMore = ['/mais', '/passos', '/semana', ...SECTIONS.filter((section) => !bottom.includes(section)).map((section) => section.to)]
   const inMore = underMore.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+  // The controls of a screen take its section's color, the "+" and the bars around it included.
+  const sectionTone = toneForPath(pathname)
   useScrollPerScreen()
 
   return (
-    // Nothing may widen the screen sideways: on a phone that also pushed the bottom bar out of view.
-    <div className="min-h-dvh overflow-x-clip lg:flex">
-      <aside className="hidden border-r border-line bg-surface p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-60 lg:shrink-0 lg:flex-col">
-        <div className="mb-6 flex items-center gap-2 px-2 text-lg font-semibold">
-          <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" className="size-7" />
-          Fitness
-        </div>
-        <QuickLogButton variant="sidebar" />
-        <nav className="space-y-1">
-          {SECTIONS.map(({ to, label, icon: Icon, tone }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                cx(
-                  'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition',
-                  isActive ? 'text-ink' : 'text-ink-2 hover:bg-surface-2',
-                )
-              }
-              style={({ isActive }) => (isActive ? { background: toneStyle(tone, 12).background } : undefined)}
-            >
-              <Icon size={18} style={{ color: toneColor(tone) }} />
-              {label}
+    <ToneContext value={sectionTone}>
+      {/* Nothing may widen the screen sideways: on a phone that also pushed the bottom bar out of view. */}
+      <div data-tone={sectionTone} className="min-h-dvh overflow-x-clip lg:flex">
+        <aside className="hidden border-r border-line bg-surface p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-60 lg:shrink-0 lg:flex-col">
+          <div className="mb-6 flex items-center gap-2 px-2 text-lg font-semibold">
+            <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" className="size-7" />
+            Fitness
+          </div>
+          <QuickLogButton variant="sidebar" />
+          <nav className="space-y-1">
+            {SECTIONS.map(({ to, label, icon: Icon, tone }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                className={({ isActive }) =>
+                  cx(
+                    'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition',
+                    isActive ? 'text-ink' : 'text-ink-2 hover:bg-surface-2',
+                  )
+                }
+                style={({ isActive }) => (isActive ? { background: toneStyle(tone, 12).background } : undefined)}
+              >
+                <Icon size={18} style={{ color: toneColor(tone) }} />
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="mt-auto px-2 text-xs">
+            <SyncStatus />
+          </div>
+        </aside>
+
+        <main className="min-w-0 flex-1">
+          <Suspense fallback={null}>
+            <Outlet />
+          </Suspense>
+        </main>
+
+        {/* The rest between sets belongs to the workout, wherever the user goes meanwhile. */}
+        <ToneContext value="training">
+          <div data-tone="training">
+            <RestTimerBar />
+          </div>
+        </ToneContext>
+        <QuickLogButton variant="floating" />
+        <Celebrations />
+
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+          <div className="mx-auto grid max-w-md grid-cols-5">
+            {bottom.map(({ to, label, short, icon: Icon, tone }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                className={({ isActive }) => bottomClass(isActive)}
+                style={({ isActive }) => (isActive ? { color: toneColor(tone) } : undefined)}
+              >
+                <Icon size={22} />
+                {short ?? label}
+              </NavLink>
+            ))}
+            <NavLink to="/mais" className={bottomClass(inMore)} aria-current={inMore ? 'page' : undefined}>
+              <Ellipsis size={22} />
+              Mais
             </NavLink>
-          ))}
+          </div>
         </nav>
-        <div className="mt-auto px-2 text-xs">
-          <SyncStatus />
-        </div>
-      </aside>
-
-      <main className="min-w-0 flex-1">
-        <Suspense fallback={null}>
-          <Outlet />
-        </Suspense>
-      </main>
-
-      <RestTimerBar />
-      <QuickLogButton variant="floating" />
-      <Celebrations />
-
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5">
-          {bottom.map(({ to, label, short, icon: Icon, tone }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) => bottomClass(isActive)}
-              style={({ isActive }) => (isActive ? { color: toneColor(tone) } : undefined)}
-            >
-              <Icon size={22} />
-              {short ?? label}
-            </NavLink>
-          ))}
-          <NavLink to="/mais" className={bottomClass(inMore)} aria-current={inMore ? 'page' : undefined}>
-            <Ellipsis size={22} />
-            Mais
-          </NavLink>
-        </div>
-      </nav>
-    </div>
+      </div>
+    </ToneContext>
   )
 }

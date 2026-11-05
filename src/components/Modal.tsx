@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
-import { useEffect, useEffectEvent, type ReactNode } from 'react'
+import { useContext, useEffect, useEffectEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { ToneContext } from './tone'
 import { Button, IconButton } from './ui'
 
 /** Open modals, innermost last: Escape only closes the top one. */
@@ -22,6 +23,8 @@ export function Modal({
 }) {
   // Not an effect dependency: a parent re-rendering mustn't reopen the modal and reshuffle the stack.
   const onEscape = useEffectEvent(() => onClose())
+  // Rendered outside the page, so the section color comes from the context, not the DOM.
+  const tone = useContext(ToneContext)
   useEffect(() => {
     if (!open) return
     const id = Symbol('modal')
@@ -51,6 +54,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        data-tone={tone}
         className="relative flex max-h-[92dvh] w-full animate-sheet flex-col rounded-t-3xl border border-line bg-surface shadow-xl sm:max-w-md sm:rounded-3xl"
       >
         <header className="flex items-center justify-between gap-2 px-5 pt-4 pb-2">

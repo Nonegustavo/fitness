@@ -80,6 +80,98 @@
   }
 }
 
+/* Inside a section, and inside a card or sheet of one, the controls take the section's color:
+   primary buttons, switches, selected tabs, links, focus rings. `--accent` carries white text and
+   `--accent-ink` is text on the surface, so both are darker steps of the tone in light mode. */
+[data-tone='today'] {
+  --accent: #0f766e;
+  --accent-ink: #0f766e;
+}
+[data-tone='training'] {
+  --accent: #c2410c;
+  --accent-ink: #c2410c;
+}
+[data-tone='food'] {
+  --accent: #15803d;
+  --accent-ink: #15803d;
+}
+[data-tone='body'] {
+  --accent: #a21caf;
+  --accent-ink: #a21caf;
+}
+[data-tone='sleep'] {
+  --accent: #4f46e5;
+  --accent-ink: #4f46e5;
+}
+[data-tone='analysis'] {
+  --accent: #6d28d9;
+  --accent-ink: #6d28d9;
+}
+[data-tone='insights'] {
+  --accent: #475569;
+  --accent-ink: #475569;
+}
+[data-tone='water'] {
+  --accent: #0369a1;
+  --accent-ink: #0369a1;
+}
+[data-tone='habits'] {
+  --accent: #b45309;
+  --accent-ink: #b45309;
+}
+[data-tone='journal'] {
+  --accent: #be185d;
+  --accent-ink: #be185d;
+}
+[data-tone='recovery'] {
+  --accent: #be123c;
+  --accent-ink: #be123c;
+}
+[data-tone='settings'] {
+  --accent: #57534e;
+  --accent-ink: #57534e;
+}
+
+/* On the dark surface the lighter tone itself reads best as text; fills keep the darker step. */
+@media (prefers-color-scheme: dark) {
+  [data-tone='today'] {
+    --accent-ink: var(--tone-today);
+  }
+  [data-tone='training'] {
+    --accent-ink: var(--tone-training);
+  }
+  [data-tone='food'] {
+    --accent-ink: var(--tone-food);
+  }
+  [data-tone='body'] {
+    --accent-ink: var(--tone-body);
+  }
+  [data-tone='sleep'] {
+    --accent-ink: var(--tone-sleep);
+  }
+  [data-tone='analysis'] {
+    --accent-ink: var(--tone-analysis);
+  }
+  [data-tone='insights'] {
+    --accent-ink: var(--tone-insights);
+  }
+  [data-tone='water'] {
+    --accent-ink: var(--tone-water);
+  }
+  [data-tone='habits'] {
+    --accent-ink: var(--tone-habits);
+  }
+  [data-tone='journal'] {
+    --accent-ink: var(--tone-journal);
+  }
+  [data-tone='recovery'] {
+    --accent-ink: var(--tone-recovery);
+  }
+  [data-tone='settings'] {
+    --accent-ink: var(--tone-settings);
+  }
+}
+
 @theme inline {
   --color-plane: var(--plane);
   --color-surface: var(--surface);

@@ -1,7 +1,7 @@
 import { ChevronLeft, type LucideIcon } from 'lucide-react'
 import { createContext, useContext, type ButtonHTMLAttributes, type ComponentProps, type ReactNode, type SelectHTMLAttributes } from 'react'
 import { Link } from 'react-router'
-import { IconTile, toneColor, type Tone } from './tone'
+import { IconTile, toneColor, ToneContext, type Tone } from './tone'
 
 export function cx(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(' ')
@@ -26,8 +26,11 @@ export function Page({
   tone?: Tone
   children: ReactNode
 }) {
-  return (
-    <div className="mx-auto w-full max-w-3xl animate-enter px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-36 lg:px-8 lg:pt-8 lg:pb-12">
+  const page = (
+    <div
+      data-tone={tone}
+      className="mx-auto w-full max-w-3xl animate-enter px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-36 lg:px-8 lg:pt-8 lg:pb-12"
+    >
       {back && (
         <Link to={back.to} className="mb-1 inline-flex items-center gap-0.5 text-sm text-ink-2 hover:text-ink">
           <ChevronLeft size={16} />
@@ -47,6 +50,7 @@ export function Page({
       <div className="space-y-4">{children}</div>
     </div>
   )
+  return tone ? <ToneContext value={tone}>{page}</ToneContext> : page
 }
 
 /**
@@ -72,8 +76,11 @@ export function Card({
   className?: string
 }) {
   const fill = useContext(CardFill)
-  return (
-    <section className={cx('rounded-2xl border border-line bg-surface p-4', fill && 'flex h-full flex-col', className)}>
+  const card = (
+    <section
+      data-tone={tone}
+      className={cx('rounded-2xl border border-line bg-surface p-4', fill && 'flex h-full flex-col', className)}
+    >
       {(title || action) && (
         <div className="mb-3 flex min-h-8 shrink-0 items-center justify-between gap-2">
           {title && (
@@ -88,6 +95,8 @@ export function Card({
       {fill ? <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">{children}</div> : children}
     </section>
   )
+  // A card of another section (the food card on Hoje) colors its controls, and the sheets they open, its way.
+  return tone ? <ToneContext value={tone}>{card}</ToneContext> : card
 }
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -201,7 +210,7 @@ export function Segmented<T extends string>({
           onClick={() => onChange(option.value)}
           className={cx(
             'h-9 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition',
-            option.value === value ? 'bg-pill text-ink shadow-sm' : 'text-ink-2 hover:text-ink',
+            option.value === value ? 'bg-pill text-accent-ink shadow-sm' : 'text-ink-2 hover:text-ink',
           )}
         >
           {option.label}

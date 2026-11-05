@@ -44,6 +44,21 @@ export const SECTIONS: Section[] = [
   { to: '/ajustes', label: 'Ajustes', icon: Settings, tone: 'settings' },
 ]
 
+/** Screens reached from "Mais" that aren't sections, with the color their page uses. */
+const SCREEN_TONES: Record<string, Tone> = { '/passos': 'today', '/semana': 'insights' }
+
+/** The section color of a route: the screen's own, else the longest section path it falls under. */
+export function toneForPath(pathname: string): Tone | undefined {
+  const under = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
+  const screen = Object.keys(SCREEN_TONES).find(under)
+  if (screen) return SCREEN_TONES[screen]
+  let best: Section | undefined
+  for (const section of SECTIONS) {
+    if (section.to !== '/' && under(section.to) && (!best || section.to.length > best.to.length)) best = section
+  }
+  return best?.tone ?? (pathname === '/' ? 'today' : undefined)
+}
+
 /** The phone's bottom bar fits five: four sections, then "Mais" for the rest. */
 export const DEFAULT_BOTTOM = ['/', '/treinos', '/alimentacao', '/corpo']
 

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import type { CSSProperties } from 'react'
+import { createContext, type CSSProperties } from 'react'
 
 /** The sections of the app, each with its own color (--tone-* in index.css). */
 export type Tone =
@@ -17,6 +17,13 @@ export type Tone =
   | 'settings'
 
 export const toneColor = (tone: Tone): string => `var(--tone-${tone})`
+
+/**
+ * The section a screen, card or sheet belongs to. Its controls (primary buttons, switches, links,
+ * focus rings) take that section's color through `data-tone` (index.css); sheets render outside the
+ * page, so they read it from here.
+ */
+export const ToneContext = createContext<Tone | undefined>(undefined)
 
 /** The section color, and a light wash of it for backgrounds. */
 export const toneStyle = (tone: Tone, wash = 14): CSSProperties => ({
