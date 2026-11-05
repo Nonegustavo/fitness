@@ -12,7 +12,7 @@ import { useSettings, useToday } from '../../db/hooks'
 import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { FoodLog, MacroGoals, MealKey, Nutrients } from '../../db/types'
-import { dayRange, dayTime, formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
+import { dayRange, dayTime, formatDay, formatTime, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { useDailyHealth } from '../garmin/recovery'
 import { logFood, useFoodCatalog, useFoodPrefs } from './foods'
@@ -104,7 +104,7 @@ export default function FoodPage() {
         ),
       )}
 
-      <Card title="Últimos 14 dias">
+      <Card title="Histórico">
         <FoodHistory today={today} />
       </Card>
 
