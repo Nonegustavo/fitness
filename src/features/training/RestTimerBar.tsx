@@ -35,8 +35,8 @@ export function RestTimerBar() {
       aria-label="Descanso"
       className="fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md overflow-hidden rounded-2xl border border-line bg-surface shadow-lg lg:right-6 lg:bottom-6 lg:left-auto lg:mx-0 lg:w-96"
     >
-      <div className="h-1 bg-series-1-track">
-        <div className="h-full bg-series-1" style={{ width: `${progress * 100}%` }} />
+      <div className="h-1 bg-accent/20">
+        <div className="h-full bg-accent" style={{ width: `${progress * 100}%` }} />
       </div>
       <div className="flex items-center gap-1 px-3 py-2">
         <div className="min-w-0 flex-1">

@@ -33,6 +33,7 @@ import { EQUIPMENT, formatComparison, formatE1rm, formatReps, formatSet, MUSCLES
 import { Elapsed } from './components'
 import { ExercisePicker } from './ExercisePicker'
 import { startRest, stopRest } from './restTimer'
+import { checkedValues, previousSets } from './setValues'
 import { LoadStepper, PlatesModal, SwapModal } from './GymTools'
 import {
   compareSet,
@@ -296,15 +297,14 @@ function ExerciseCard({
   const canApply = exercise.sets.some((set) => set.kind === 'normal' && !set.done && set.weightKg !== suggestion)
   const lastWorking = last?.exercise.sets.filter((set) => set.done && set.kind === 'normal') ?? []
 
-  // Pair each set with the same set (same kind, same position) from last time.
-  const lastWarmups = last?.exercise.sets.filter((set) => set.done && set.kind === 'warmup') ?? []
-  let warmups = 0
+  // Pair each set with the same set (same kind, same position) from last time, as the notification does.
+  const lastSets = previousSets(exercise.sets, last?.exercise)
   let normals = 0
-  const rows = exercise.sets.map((set) =>
-    set.kind === 'warmup'
-      ? { set, label: 'A', previous: lastWarmups[warmups++] }
-      : { set, label: String(++normals), previous: lastWorking[normals - 1] },
-  )
+  const rows = exercise.sets.map((set, i) => ({
+    set,
+    label: set.kind === 'warmup' ? 'A' : String(++normals),
+    previous: lastSets[i],
+  }))
   const columns =
     type === 'weight_reps'
       ? 'grid-cols-[1.75rem_minmax(0,1fr)_4.25rem_3.75rem_2.75rem]'
@@ -663,12 +663,9 @@ function SetRow({
   const repsHint = set.target?.reps !== undefined ? formatReps(set.target.reps, set.target.repsMax) : fallback.reps
 
   const typed = () => ({ weightKg: parseDecimal(weight), reps: parseCount(reps), durationSec: parseClock(duration) })
-  // What checking the set records: what's typed, and the hints for the fields left empty.
-  const withHints = (values: ReturnType<typeof typed>) => ({
-    weightKg: type === 'weight_reps' ? (values.weightKg ?? fallback.weightKg) : undefined,
-    reps: type === 'time' ? undefined : (values.reps ?? fallback.reps),
-    durationSec: type === 'time' ? (values.durationSec ?? fallback.durationSec) : undefined,
-  })
+  // What checking the set records: what's typed, and the hints for the fields left empty (shared with
+  // the Android notification, so both record the same).
+  const withHints = (values: ReturnType<typeof typed>) => checkedValues({ ...set, ...values }, previous, type)
   const write = (changes: Partial<PerformedSet>) =>
     updateSession(sessionId, (current) => changeSet(current, exercise.key, set.key, (s) => ({ ...s, ...changes })))
 
