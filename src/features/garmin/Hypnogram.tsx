@@ -26,13 +26,14 @@ export function Hypnogram({ spans }: { spans: SleepStageSpan[] }) {
         {ROWS.map(({ stage, label }) => (
           <Fragment key={stage}>
             <span className="text-ink-2">{label}</span>
-            <span className="relative block h-4 rounded-[4px] bg-surface-2">
+            {/* Square ends, so each change of stage lines up straight across the rows. */}
+            <span className="relative block h-4 bg-surface-2">
               {spans
                 .filter((span) => span.stage === stage)
                 .map((span) => (
                   <span
                     key={span.start}
-                    className={cx('absolute inset-y-0 rounded-[2px]', STAGE_CLASS[stage])}
+                    className={cx('absolute inset-y-0', STAGE_CLASS[stage])}
                     style={{ left: `${percent(span.start)}%`, width: `${Math.max(0.4, percent(span.end) - percent(span.start))}%` }}
                   />
                 ))}
