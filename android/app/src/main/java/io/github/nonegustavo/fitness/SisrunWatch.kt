@@ -181,7 +181,10 @@ object SisrunWatch {
     private fun plain(text: String): String =
         Normalizer.normalize(text, Normalizer.Form.NFD).replace(Regex("[\\u0300-\\u036f]"), "").lowercase(Locale.ROOT)
 
-    private fun baseKey(event: Event): String = "t:" + plain(event.title).replace(Regex("(?U)\\s+"), " ").trim() + "|" + event.date
+    // Android's regex (ICU) reads \s as any Unicode space, as JavaScript does; it doesn't take the (?U) flag.
+    private val SPACES = Regex("\\s+")
+
+    private fun baseKey(event: Event): String = "t:" + plain(event.title).replace(SPACES, " ").trim() + "|" + event.date
 
     /** Each event with its key; two with the same name on the same day get "#2", "#3"…, ordered by time and description. */
     private fun keyed(events: List<Event>): List<Pair<Event, String>> {
@@ -252,10 +255,14 @@ object SisrunWatch {
     }
 }
 
-/** The check every 3 hours; a failed fetch just waits for the next one. */
+/** The check every 3 hours; a failed fetch (or anything else) just waits for the next one, never taking the app down. */
 class SisrunWatchWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {
-        SisrunWatch.check(applicationContext, tell = true)
+        try {
+            SisrunWatch.check(applicationContext, tell = true)
+        } catch (_: Throwable) {
+            // Left for the next check.
+        }
         return Result.success()
     }
 }
@@ -285,11 +292,15 @@ class SisrunWatchPlugin : Plugin() {
     fun check(call: PluginCall) {
         val tell = call.getBoolean("tell", false) == true
         background.execute {
-            val found = JSArray()
-            for (workout in SisrunWatch.check(context, tell)) {
-                found.put(JSObject().put("key", workout.key).put("date", workout.date.toString()).put("title", workout.title))
+            try {
+                val found = JSArray()
+                for (workout in SisrunWatch.check(context, tell)) {
+                    found.put(JSObject().put("key", workout.key).put("date", workout.date.toString()).put("title", workout.title))
+                }
+                call.resolve(JSObject().put("found", found))
+            } catch (error: Throwable) {
+                call.reject(error.message ?: "Não foi possível conferir o calendário.")
             }
-            call.resolve(JSObject().put("found", found))
         }
     }
 }
