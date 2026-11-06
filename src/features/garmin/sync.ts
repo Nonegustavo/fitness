@@ -9,6 +9,7 @@ import { getSyncState, onSyncStateChange } from '../../sync/controller'
 import { supabase } from '../../sync/supabase'
 import { runWeatherQueue } from '../activities/weatherQueue'
 import { importCoachPlan } from '../sisrun/coachPlan'
+import { syncWatch } from '../sisrun/watch'
 import { garminCalendar, garminFile, garminGet, GarminError, orNull } from './api'
 import { parseCalendar, type PlannedEvent } from './calendar'
 import { keepPastEvents } from './calendarHistory'
@@ -226,8 +227,9 @@ async function run(range: (meta: GarminMeta, today: DayKey) => [DayKey, DayKey],
 
 /**
  * Brings what's new since the last sync (the last 30 days the first time). Right after, in the
- * background and whether Garmin worked or not, the coach's plan from SisRUN, when the calendar that
- * came has a SisRUN workout not read yet.
+ * background and whether Garmin worked or not: on Android, the alert about new SisRUN workouts in the
+ * calendar that came; the coach's plan from SisRUN, when that calendar has a SisRUN workout not read
+ * yet; and the Android watch brought up to date with it.
  */
 export function syncGarmin(): Promise<void> {
   return run(
@@ -236,7 +238,12 @@ export function syncGarmin(): Promise<void> {
       meta.lastDay = today
       if (!meta.historyFrom || from < meta.historyFrom) meta.historyFrom = from
     },
-  ).finally(() => void importCoachPlan())
+  ).finally(
+    () =>
+      void syncWatch({ check: true })
+        .then(() => importCoachPlan())
+        .then(() => syncWatch()),
+  )
 }
 
 /** Fetches the `days` before the oldest day already in the app. */
@@ -260,6 +267,8 @@ export function startGarminSync(): void {
   void readMeta().then((meta) => setState({ lastRunAt: meta.lastRunAt, historyFrom: meta.historyFrom }))
   const check = () => {
     if (!getSyncState().email || document.visibilityState !== 'visible') return
+    // The Android watch for new SisRUN workouts keeps running (and up to date) after an update or a reboot.
+    void syncWatch()
     clearTimeout(autoTimer)
     // A few seconds after opening, so the regular sync brings what the other device imported first.
     autoTimer = setTimeout(() => {

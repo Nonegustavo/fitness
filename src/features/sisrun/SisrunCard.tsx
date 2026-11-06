@@ -1,15 +1,21 @@
 import { RefreshCw } from 'lucide-react'
 import { useState } from 'react'
-import { Button, Card, cx } from '../../components/ui'
-import { useToday } from '../../db/hooks'
+import { Button, Card, cx, Switch } from '../../components/ui'
+import { useSettings, useToday } from '../../db/hooks'
+import { patch } from '../../db/repo'
+import { db, SETTINGS_ID } from '../../db/schema'
 import { dayKey, formatTime, relativeDay } from '../../lib/dates'
 import { useSyncState } from '../../sync/controller'
-import { importCoachPlan, planWorkouts, useCoachPlan } from './coachPlan'
+import { isAndroidApp } from '../healthconnect/plugin'
+import { requestNotificationPermission } from '../notifications/native'
+import { coachConfigured, importCoachPlan, planWorkouts, useCoachPlan } from './coachPlan'
+import { syncWatch } from './watch'
 
 /** Settings: the coach's plan read from SisRUN, when, what went wrong, and how to set it up. */
 export function SisrunCard() {
   const sync = useSyncState()
   const plan = useCoachPlan()
+  const settings = useSettings()
   const today = useToday()
   const [busy, setBusy] = useState(false)
   if (!sync.configured) return null
@@ -20,7 +26,14 @@ export function SisrunCard() {
   const read = async () => {
     setBusy(true)
     await importCoachPlan({ force: true })
+    // The first read turns the alerts on, with what it found.
+    await syncWatch()
     setBusy(false)
+  }
+  const setAlerts = async (on: boolean) => {
+    if (on) await requestNotificationPermission()
+    await patch(db.settings, SETTINGS_ID, { sisrunAlerts: on })
+    await syncWatch()
   }
 
   return (
@@ -55,6 +68,27 @@ export function SisrunCard() {
             O app só consulta o SisRUN quando o calendário do Garmin traz um treino do SisRUN que ele ainda não leu: a semana
             nova que o treinador publicou, ou um treino que ele mudou. Ler agora consulta na hora.
           </p>
+          {isAndroidApp() && coachConfigured(plan) && (
+            <div className="mt-3 border-t border-line pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block text-sm">Avisar quando chegar treino novo</span>
+                  <span className="block text-xs text-muted">
+                    O celular confere o calendário do Garmin a cada 3 horas, mesmo com o app fechado, sem consultar o SisRUN.
+                  </span>
+                </span>
+                <Switch
+                  checked={settings.sisrunAlerts !== false}
+                  label="Avisar quando chegar treino novo"
+                  onChange={(on) => void setAlerts(on)}
+                />
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                No Xiaomi, para o aviso não atrasar: Configurações → Apps → Fitness, ligue o Início automático e deixe a bateria
+                Sem restrições.
+              </p>
+            </div>
+          )}
         </>
       )}
       <details className="mt-3 text-sm" open={!!error?.missing}>

@@ -103,6 +103,8 @@ O SisRUN não tem API: a função entra no site com o seu e-mail e a sua senha, 
 
 3. Em **Ajustes → SisRUN**, toque em **Ler agora**. Cada treino do SisRUN no calendário ganha as etapas na ficha.
 
+No app Android, **Avisar quando chegar treino novo** (ligado por padrão) manda uma notificação quando o treinador manda treinos novos. O celular confere o calendário do Garmin a cada 3 horas, mesmo com o app fechado ([`SisrunWatch.kt`](android/app/src/main/java/io/github/nonegustavo/fitness/SisrunWatch.kt), com o WorkManager), lendo direto o link publicado, que a função `garmin` entrega ao app. Em segundo plano ele não consulta o SisRUN: as etapas são lidas quando o app abre. No Xiaomi, ligue o **Início automático** do app e deixe a bateria **Sem restrições**, ou o aviso pode atrasar.
+
 ## App Android (Health Connect)
 
 O app Android é o mesmo app web dentro de uma casca nativa ([Capacitor](https://capacitorjs.com)), com um acesso a mais: o Health Connect do celular. De lá vêm, sozinhos, a balança completa (peso, gordura, massa magra, massa óssea, água e metabolismo basal, gravados pelo app Zepp) e as fases do sono com horário (gravadas pelo Garmin Connect). A ponte com o Health Connect está em [`HealthConnectPlugin.kt`](android/app/src/main/java/io/github/nonegustavo/fitness/HealthConnectPlugin.kt).

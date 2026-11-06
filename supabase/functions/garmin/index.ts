@@ -157,12 +157,24 @@ async function garmin(path: string, query: Record<string, unknown>, key: string,
   })
 }
 
+const noCalendar = () => json({ error: 'O link do calendário do Garmin não está nos segredos.', missing: 'calendar' }, 404)
+
 async function calendar(): Promise<Response> {
   const url = Deno.env.get('GARMIN_CALENDAR_URL')
-  if (!url) return json({ error: 'O link do calendário do Garmin não está nos segredos.', missing: 'calendar' }, 404)
+  if (!url) return noCalendar()
   const response = await fetch(url, { headers: { Accept: 'text/calendar, */*' } })
   if (!response.ok) throw upstream(response.status)
   return new Response(await response.text(), { headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8' } })
+}
+
+/**
+ * The published calendar's link itself, for the Android app to check the calendar in the background
+ * (and tell when the coach sends new workouts) with no session. Only to the signed-in owner, as
+ * everything here; the link only reads the calendar.
+ */
+function calendarLink(): Response {
+  const url = Deno.env.get('GARMIN_CALENDAR_URL')
+  return url ? json({ url }) : noCalendar()
 }
 
 Deno.serve(async (req) => {
@@ -171,9 +183,10 @@ Deno.serve(async (req) => {
   const caller = await signedInCaller(req)
   if (!caller) return json({ error: 'Entre na sua conta para usar o Garmin.' }, 401)
 
-  const body = (await req.json().catch(() => ({}))) as { path?: unknown; query?: unknown; calendar?: unknown }
+  const body = (await req.json().catch(() => ({}))) as { path?: unknown; query?: unknown; calendar?: unknown; calendarLink?: unknown }
   try {
     if (body.calendar === true) return await calendar()
+    if (body.calendarLink === true) return calendarLink()
     const key = Deno.env.get('GARMIN_API_KEY')
     if (!key) return json({ error: 'Falta a chave GARMIN_API_KEY nos segredos das funções do Supabase.', missing: 'key' }, 500)
     const path = typeof body.path === 'string' ? body.path : ''

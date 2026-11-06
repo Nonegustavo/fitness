@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(HealthConnectPlugin.class);
         registerPlugin(WidgetPlugin.class);
         registerPlugin(WorkoutPlugin.class);
+        registerPlugin(SisrunWatchPlugin.class);
         super.onCreate(savedInstanceState);
         // Opened from a shortcut or the widget: start on that screen.
         String route = routeOf(getIntent());

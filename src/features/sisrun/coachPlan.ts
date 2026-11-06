@@ -63,7 +63,7 @@ const weeksFrom = (today: DayKey, date: DayKey) =>
   Math.round((parseDay(sisrunWeek(date)).getTime() - parseDay(sisrunWeek(today)).getTime()) / WEEK_MS)
 
 /** The SisRUN workouts of the Garmin calendar from today to the end of the last week SisRUN can be read for, hidden ones and rest days left out. */
-function readableWorkouts(events: PlannedEvent[] | null, times: EventTime[], today: DayKey): { event: PlannedEvent; key: string }[] {
+export function readableWorkouts(events: PlannedEvent[] | null, times: EventTime[], today: DayKey): { event: PlannedEvent; key: string }[] {
   const hidden = hiddenKeys(times)
   return keyedEvents(events ?? []).filter(
     ({ event, key }) =>
@@ -134,7 +134,7 @@ class PlanError extends Error {
 }
 
 /** The Garmin calendar as the last Garmin sync left it (the `garminCalendar` meta of garmin/sync). */
-const calendarEvents = async (): Promise<PlannedEvent[] | null> =>
+export const calendarEvents = async (): Promise<PlannedEvent[] | null> =>
   ((await db.meta.get('garminCalendar'))?.value as { events?: PlannedEvent[] } | undefined)?.events ?? null
 
 let running = false

@@ -242,6 +242,8 @@ export interface Settings extends Synced {
   walkRoutine?: WalkRoutine
   /** The last weekly check-in of the nutrition targets: accepted or set aside for that week. */
   goalCheckIn?: GoalCheckIn
+  /** A notification on Android when the coach sends new workouts (SisRUN, through the Garmin calendar); on unless false. */
+  sisrunAlerts?: boolean
 }
 
 /** A weekly check-in of the calorie and macro targets, from the expenditure estimate and the weight goal. */

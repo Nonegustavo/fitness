@@ -35,6 +35,9 @@ export async function garminFile(activityId: number): Promise<Uint8Array> {
 /** The published Garmin Connect calendar, as iCal text. */
 export const garminCalendar = () => call<string>({ calendar: true })
 
+/** The published calendar's link, for the Android app's check in the background (src/features/sisrun/watch.ts). */
+export const garminCalendarLink = () => call<{ url?: string }>({ calendarLink: true })
+
 /** Turns "no data" (404) into null, so one missing piece doesn't fail a whole sync. */
 export async function orNull<T>(request: Promise<T>): Promise<T | null> {
   try {
