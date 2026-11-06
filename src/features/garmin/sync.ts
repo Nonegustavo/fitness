@@ -225,8 +225,9 @@ async function run(range: (meta: GarminMeta, today: DayKey) => [DayKey, DayKey],
 }
 
 /**
- * Brings what's new since the last sync (the last 30 days the first time). The coach's plan comes
- * from SisRUN right after, in the background, whether Garmin worked or not.
+ * Brings what's new since the last sync (the last 30 days the first time). Right after, in the
+ * background and whether Garmin worked or not, the coach's plan from SisRUN, when the calendar that
+ * came has a SisRUN workout not read yet.
  */
 export function syncGarmin(): Promise<void> {
   return run(

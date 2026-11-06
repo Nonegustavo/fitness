@@ -90,7 +90,7 @@ Depois, em **Ajustes → Garmin**, toque em **Buscar agora**. A primeira busca t
 
 ### SisRUN (as etapas do treinador antes da corrida)
 
-O SisRUN manda os treinos para o calendário do Garmin só com o nome. Para ver a prescrição completa (aquecimento, tiros, recuperações, ritmos, intensidade, FC e a observação do treinador), a função [`supabase/functions/sisrun`](supabase/functions/sisrun/index.ts) lê a planilha da semana atual e da próxima no site do aluno, junto com a busca do Garmin.
+O SisRUN manda os treinos para o calendário do Garmin só com o nome. Para ver a prescrição completa (aquecimento, tiros, recuperações, ritmos, intensidade, FC e a observação do treinador), a função [`supabase/functions/sisrun`](supabase/functions/sisrun/index.ts) lê a planilha no site do aluno. Para consultar o SisRUN o mínimo possível, o app só chama a função quando o calendário do Garmin traz um treino do SisRUN que ele ainda não leu (a semana nova que o treinador publicou, ou um treino renomeado porque ele mudou), e só até a semana desse treino, no máximo duas à frente. Depois de um erro, espera 6 horas. **Ler agora** consulta na hora.
 
 O SisRUN não tem API: a função entra no site com o seu e-mail e a sua senha, só para ler, e nunca muda nada lá. Não é um recurso do SisRUN e pode parar se o site mudar. A leitura foi adaptada do [sisrun-mcp](https://github.com/cdutr/sisrun-mcp) (licença MIT, veja [`LICENSE-sisrun-mcp`](supabase/functions/sisrun/LICENSE-sisrun-mcp)).
 

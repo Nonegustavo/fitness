@@ -51,7 +51,10 @@ export function SisrunCard() {
               <RefreshCw size={16} /> Ler agora
             </Button>
           </div>
-          <p className="mt-2 text-xs text-muted">O app lê a semana atual e a próxima junto com o Garmin, a cada 3 horas.</p>
+          <p className="mt-2 text-xs text-muted">
+            O app só consulta o SisRUN quando o calendário do Garmin traz um treino do SisRUN que ele ainda não leu: a semana
+            nova que o treinador publicou, ou um treino que ele mudou. Ler agora consulta na hora.
+          </p>
         </>
       )}
       <details className="mt-3 text-sm" open={!!error?.missing}>

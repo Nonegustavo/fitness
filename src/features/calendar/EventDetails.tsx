@@ -140,7 +140,7 @@ export function EventDetails({ event, kind, coach }: { event: PlannedEvent; kind
 /** Why a workout has no steps here, and when they'll come. */
 function withoutSteps(event: PlannedEvent, plan: ReturnType<typeof useCoachPlan>): string {
   if (fromCoach(event) && coachConfigured(plan)) {
-    return 'O SisRUN ainda não mandou este treino: o app lê a semana atual e a próxima. Depois da corrida, as etapas aparecem na atividade.'
+    return 'Este treino ainda não foi lido do SisRUN: o app lê os treinos de até duas semanas à frente, quando eles aparecem no calendário do Garmin. Depois da corrida, as etapas aparecem na atividade.'
   }
   if (fromCoach(event)) {
     return 'O calendário do Garmin trouxe só o nome deste treino. Lendo o SisRUN, as etapas aparecem aqui antes da corrida; sem isso, aparecem na atividade depois que ela for sincronizada.'

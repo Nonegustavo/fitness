@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { Activity } from '../../db/types'
+import type { Activity, EventTime } from '../../db/types'
 import { dayTime } from '../../lib/dates'
-import { buildAgenda, fromCoach, plannedKm, weekSummary, type AgendaSources } from '../calendar/agenda'
+import { buildAgenda, eventKey, fromCoach, plannedKm, weekSummary, type AgendaSources } from '../calendar/agenda'
 import { coachSummary, structureLines, structureText } from '../calendar/eventText'
 import type { PlannedEvent } from '../garmin/calendar'
-import { mergePlan, planWorkouts, type CoachPlan, type CoachWorkout } from './coachPlan'
+import { markSeen, mergePlan, planWorkouts, sisrunWeek, weeksToRead, type CoachPlan, type CoachWorkout } from './coachPlan'
 
 const TODAY = '2026-11-05'
 
@@ -56,6 +56,50 @@ describe('mergePlan', () => {
 const meta = { updatedAt: 1, deleted: 0, dirty: 0 } as const
 
 const event = (date: string, title: string): PlannedEvent => ({ date, title })
+
+describe('when SisRUN is read', () => {
+  // Thursday. The SisRUN weeks: 2/11 (this one), 9/11, 16/11; 23/11 is beyond what can be read.
+  const calendar = [
+    event('2026-11-04', '04/11 Qua - Corrida 5 Km'),
+    event('2026-11-06', '06/11 Sex - Corrida Intervalado ativo 4,48 - 4,97 Km'),
+    event('2026-11-08', '08/11 Dom - Corrida 7 Km'),
+    event('2026-11-08', 'Rústica de Morungava 2026 (6 a 8km)'),
+    event('2026-11-10', '10/11 Ter - Corrida Intervalado'),
+    event('2026-11-12', '12/11 Qui - Descanso'),
+    event('2026-11-18', '18/11 Qua - Corrida Fartlek 6 Km'),
+    event('2026-11-24', '24/11 Ter - Corrida 5 Km'),
+  ]
+  const [past, friday, sunday, , tuesday, , nextFriday] = calendar
+  // The user hid Sunday's SisRUN workout, a copy of the race.
+  const times: EventTime[] = [{ id: eventKey(sunday), date: sunday.date, hidden: true, ...meta }]
+
+  it('starts the weeks on Monday, as SisRUN does', () => {
+    expect(sisrunWeek('2026-11-05')).toBe('2026-11-02')
+    expect(sisrunWeek('2026-11-08')).toBe('2026-11-02')
+    expect(sisrunWeek('2026-11-09')).toBe('2026-11-09')
+    expect(sisrunWeek('2026-11-01')).toBe('2026-10-26')
+  })
+
+  it('reads up to the week of the latest SisRUN workout not seen yet, and not at all when every one was', () => {
+    expect(weeksToRead(calendar, times, [], TODAY)).toBe(2)
+    expect(weeksToRead(calendar, times, [eventKey(friday), eventKey(nextFriday)], TODAY)).toBe(1)
+    expect(weeksToRead(calendar, times, [eventKey(tuesday), eventKey(nextFriday)], TODAY)).toBe(0)
+    // Past days, the hidden copy, the race, rest days and workouts beyond two weeks ahead don't count.
+    expect(weeksToRead(calendar, times, [eventKey(friday), eventKey(tuesday), eventKey(nextFriday)], TODAY)).toBeUndefined()
+    expect(weeksToRead(null, times, [], TODAY)).toBeUndefined()
+  })
+
+  it('reads again a workout the coach changed, which Garmin shows renamed', () => {
+    const changed = calendar.map((item) => (item === friday ? event(friday.date, '06/11 Sex - Corrida Intervalado ativo 6 Km') : item))
+    expect(weeksToRead(changed, times, [eventKey(friday), eventKey(tuesday), eventKey(nextFriday)], TODAY)).toBe(0)
+  })
+
+  it('sees the workouts of the weeks read, and forgets those more than a week past', () => {
+    expect(markSeen([], calendar, times, TODAY, 1)).toEqual([eventKey(friday), eventKey(tuesday)])
+    const old = ['t:x|2026-10-20', 't:y|2026-11-01', eventKey(past)]
+    expect(markSeen(old, calendar, times, TODAY, 0)).toEqual(['t:y|2026-11-01', eventKey(past), eventKey(friday)])
+  })
+})
 
 const sources = (changes: Partial<AgendaSources>): AgendaSources => ({
   plans: [],
