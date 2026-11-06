@@ -2,6 +2,7 @@ import type { Activity, EventTime, WalkRoutine, WorkoutPlan, WorkoutSession, Wor
 import { dayTime, type DayKey } from '../../lib/dates'
 import { activityLabel } from '../activities/activities'
 import type { PlannedEvent } from '../garmin/calendar'
+import type { CoachWorkout } from '../sisrun/coachPlan'
 import { isRoutineDay, routineWalks, walkTitle } from './walks'
 
 /** What an item of the calendar is, which picks its icon and color. */
@@ -30,6 +31,8 @@ export interface AgendaItem {
   eventKey?: string
   /** That time ("07:00"), when the user set one. */
   customTime?: string
+  /** For a SisRUN workout of the Garmin calendar: the coach's prescription, read from SisRUN. */
+  coach?: CoachWorkout
   session?: WorkoutSession
   activity?: Activity
 }
@@ -147,6 +150,26 @@ export interface AgendaSources {
   eventTimes?: EventTime[]
   /** The walks planned every week. */
   walkRoutine?: WalkRoutine
+  /** The coach's plan read from SisRUN, which details the SisRUN workouts of the Garmin calendar. */
+  coach?: CoachWorkout[]
+}
+
+/** A workout SisRUN sent to the Garmin calendar: its name starts with the day ("06/11 Sex - …"). */
+export const fromCoach = (event: Pick<PlannedEvent, 'title'>): boolean =>
+  /^\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s+\p{L}{3,}\.?\s*[-–—:]/u.test(event.title)
+
+/**
+ * The coach's prescription for a SisRUN workout of the Garmin calendar, taken from that day's ones
+ * not matched yet: the one whose type the name has ("… Corrida Intervalado ativo …"), else the
+ * day's first. A walk SisRUN only imported ("Feito Avulso") isn't a prescription.
+ */
+function takePrescription(event: PlannedEvent, left: Map<DayKey, CoachWorkout[]>): CoachWorkout | undefined {
+  const day = left.get(event.date)
+  if (!day?.length) return undefined
+  const name = plain(event.title)
+  const typed = day.findIndex((workout) => workout.type && name.includes(plain(workout.type)))
+  const [workout] = day.splice(typed === -1 ? 0 : typed, 1)
+  return workout
 }
 
 const sessionStatus = (session: WorkoutSession): AgendaStatus => (session.endedAt ? 'done' : 'active')
@@ -247,10 +270,17 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
   const legacy = new Map(saved.flatMap((time) => (isLegacyKey(time.id) && time.time ? [[time.date, time.time] as const] : [])))
   const eventsOn = new Map<DayKey, number>()
   for (const event of sources.events ?? []) eventsOn.set(event.date, (eventsOn.get(event.date) ?? 0) + 1)
+  // The coach's prescriptions by day, in the planilha's order, for the SisRUN workouts below.
+  const prescriptions = new Map<DayKey, CoachWorkout[]>()
+  for (const workout of sources.coach ?? []) {
+    if (workout.status === 'Feito Avulso' || !inRange(workout.date)) continue
+    prescriptions.set(workout.date, [...(prescriptions.get(workout.date) ?? []), workout])
+  }
   for (const { event, key } of keyedEvents(sources.events ?? [])) {
     if (!inRange(event.date) || hidden.has(key)) continue
     const kind = eventKind(event)
     const customTime = times.get(key) ?? (eventsOn.get(event.date) === 1 ? legacy.get(event.date) : undefined)
+    const coach = kind !== 'rest' && fromCoach(event) ? takePrescription(event, prescriptions) : undefined
     const base = {
       key: `event-${key}`,
       date: event.date,
@@ -259,6 +289,7 @@ export function buildAgenda(from: DayKey, to: DayKey, today: DayKey, sources: Ag
       event,
       eventKey: key,
       ...(customTime && { customTime }),
+      ...(coach && { coach }),
     }
     const activity =
       kind === 'rest'
@@ -325,6 +356,10 @@ export function eventDistance(title: string): { low: number; high: number } | un
 /** The distance in a workout's name: "4,48 - 4,97 Km" counts the longer end, "7 Km" is 7, "(6 a 8km)" is 8. */
 export const eventKm = (title: string): number | undefined => eventDistance(title)?.high
 
+/** The km a Garmin workout plans: what the coach prescribed on SisRUN, or what its name says. */
+export const plannedKm = (item: Pick<AgendaItem, 'coach' | 'event'>): number | undefined =>
+  item.coach?.plannedKm ?? (item.event ? eventKm(item.event.title) : undefined)
+
 /**
  * A race the user put in the Garmin calendar: not one of SisRUN's workouts (those start with the
  * day, "06/11 Sex - …"), and named like a race.
@@ -372,9 +407,10 @@ export function weekSummary(items: AgendaItem[]): WeekSummary {
       trainedSec += (item.session.endedAt - item.session.startedAt) / 1000
     }
   }
-  // The Garmin calendar only keeps what is ahead, so the week's plan is what was run plus the runs still to do.
+  // The Garmin calendar only keeps what is ahead, so the week's plan is what was run plus the runs still
+  // to do: the distance the coach prescribed on SisRUN, or the one in the name.
   for (const item of workouts) {
-    if (item.kind === 'run' && item.status === 'planned' && item.event) plannedRunKm += eventKm(item.event.title) ?? 0
+    if (item.kind === 'run' && item.status === 'planned' && item.event) plannedRunKm += plannedKm(item) ?? 0
   }
   const km = (value: number) => Math.round(value * 100) / 100
   return {

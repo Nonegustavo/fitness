@@ -207,7 +207,8 @@ export function buildContext(input: ContextInput): string {
     out.push('', `## Treinos planejados (${origins.join('; ')})`)
     const lines = [
       ...ahead.map((event) => {
-        const detail = event.description ? oneLine(event.description.replace(/\s+/g, ' '), 300) : ''
+        // Room for the coach's whole prescription from SisRUN (steps, paces, heart rate and note).
+        const detail = event.description ? oneLine(event.description.replace(/\s+/g, ' '), 600) : ''
         return { date: event.date, at: event.time !== undefined ? formatTime(event.time) : undefined, text: `${event.title}${detail ? ` — ${detail}` : ''}` }
       }),
       ...walks.map((plan) => ({ date: plan.date, at: plan.time, text: plan.title })),

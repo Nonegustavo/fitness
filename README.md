@@ -88,6 +88,21 @@ O app busca no Garmin Connect as atividades (com o .FIT original), o sono, a HRV
 
 Depois, em **Ajustes → Garmin**, toque em **Buscar agora**. A primeira busca traz os últimos 30 dias, e **Buscar 3 meses anteriores** completa o histórico aos poucos. Com o app aberto, a busca também roda sozinha a cada 3 horas.
 
+### SisRUN (as etapas do treinador antes da corrida)
+
+O SisRUN manda os treinos para o calendário do Garmin só com o nome. Para ver a prescrição completa (aquecimento, tiros, recuperações, ritmos, intensidade, FC e a observação do treinador), a função [`supabase/functions/sisrun`](supabase/functions/sisrun/index.ts) lê a planilha da semana atual e da próxima no site do aluno, junto com a busca do Garmin.
+
+O SisRUN não tem API: a função entra no site com o seu e-mail e a sua senha, só para ler, e nunca muda nada lá. Não é um recurso do SisRUN e pode parar se o site mudar. A leitura foi adaptada do [sisrun-mcp](https://github.com/cdutr/sisrun-mcp) (licença MIT, veja [`LICENSE-sisrun-mcp`](supabase/functions/sisrun/LICENSE-sisrun-mcp)).
+
+1. No Supabase, em **Edge Functions → Secrets**, crie `SISRUN_EMAIL` com o e-mail do app do aluno e `SISRUN_PASSWORD` com a senha. A senha fica só aí.
+2. Publique a função:
+
+   ```bash
+   npx supabase functions deploy sisrun --remote=xxxx --no-verify-jwt --use-api
+   ```
+
+3. Em **Ajustes → SisRUN**, toque em **Ler agora**. Cada treino do SisRUN no calendário ganha as etapas na ficha.
+
 ## App Android (Health Connect)
 
 O app Android é o mesmo app web dentro de uma casca nativa ([Capacitor](https://capacitorjs.com)), com um acesso a mais: o Health Connect do celular. De lá vêm, sozinhos, a balança completa (peso, gordura, massa magra, massa óssea, água e metabolismo basal, gravados pelo app Zepp) e as fases do sono com horário (gravadas pelo Garmin Connect). A ponte com o Health Connect está em [`HealthConnectPlugin.kt`](android/app/src/main/java/io/github/nonegustavo/fitness/HealthConnectPlugin.kt).
@@ -116,6 +131,7 @@ O app Android também avisa por notificação: os lembretes dos hábitos (marcad
 - Atividades: arquivos .FIT lidos com o [FIT SDK](https://developer.garmin.com/fit) da Garmin. No site do Garmin Connect, abra a atividade, clique na engrenagem e escolha **Exportar original**; o app aceita o .zip baixado.
 - Mapas: © colaboradores do [OpenStreetMap](https://www.openstreetmap.org/copyright), desenhados com [Leaflet](https://leafletjs.com).
 - Clima das corridas e caminhadas: [Open-Meteo](https://open-meteo.com) (gratuito para uso não comercial). O app manda só a posição do início, arredondada para uns 1 km, e a data.
+- Planilha do treinador: lida do site do aluno do [SisRUN](https://appsisrun.com.br) com o login do próprio aluno, com o leitor adaptado do [sisrun-mcp](https://github.com/cdutr/sisrun-mcp) (MIT).
 - Fotos e passos dos exercícios: [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (Unlicense), carregados na hora pelo jsDelivr, sem copiar as imagens para o app. As fotos vêm de fontes de licença incerta: servem para uso pessoal, não para redistribuir. Os passos em português foram escritos para o app.
 
 ## Como funciona
@@ -134,6 +150,6 @@ src/
   features/    telas: hoje, treinos, atividades e sono do Garmin, alimentação (com receitas e fotos), corpo, água,
                hábitos (com lembretes), diário, análise do dia, correlações, ajustes
   components/  componentes de interface, gráficos (ECharts), arrastar e soltar, deslizar para apagar
-supabase/      SQL do banco e do Storage (e os testes deles) e as funções da refeição, da análise do dia e do Garmin
+supabase/      SQL do banco e do Storage (e os testes deles) e as funções da refeição, da análise do dia, do Garmin e do SisRUN
 android/       app Android (Capacitor), com a ponte para o Health Connect
 ```

@@ -11,6 +11,7 @@ import { pastEvents, withPastEvents } from '../garmin/calendarHistory'
 import { usePlannedEvents } from '../garmin/sync'
 import { usePains } from '../journal/pains'
 import { isRun } from '../running/running'
+import { useCoachWorkouts } from '../sisrun/coachPlan'
 import { useActivities } from './activities'
 import { weekReport } from './weekReport'
 
@@ -27,6 +28,7 @@ function ReportModal({ today, onClose }: { today: DayKey; onClose: () => void })
   const thisWeek = weekStart(today)
   const lastWeek = shiftDay(thisWeek, -7)
   const eventTimes = useEventTimes(lastWeek, shiftDay(thisWeek, 6))
+  const coach = useCoachWorkouts()
   const [which, setWhich] = useState<Which>()
   const field = useRef<HTMLTextAreaElement>(null)
 
@@ -34,7 +36,7 @@ function ReportModal({ today, onClose }: { today: DayKey; onClose: () => void })
   const ranThisWeek = !!activities?.some((activity) => activity.date >= thisWeek && isRun(activity))
   const chosen = which ?? (ranThisWeek ? 'this' : 'last')
   const text = useMemo(() => {
-    if (!activities || events === undefined || !past || !pains || !eventTimes) return undefined
+    if (!activities || events === undefined || !past || !pains || !eventTimes || !coach) return undefined
     return weekReport({
       week: chosen === 'this' ? thisWeek : lastWeek,
       today,
@@ -42,8 +44,9 @@ function ReportModal({ today, onClose }: { today: DayKey; onClose: () => void })
       events: withPastEvents(past, events),
       eventTimes,
       pains,
+      coach,
     })
-  }, [chosen, thisWeek, lastWeek, today, activities, events, past, eventTimes, pains])
+  }, [chosen, thisWeek, lastWeek, today, activities, events, past, eventTimes, pains, coach])
 
   const copy = async () => {
     if (!text) return

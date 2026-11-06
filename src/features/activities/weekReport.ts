@@ -1,8 +1,9 @@
 import type { Activity, EventTime, Pain } from '../../db/types'
 import { dayRange, formatDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatClock, formatDuration, formatNumber } from '../../lib/format'
-import { buildAgenda, eventKm, type AgendaItem } from '../calendar/agenda'
+import { buildAgenda, plannedKm, type AgendaItem } from '../calendar/agenda'
 import type { PlannedEvent } from '../garmin/calendar'
+import type { CoachWorkout } from '../sisrun/coachPlan'
 import { scoreOn } from '../journal/pains'
 import { DISCOMFORT_AREAS } from '../training/discomfort'
 import { activityLabel } from './activities'
@@ -19,6 +20,8 @@ export interface WeekReportInput {
   /** The workouts the user hid in the calendar stay out. */
   eventTimes: EventTime[]
   pains: Pain[]
+  /** The coach's plan read from SisRUN, for the km each run prescribed. */
+  coach?: CoachWorkout[]
 }
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
@@ -30,8 +33,8 @@ const km = (meters: number) => `${formatNumber(meters / 1000, 2)} km`
 const oneLine = (text: string) => text.trim().replace(/\s*\n\s*/g, ' / ')
 
 /** The week's runs, done and planned, from its calendar. */
-export function weekRuns({ week, today, activities, events, eventTimes }: WeekReportInput): AgendaItem[] {
-  return buildAgenda(week, shiftDay(week, 6), today, { plans: [], events, sessions: [], activities, templates: [], eventTimes }).filter(
+export function weekRuns({ week, today, activities, events, eventTimes, coach }: WeekReportInput): AgendaItem[] {
+  return buildAgenda(week, shiftDay(week, 6), today, { plans: [], events, sessions: [], activities, templates: [], eventTimes, coach }).filter(
     (item) => item.kind === 'run',
   )
 }
@@ -94,12 +97,10 @@ export function weekReport(input: WeekReportInput): string {
 
   const runMeters = runs.reduce((total, run) => total + (run.distanceM ?? 0), 0)
   const runSeconds = runs.reduce((total, run) => total + run.timerSec, 0)
-  // The plan: each planned run's km (from its name), or what was run when the name doesn't say or there was no plan.
+  // The plan: each planned run's km (prescribed on SisRUN, or from its name), or what was run when
+  // neither says or there was no plan.
   const planned = items.some((item) => item.event)
-    ? items.reduce((total, item) => {
-        const plannedKm = item.event ? eventKm(item.event.title) : undefined
-        return total + (plannedKm ?? (item.activity?.distanceM ?? 0) / 1000)
-      }, 0)
+    ? items.reduce((total, item) => total + (plannedKm(item) ?? (item.activity?.distanceM ?? 0) / 1000), 0)
     : undefined
   const volume = [
     `Corrida: ${formatNumber(runMeters / 1000, 1)} km${planned ? ` de ${formatNumber(planned, 1)} km previstos` : ''}`,

@@ -1,5 +1,7 @@
 import type { Activity } from '../../db/types'
+import { formatNumber } from '../../lib/format'
 import type { PlannedEvent } from '../garmin/calendar'
+import type { CoachWorkout } from '../sisrun/coachPlan'
 import { eventTitle } from './agenda'
 
 /** What a line of a workout's description is about, which picks its mark. */
@@ -55,13 +57,13 @@ const plain = (text: string) =>
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
 
-/** How a line reads: warm-up and cool-down by name, a repeat by its count alone, a jog or rest as recovery. */
+/** How a line reads: warm-up and cool-down by name, a repeat by its count alone, a jog, walk or rest as recovery. */
 function lineKind(text: string): TextLineKind {
   const words = plain(text)
   if (/^(?:repet\w*|repita|repeat)\b/.test(words) || /^\d+\s*(?:x|×|vezes|times)\s*:?$/.test(words)) return 'repeat'
   if (/desaquec|volta a calma|cool ?down|soltura|alongament|stretch/.test(words)) return 'cooldown'
   if (/aquec|warm ?up/.test(words)) return 'warmup'
-  if (/recupera|\btrote\b|descans|pausa|recover|\brest\b/.test(words)) return 'recovery'
+  if (/recupera|\btrot|\bcaminh|descans|pausa|recover|\brest\b/.test(words)) return 'recovery'
   return 'step'
 }
 
@@ -95,6 +97,45 @@ export const descriptionPreview = (description: string): string =>
   descriptionLines(description)
     .map((line) => line.text)
     .join(' · ')
+
+/** The coach's structured session from SisRUN, a step per line: the steps of a repeat start with "-". */
+export const structureLines = (structure: string[]): TextLine[] =>
+  structure.flatMap((line) => {
+    const inner = /^\s*-/.test(line)
+    const text = line.replace(/^\s*-\s*/, '').trim()
+    return text ? [{ text, depth: inner ? 1 : 0, kind: lineKind(text) }] : []
+  })
+
+/** The session in a line: "Aquecer por 10 min · Repetir 3x: Correr por 1,2 km (…) + Recuperar por 1:45 min". */
+export function structureText(structure: string[]): string {
+  const parts: string[] = []
+  for (const line of structureLines(structure)) {
+    const last = parts.at(-1)
+    if (line.depth > 0 && last !== undefined && /^repet/.test(plain(last))) {
+      // The repeat's first step after a colon, the next ones joined with "+".
+      parts[parts.length - 1] = last.includes(': ') ? `${last} + ${line.text}` : `${last.replace(/:\s*$/, '')}: ${line.text}`
+    } else {
+      parts.push(line.text)
+    }
+  }
+  return parts.join(' · ')
+}
+
+/** The coach's prescription in a line, for the list and the daily analysis. */
+export function coachSummary(coach: CoachWorkout, { short = false } = {}): string {
+  const structure = coach.structure.length > 0 ? structureText(coach.structure) : undefined
+  if (short) return structure ?? [coach.type, coach.intensity].filter(Boolean).join(' · ')
+  return [
+    coach.type,
+    coach.plannedKm ? `${formatNumber(coach.plannedKm, 1)} km${coach.plannedKmEstimated ? ' (estimado)' : ''}` : undefined,
+    coach.intensity && `intensidade ${coach.intensity.toLowerCase()}`,
+    coach.hrMin && coach.hrMax ? `FC ${coach.hrMin}–${coach.hrMax}` : undefined,
+    structure,
+    coach.note && `observação do treinador: ${coach.note}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
 
 /**
  * The kind of run a coach's workout is, from its name: "Corrida Intervalado ativo 4,48 - 4,97 Km" is

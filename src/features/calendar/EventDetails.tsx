@@ -1,14 +1,16 @@
 import { Repeat } from 'lucide-react'
 import { Link } from 'react-router'
 import { cx, Stat } from '../../components/ui'
+import { useToday } from '../../db/hooks'
 import type { Activity } from '../../db/types'
-import { formatDay } from '../../lib/dates'
+import { dayKey, formatDay, formatTime, relativeDay } from '../../lib/dates'
 import { formatClock, formatNumber } from '../../lib/format'
 import { formatDistance, formatSpeed, useActivities } from '../activities/activities'
 import { checkSummary, checkWorkout } from '../activities/compliance'
 import type { PlannedEvent } from '../garmin/calendar'
-import { eventDistance, eventTitle, isRace, type AgendaKind } from './agenda'
-import { descriptionLines, lastSimilarRun, type TextLine, type TextLineKind } from './eventText'
+import { coachConfigured, useCoachPlan, type CoachWorkout } from '../sisrun/coachPlan'
+import { eventDistance, eventTitle, fromCoach, isRace, type AgendaKind } from './agenda'
+import { descriptionLines, lastSimilarRun, structureLines, type TextLine, type TextLineKind } from './eventText'
 
 /** The mark of each kind of step: effort in the section's color, the easy parts lighter or gray. */
 const MARKS: Record<Exclude<TextLineKind, 'repeat'>, string> = {
@@ -20,44 +22,128 @@ const MARKS: Record<Exclude<TextLineKind, 'repeat'>, string> = {
 
 const km = (value: number) => formatNumber(value, 2)
 
+/** "00:35:00" → "35:00", "01:05:00" → "1:05:00"; anything else as it came. */
+const shortTime = (text: string) => (/^\d{2}:\d{2}:\d{2}$/.test(text) ? text.replace(/^00:/, '').replace(/^0(\d)/, '$1') : text)
+
+function range(low: string | undefined, high: string | undefined, unit = ''): string | undefined {
+  if (low && high) return low === high ? `${low}${unit}` : `${low}–${high}${unit}`
+  if (high) return `até ${high}${unit}`
+  if (low) return `a partir de ${low}${unit}`
+  return undefined
+}
+
 /**
- * A workout of the Garmin calendar (a coach's run on SisRUN) in detail: the distance its name gives,
- * the steps its description lists, and how the last run of the same kind went.
+ * A workout of the Garmin calendar in detail. A coach's run on SisRUN shows the prescription read
+ * from SisRUN (the distance, the intensity, the heart rate and time ranges, the steps and the coach's
+ * note); any other shows the distance its name gives and the steps its description lists. Then how
+ * the last run of the same kind went.
  */
-export function EventDetails({ event, kind }: { event: PlannedEvent; kind: AgendaKind }) {
+export function EventDetails({ event, kind, coach }: { event: PlannedEvent; kind: AgendaKind; coach?: CoachWorkout }) {
   const activities = useActivities()
-  const distance = eventDistance(event.title)
-  const lines = descriptionLines(event.description)
+  const plan = useCoachPlan()
+  const today = useToday()
+  const named = eventDistance(event.title)
   const race = isRace(event)
   const similar = kind === 'run' && !race && activities ? lastSimilarRun(event, activities) : undefined
-  const paragraph = lines.length === 1 && lines[0].kind === 'step'
+  const coachSteps = coach ? structureLines(coach.structure) : []
+  const described = descriptionLines(event.description)
+  const paragraph = described.length === 1 && described[0].kind === 'step'
+  const distance = coach?.plannedKm
+    ? `${coach.plannedKmEstimated ? '≈ ' : ''}${km(coach.plannedKm)} km`
+    : named
+      ? named.low === named.high
+        ? `${km(named.high)} km`
+        : `${km(named.low)}–${km(named.high)} km`
+      : undefined
+  const facts = coach
+    ? [
+        { label: 'Intensidade', value: coach.intensity },
+        { label: 'FC', value: range(coach.hrMin?.toString(), coach.hrMax?.toString(), ' bpm') },
+        { label: 'Tempo', value: range(coach.timeMin && shortTime(coach.timeMin), coach.timeMax && shortTime(coach.timeMax)) },
+      ].filter((fact): fact is { label: string; value: string } => !!fact.value)
+    : []
 
   return (
     <div className="space-y-5">
-      {distance && (
-        <Stat
-          label={race ? 'Distância da prova' : 'Distância planejada'}
-          value={distance.low === distance.high ? `${km(distance.high)} km` : `${km(distance.low)}–${km(distance.high)} km`}
-        />
+      {(distance || facts.length > 0) && (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          {distance && (
+            <Stat
+              label={race ? 'Distância da prova' : 'Distância planejada'}
+              value={distance}
+              note={coach?.plannedKmEstimated ? 'parte estimada pelo tempo' : undefined}
+            />
+          )}
+          {facts.map((fact) => (
+            <div key={fact.label} className="min-w-0">
+              <p className="text-xs text-ink-2">{fact.label}</p>
+              <p className="font-semibold">{fact.value}</p>
+            </div>
+          ))}
+        </div>
       )}
-      {(lines.length > 0 || !race) && (
+
+      {coach ? (
         <section>
-          <h3 className="mb-2 text-sm font-semibold">{paragraph || race ? 'Descrição' : 'Etapas'}</h3>
-          {lines.length === 0 ? (
-            <p className="text-sm text-ink-2">
-              O calendário do Garmin trouxe só o nome deste treino. As etapas, com os ritmos de cada uma, aparecem na
-              atividade depois que ela for sincronizada.
-            </p>
-          ) : paragraph ? (
-            <p className="text-sm whitespace-pre-line">{lines[0].text}</p>
+          <h3 className="mb-2 text-sm font-semibold">Etapas</h3>
+          {coachSteps.length > 0 ? (
+            <StepLines lines={coachSteps} />
           ) : (
-            <StepLines lines={lines} />
+            <p className="text-sm text-ink-2">O treinador não detalhou as etapas deste treino no SisRUN.</p>
           )}
         </section>
+      ) : (
+        (described.length > 0 || !race) && (
+          <section>
+            <h3 className="mb-2 text-sm font-semibold">{paragraph || race ? 'Descrição' : 'Etapas'}</h3>
+            {described.length === 0 ? (
+              <p className="text-sm text-ink-2">{withoutSteps(event, plan)}</p>
+            ) : paragraph ? (
+              <p className="text-sm whitespace-pre-line">{described[0].text}</p>
+            ) : (
+              <StepLines lines={described} />
+            )}
+            {described.length === 0 && fromCoach(event) && !coachConfigured(plan) && (
+              <Link to="/ajustes" className="mt-1 inline-block text-sm font-medium text-accent-ink">
+                Ligar o SisRUN em Ajustes
+              </Link>
+            )}
+          </section>
+        )
       )}
+
+      {coach?.note && (
+        <section>
+          <h3 className="mb-1 text-sm font-semibold">Observação do treinador</h3>
+          <p className="text-sm whitespace-pre-line">{coach.note}</p>
+        </section>
+      )}
+      {coach && described.length > 0 && (
+        <section>
+          <h3 className="mb-1 text-sm font-semibold">No calendário do Garmin</h3>
+          <p className="text-sm whitespace-pre-line text-ink-2">{described.map((line) => line.text).join('\n')}</p>
+        </section>
+      )}
+      {coach && plan?.fetchedAt && (
+        <p className="text-xs text-muted">
+          Do SisRUN, lido {relativeDay(dayKey(plan.fetchedAt), today)} às {formatTime(plan.fetchedAt)}.
+        </p>
+      )}
+
       {similar && <SimilarRun activity={similar} />}
     </div>
   )
+}
+
+/** Why a workout has no steps here, and when they'll come. */
+function withoutSteps(event: PlannedEvent, plan: ReturnType<typeof useCoachPlan>): string {
+  if (fromCoach(event) && coachConfigured(plan)) {
+    return 'O SisRUN ainda não mandou este treino: o app lê a semana atual e a próxima. Depois da corrida, as etapas aparecem na atividade.'
+  }
+  if (fromCoach(event)) {
+    return 'O calendário do Garmin trouxe só o nome deste treino. Lendo o SisRUN, as etapas aparecem aqui antes da corrida; sem isso, aparecem na atividade depois que ela for sincronizada.'
+  }
+  return 'O calendário do Garmin trouxe só o nome deste treino. As etapas, com os ritmos de cada uma, aparecem na atividade depois que ela for sincronizada.'
 }
 
 function StepLines({ lines }: { lines: TextLine[] }) {

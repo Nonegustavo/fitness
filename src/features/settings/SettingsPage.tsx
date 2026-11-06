@@ -12,6 +12,7 @@ import { dayKey } from '../../lib/dates'
 import { signIn, signOut, syncNow, useSyncState } from '../../sync/controller'
 import { GarminCard } from '../garmin/GarminCard'
 import { HealthConnectCard } from '../healthconnect/HealthConnectCard'
+import { SisrunCard } from '../sisrun/SisrunCard'
 import { SyncStatus } from './SyncStatus'
 import { PROFILE_CHARS } from '../analysis/context'
 import { isAndroidApp } from '../healthconnect/plugin'
@@ -29,6 +30,7 @@ export default function SettingsPage() {
       {isAndroidApp() && <WorkoutRemindersCard />}
       <NavBarCard />
       <GarminCard />
+      <SisrunCard />
       <HealthConnectCard />
       <SitesCard />
       <BackupCard />

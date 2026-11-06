@@ -8,6 +8,7 @@ import type { DayKey } from '../../lib/dates'
 import { useActivities } from '../activities/activities'
 import type { PlannedEvent } from '../garmin/calendar'
 import { usePlannedEvents } from '../garmin/sync'
+import { useCoachWorkouts } from '../sisrun/coachPlan'
 import { nextTemplate } from '../training/stats'
 import { useSessions, useTemplates } from '../training/training'
 import { buildAgenda, hiddenEvents, type AgendaItem } from './agenda'
@@ -132,8 +133,9 @@ export function useAgenda(from: DayKey, to: DayKey, today: DayKey): AgendaItem[]
   const sessions = useSessions()
   const activities = useActivities()
   const templates = useTemplates()
+  const coach = useCoachWorkouts()
   return useMemo(() => {
-    if (!plans || !eventTimes || walkRoutine === undefined || events === undefined || !sessions || !activities || !templates) {
+    if (!plans || !eventTimes || walkRoutine === undefined || events === undefined || !sessions || !activities || !templates || !coach) {
       return undefined
     }
     return buildAgenda(from, to, today, {
@@ -144,8 +146,9 @@ export function useAgenda(from: DayKey, to: DayKey, today: DayKey): AgendaItem[]
       templates,
       eventTimes,
       walkRoutine: walkRoutine ?? undefined,
+      coach,
     })
-  }, [from, to, today, plans, eventTimes, walkRoutine, events, sessions, activities, templates])
+  }, [from, to, today, plans, eventTimes, walkRoutine, events, sessions, activities, templates, coach])
 }
 
 /** Today's scheduled template not done yet (the first, when there are two). */

@@ -32,7 +32,7 @@ import { TemplateSheet } from '../training/TemplateDetails'
 import { useSessions, useTemplates } from '../training/training'
 import { suggestTemplate, type AgendaItem, type AgendaKind, type AgendaStatus } from './agenda'
 import { EventDetails } from './EventDetails'
-import { descriptionPreview } from './eventText'
+import { coachSummary, descriptionPreview } from './eventText'
 import {
   dropWalk,
   reschedule,
@@ -226,7 +226,15 @@ function ItemRow({
   // What isn't done yet opens its ficha: a gym workout's template, a Garmin workout's steps (a rest
   // day only when the coach wrote something for it). What was done opens its own page instead.
   const details = !link && (!!plan?.templateId || (!!item.event && (item.kind !== 'rest' || !!item.event.description)))
-  const preview = item.event?.description && item.status !== 'done' ? descriptionPreview(item.event.description) : ''
+  // The steps in a line: the coach's from SisRUN, else the Garmin calendar's description.
+  const preview =
+    item.status === 'done'
+      ? ''
+      : item.coach
+        ? coachSummary(item.coach, { short: true })
+        : item.event?.description
+          ? descriptionPreview(item.event.description)
+          : ''
 
   const drop = () => {
     if (!plan) return
@@ -388,7 +396,7 @@ function ItemDetails({ item, today, onClose }: { item: AgendaItem; today: DayKey
   return (
     <Modal open title={item.title} onClose={onClose}>
       <p className="-mt-1 mb-4 text-xs text-muted first-letter:uppercase">{whenLine(item, today)}</p>
-      <EventDetails event={item.event} kind={item.kind} />
+      <EventDetails event={item.event} kind={item.kind} coach={item.coach} />
     </Modal>
   )
 }

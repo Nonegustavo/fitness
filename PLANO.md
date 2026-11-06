@@ -176,6 +176,7 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Retrospectiva do ano (Mais → Retrospectiva e aviso no Hoje em dezembro)
 - [x] Gráficos por dia, semana, mês ou ano (Corpo, Sono, Passos, Calorias, Alimentação, Água, Corrida e exercícios), com setas para andar no tempo e "Intervalo"; média ou total conforme a medida, dito na dica
 - [x] Detalhes dos treinos programados: tocar num treino do calendário, de "Próximos treinos" ou de "Próximos 7 dias" abre a ficha. A de musculação tem cada exercício com séries, carga, descanso, aquecimento, bi-set, observações, a última vez e "Que tal 57,5 kg?", com Iniciar e Editar ficha. A de corrida tem a distância do nome e as etapas que o calendário do Garmin manda na descrição (ele pode mandar só o nome; aí as etapas aparecem depois da corrida), e "Da última vez", a última corrida do mesmo tipo (outro "Intervalado ativo") com o resultado dos tiros e o comentário
+- [x] SisRUN: a planilha do treinador lida do site do aluno (função `sisrun`, com o e-mail e a senha nos segredos do Supabase), na semana atual e na próxima, junto com o Garmin. Cada treino do SisRUN no calendário ganha na ficha as etapas, a intensidade, a FC, o tempo e a observação do treinador; os km previstos da semana e do relatório para o treinador passam a ser os prescritos, e a análise do dia lê a prescrição. Em Ajustes → SisRUN, o estado da leitura e "Ler agora"
 
 ## Observações
 

@@ -8,6 +8,7 @@ import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
 import { getSyncState, onSyncStateChange } from '../../sync/controller'
 import { supabase } from '../../sync/supabase'
 import { runWeatherQueue } from '../activities/weatherQueue'
+import { importCoachPlan } from '../sisrun/coachPlan'
 import { garminCalendar, garminFile, garminGet, GarminError, orNull } from './api'
 import { parseCalendar, type PlannedEvent } from './calendar'
 import { keepPastEvents } from './calendarHistory'
@@ -223,7 +224,10 @@ async function run(range: (meta: GarminMeta, today: DayKey) => [DayKey, DayKey],
   }
 }
 
-/** Brings what's new since the last sync (the last 30 days the first time). */
+/**
+ * Brings what's new since the last sync (the last 30 days the first time). The coach's plan comes
+ * from SisRUN right after, in the background, whether Garmin worked or not.
+ */
 export function syncGarmin(): Promise<void> {
   return run(
     (meta, today) => [meta.lastDay ? shiftDay(meta.lastDay, -2) : shiftDay(today, -FIRST_DAYS), today],
@@ -231,7 +235,7 @@ export function syncGarmin(): Promise<void> {
       meta.lastDay = today
       if (!meta.historyFrom || from < meta.historyFrom) meta.historyFrom = from
     },
-  )
+  ).finally(() => void importCoachPlan())
 }
 
 /** Fetches the `days` before the oldest day already in the app. */

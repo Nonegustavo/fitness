@@ -8,7 +8,9 @@ import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
 import { getSyncState, onSyncStateChange } from '../../sync/controller'
 import { supabase } from '../../sync/supabase'
 import { buildAgenda, visibleEvents } from '../calendar/agenda'
+import { coachSummary } from '../calendar/eventText'
 import { plannedEvents } from '../garmin/sync'
+import { planWorkouts, readPlan } from '../sisrun/coachPlan'
 import { loadSources } from '../insights/useDailyData'
 import { isOutdoorRun } from '../running/running'
 import { buildContext, hasRecentData } from './context'
@@ -73,11 +75,12 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     db.measurements.toArray(),
   ])
   const runs = sources.activities.filter(isOutdoorRun)
-  const [streams, garmin, healthConnect, calendar] = await Promise.all([
+  const [streams, garmin, healthConnect, calendar, coachPlan] = await Promise.all([
     db.activityStreams.bulkGet(runs.map((run) => run.id)),
     metaTime('garmin', 'lastRunAt'),
     metaTime('healthConnect', 'lastImportAt'),
     metaTime('garminCalendar', 'fetchedAt'),
+    readPlan(),
   ])
   const times = alive(eventTimes)
   const agenda = buildAgenda(from, to, day, {
@@ -88,10 +91,23 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     templates: alive(templates),
     eventTimes: times,
     walkRoutine: settings?.walkRoutine,
+    coach: planWorkouts(coachPlan),
   })
-  // The coach's workouts with the time the user planned them at, when there is one; the hidden ones left out.
+  // The coach's workouts with the time the user planned them at, when there is one, and the
+  // prescription read from SisRUN in place of the description; the hidden ones left out.
   const timed = new Map(agenda.flatMap((item) => (item.event && item.time !== undefined ? [[item.event, item.time] as const] : [])))
-  const planned = visibleEvents(events, times)?.map((event) => (timed.has(event) ? { ...event, time: timed.get(event) } : event)) ?? null
+  const prescribed = new Map(agenda.flatMap((item) => (item.event && item.coach ? [[item.event, coachSummary(item.coach)] as const] : [])))
+  const planned =
+    visibleEvents(events, times)?.map((event) => {
+      const time = timed.get(event)
+      const text = prescribed.get(event)
+      if (time === undefined && !text) return event
+      return {
+        ...event,
+        ...(time !== undefined && { time }),
+        ...(text && { description: event.description ? `${text} · ${event.description}` : text }),
+      }
+    }) ?? null
   // Scheduled templates and walks still ahead: one done that day is left out.
   const ahead = agenda.filter((item) => item.plan && item.status === 'planned' && item.date >= day)
   const gymPlans = ahead.flatMap((item) => (item.kind === 'gym' ? [{ date: item.date, name: item.title, time: item.plan?.time }] : []))
