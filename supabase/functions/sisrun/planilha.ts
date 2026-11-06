@@ -18,8 +18,10 @@ export interface CoachWorkout {
   modality: string
   type: string
   route: string
-  /** The coach's own distance field: empty on interval days, where it also counts only the reps. */
+  /** The coach's own distance field: empty on interval days, where it also counts only the reps. A range's middle. */
   distanceKm?: number
+  /** The field as a range ("4,48 - 4,97 Km"), when the coach gave one. */
+  distanceRangeKm?: [number, number]
   /** The distance prescribed: the larger of that field and the sum of the structured session. */
   plannedKm?: number
   /** A timed step had to be turned into distance at an assumed pace. */
@@ -242,8 +244,9 @@ function planNumber(text: string | undefined): number | undefined {
 
 const STEP_KM = /por\s+([\d.,]+)\s*km\b/i
 const STEP_M = /por\s+([\d.,]+)\s*m(?![a-z])/i
-// "completar entre 115m e 134m": the plan's own estimate of the distance of a timed step.
+// "completar entre 115m e 134m" or "entre 4,48km e 4,97km": the plan's own window for a timed step.
 const STEP_BETWEEN_M = /completar entre\s+([\d.,]+)\s*m\s+e\s+([\d.,]+)\s*m\b/i
+const STEP_BETWEEN_KM = /completar entre\s+([\d.,]+)\s*km\s+e\s+([\d.,]+)\s*km\b/i
 const STEP_MIN = /por\s+([\d.,]+)\s*min\b/i
 const STEP_HOUR = /por\s+([\d.,]+)\s*h\b/i
 const STEP_BAND = /\((\d{1,2}):(\d{2})\s*a\s*(\d{1,2}):(\d{2})\s*min\/km\)/
@@ -260,6 +263,8 @@ function stepDistanceKm(step: string): [number, boolean] {
   if (meters) return [(planNumber(meters[1]) ?? 0) / 1000, false]
   const between = STEP_BETWEEN_M.exec(step)
   if (between) return [((planNumber(between[1]) ?? 0) + (planNumber(between[2]) ?? 0)) / 2000, false]
+  const betweenKm = STEP_BETWEEN_KM.exec(step)
+  if (betweenKm) return [((planNumber(betweenKm[1]) ?? 0) + (planNumber(betweenKm[2]) ?? 0)) / 2, false]
   let minutes: number | undefined
   const min = STEP_MIN.exec(step)
   if (min) minutes = planNumber(min[1])
@@ -302,11 +307,21 @@ export function structureDistanceKm(steps: string[]): [number, boolean] {
   return [Math.round(total * 1000) / 1000, estimated]
 }
 
+// A field's label starts its line: the steps also say "Intensidade Limiar (…)" in their text.
 const field = (text: string, label: string): string =>
-  new RegExp(`${escapeRe(label)}\\s*:?\\s*([^\\n]*)`).exec(text)?.[1].trim() ?? ''
+  new RegExp(`(?:^|\\n)${escapeRe(label)}\\s*:?\\s*([^\\n]*)`).exec(text)?.[1].trim() ?? ''
 
 const STRUCTURE_RE =
   /Estruturado:\s*\n([\s\S]*?)(?=\n(?:Tempo Mínimo|Intensidade|FC Mínima|Feedback do Aluno|Feedback do Treinador|Mensagens|Descrição)\b|$)/
+// The coach's description runs over several lines, up to the next part of the panel.
+const DESCRIPTION_RE =
+  /Descrição:\s*\n([\s\S]*?)(?=\n(?:Estruturado:|Tempo Mínimo|Tempo Máximo|Intensidade|FC Mínima|FC Máxima|Feedback do Aluno|Feedback do Treinador|Feedback deste treino|Mensagens|Criar Treino)|$)/
+
+const lines = (text: string) =>
+  text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
 
 /** "dd/mm/aaaa" → "aaaa-mm-dd". */
 const isoDate = (text: string) => `${text.slice(6, 10)}-${text.slice(3, 5)}-${text.slice(0, 2)}`
@@ -319,18 +334,21 @@ function dayWorkouts(text: string): Omit<CoachWorkout, 'date' | 'weekStart'>[] {
     const chunk = text.slice(hit.index, i + 1 < hits.length ? hits[i + 1].index : text.length)
     const cells = chunk.split('\n', 1)[0].split('\t')
     const cell = (n: number) => cells[n]?.trim() ?? ''
-    const distance = /^([\d.,]+)\s*Km/i.exec(cell(4))
+    // "3,6 Km", or a range: "4,48 - 4,97 Km".
+    const distance = /^([\d.,]+)(?:\s*(?:-|–|a)\s*([\d.,]+))?\s*Km/i.exec(cell(4))
+    const low = distance ? planNumber(distance[1]) : undefined
+    const high = distance?.[2] ? planNumber(distance[2]) : undefined
 
     const structured = STRUCTURE_RE.exec(chunk)
-    const structure = structured
-      ? structured[1]
-          .split('\n')
-          .map((line) => line.trim())
-          .filter(Boolean)
-      : []
+    const structure = structured ? lines(structured[1]) : []
 
-    const description = /Descrição:\s*\n([^\n]*)/.exec(chunk)
-    const note = description && !description[1].includes('adicionado automaticamente') ? description[1].trim() : ''
+    // SisRUN's own line about a goal it added ("Adicionado automaticamente ao ser criado…") isn't the coach's.
+    const description = DESCRIPTION_RE.exec(chunk)
+    const note = description
+      ? lines(description[1])
+          .filter((line) => !/adicionado automaticamente/i.test(line))
+          .join('\n')
+      : ''
 
     // What SisRUN itself matched to this prescription (it imports the Garmin and Strava activities).
     const done: NonNullable<CoachWorkout['done']> = {}
@@ -351,7 +369,7 @@ function dayWorkouts(text: string): Omit<CoachWorkout, 'date' | 'weekStart'>[] {
 
     // The distance field is empty on interval, hill and timed sessions (and counts only the reps on
     // interval days), so the structure's sum is the honest number when it's larger.
-    const fieldKm = distance ? planNumber(distance[1]) : undefined
+    const fieldKm = low !== undefined && high !== undefined ? Math.round(((low + high) / 2) * 1000) / 1000 : low
     const [structureKm, estimated] = structureDistanceKm(structure)
     let plannedKm = fieldKm
     let plannedKmEstimated = false
@@ -368,6 +386,7 @@ function dayWorkouts(text: string): Omit<CoachWorkout, 'date' | 'weekStart'>[] {
       structure,
     }
     if (fieldKm !== undefined) workout.distanceKm = fieldKm
+    if (low !== undefined && high !== undefined) workout.distanceRangeKm = [Math.min(low, high), Math.max(low, high)]
     if (plannedKm !== undefined) workout.plannedKm = plannedKm
     if (plannedKmEstimated) workout.plannedKmEstimated = true
     const intensity = field(chunk, 'Intensidade')

@@ -98,11 +98,17 @@ export const descriptionPreview = (description: string): string =>
     .map((line) => line.text)
     .join(' · ')
 
-/** The coach's structured session from SisRUN, a step per line: the steps of a repeat start with "-". */
+/**
+ * The coach's structured session from SisRUN, a step per line: SisRUN numbers the main steps ("2.
+ * Repetir 3x"), which the list's order already says, and the steps of a repeat start with "-".
+ */
 export const structureLines = (structure: string[]): TextLine[] =>
   structure.flatMap((line) => {
     const inner = /^\s*-/.test(line)
-    const text = line.replace(/^\s*-\s*/, '').trim()
+    const text = line
+      .replace(/^\s*-\s*/, '')
+      .replace(/^\d{1,2}[.)]\s+/, '')
+      .trim()
     return text ? [{ text, depth: inner ? 1 : 0, kind: lineKind(text) }] : []
   })
 

@@ -48,9 +48,11 @@ export function EventDetails({ event, kind, coach }: { event: PlannedEvent; kind
   const coachSteps = coach ? structureLines(coach.structure) : []
   const described = descriptionLines(event.description)
   const paragraph = described.length === 1 && described[0].kind === 'step'
-  const distance = coach?.plannedKm
-    ? `${coach.plannedKmEstimated ? '≈ ' : ''}${km(coach.plannedKm)} km`
-    : named
+  const distance = coach?.distanceRangeKm
+    ? `${km(coach.distanceRangeKm[0])}–${km(coach.distanceRangeKm[1])} km`
+    : coach?.plannedKm
+      ? `${coach.plannedKmEstimated ? '≈ ' : ''}${km(coach.plannedKm)} km`
+      : named
       ? named.low === named.high
         ? `${km(named.high)} km`
         : `${km(named.low)}–${km(named.high)} km`
@@ -71,7 +73,7 @@ export function EventDetails({ event, kind, coach }: { event: PlannedEvent; kind
             <Stat
               label={race ? 'Distância da prova' : 'Distância planejada'}
               value={distance}
-              note={coach?.plannedKmEstimated ? 'parte estimada pelo tempo' : undefined}
+              note={coach?.plannedKmEstimated && !coach.distanceRangeKm ? 'parte estimada pelo tempo' : undefined}
             />
           )}
           {facts.map((fact) => (

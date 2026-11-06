@@ -150,6 +150,18 @@ describe('the session as text', () => {
     ])
   })
 
+  it("drops SisRUN's numbering of the main steps", () => {
+    const numbered = ['1. Aquecer por 10min', '2. Repetir 3x', '- Correr por 1,2km', "- Descansar por 1'45''", '3. Desaquecer por 3min']
+    expect(structureLines(numbered).map((line) => [line.text, line.depth, line.kind])).toEqual([
+      ['Aquecer por 10min', 0, 'warmup'],
+      ['Repetir 3x', 0, 'repeat'],
+      ['Correr por 1,2km', 1, 'step'],
+      ["Descansar por 1'45''", 1, 'recovery'],
+      ['Desaquecer por 3min', 0, 'cooldown'],
+    ])
+    expect(structureText(numbered)).toBe("Aquecer por 10min · Repetir 3x: Correr por 1,2km + Descansar por 1'45'' · Desaquecer por 3min")
+  })
+
   it('writes it in a line, the repeat with its steps', () => {
     expect(structureText(structure)).toBe(
       'Aquecer por 10 min (06:00 a 06:40 min/km) · Repetir 3x: Correr por 1,2 km (05:22 a 05:29 min/km) + Trotar por 1:45 min · Desaquecer por 5 min',

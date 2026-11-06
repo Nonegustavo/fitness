@@ -157,6 +157,64 @@ describe('parseWeek', () => {
   })
 })
 
+// The layout of the real page (checked on 2026-11-05): the table's header row, numbered steps whose
+// text says "Intensidade …", the time fields with their empty pace parts, a distance range, and a
+// description over several lines with SisRUN's own line about a goal.
+const realLayout = `
+<div class="ui-grid-row">
+  <div class="ui-grid-col-2"><span class="planilhaDiaSemana">Terça-feira</span><div>03</div></div>
+  <div class="ui-grid-col-10">
+    <div><button type="button">Criar Treino/Feedback Avulso</button></div>
+    <table>
+      <thead><tr><th>Status</th><th>Modalidade</th><th>Tipo</th><th>Percurso</th><th>Distância</th></tr></thead>
+      <tbody><tr><td>Proposto</td><td>Corrida</td><td>Intervalado ativo</td><td></td><td>4,48 - 4,97 Km</td></tr></tbody>
+    </table>
+    <div>Feedback deste treino</div>
+    <div class="ui-accordion"><h3>Detalhes</h3><div>
+      <label>Estruturado:</label>
+      <div>1. Aquecer por 10min - Corrida leve</div>
+      <div>2. Repetir 3x</div>
+      <div>- Correr por 1,2km - Intensidade Limiar (05:22 a 05:29 min/km) completar entre 6'26'' e 6'35''</div>
+      <div>- Descansar por 1'45''</div>
+      <div>3. Correr por 20min - Intensidade Z2 (06:30 a 07:00 min/km) completar entre 2,9km e 3,1km</div>
+      <label>Tempo Mínimo:</label><div>37:33</div><div>(</div><div>min/km |</div><div>)</div>
+      <label>Descrição:</label>
+      <div>Treino da semana de prova.</div>
+      <div>Adicionado automaticamente ao ser criado Objetivo/Meta em 13/05/2026 22:16.</div>
+      <div>Observações: segurar o ritmo.</div>
+    </div></div>
+    <div><label>Feedback do Aluno</label></div>
+  </div>
+</div>`
+
+describe('parseWeek on the real layout', () => {
+  it('reads numbered steps, a distance range and the whole description', () => {
+    const [workout] = parseWeek(page(realLayout)).workouts
+    expect(workout).toEqual({
+      date: '2026-11-03',
+      weekStart: '2026-11-02',
+      status: 'Proposto',
+      modality: 'Corrida',
+      type: 'Intervalado ativo',
+      route: '',
+      distanceKm: 4.725,
+      distanceRangeKm: [4.48, 4.97],
+      // 10 min at the default pace, 3 × 1,2 km, and the 20 min step's own window of 2,9 to 3,1 km.
+      plannedKm: expect.closeTo(10 / 6.62 + 3.6 + 3, 3),
+      plannedKmEstimated: true,
+      timeMin: '37:33',
+      structure: [
+        '1. Aquecer por 10min - Corrida leve',
+        '2. Repetir 3x',
+        "- Correr por 1,2km - Intensidade Limiar (05:22 a 05:29 min/km) completar entre 6'26'' e 6'35''",
+        "- Descansar por 1'45''",
+        '3. Correr por 20min - Intensidade Z2 (06:30 a 07:00 min/km) completar entre 2,9km e 3,1km',
+      ],
+      note: 'Treino da semana de prova.\nObservações: segurar o ritmo.',
+    })
+  })
+})
+
 describe('detailsMissing', () => {
   it('flags workouts that came without their detail panels', () => {
     const bare = `<div class="ui-grid-row"><span class="planilhaDiaSemana">Sexta</span><div>06</div>
