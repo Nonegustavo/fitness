@@ -4,7 +4,8 @@ import { IconButton } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { formatTime, type DayKey } from '../../lib/dates'
 import { formatDuration, formatMl, formatNumber } from '../../lib/format'
-import { useInsight } from '../analysis/daily'
+import type { InsightWait } from '../analysis/daily'
+import { useTodayInsight } from '../analysis/TodayInsightCard'
 import { shortTitle, type AgendaKind } from '../calendar/agenda'
 import { KIND_ICONS, KIND_TONES } from '../calendar/components'
 import { useAgenda, useTodayTemplate } from '../calendar/plans'
@@ -24,7 +25,8 @@ export function WorkoutSmall({ today }: { today: DayKey }) {
   const agenda = useAgenda(today, today, today)
   const todays = useTodayTemplate(today)
   const start = useStartWorkout()
-  if (!agenda) return <TileSkeleton />
+  // The template too, or its name and button would come in after the card.
+  if (!agenda || todays === undefined) return <TileSkeleton />
   const items = agenda.filter((item) => item.kind !== 'rest')
   const current = items.find((item) => item.status === 'active') ?? items.find((item) => item.status === 'planned')
   const done = items.filter((item) => item.status === 'done')
@@ -85,10 +87,10 @@ export function SleepSmall({ today }: { today: DayKey }) {
 export function FoodSmall({ today }: { today: DayKey }) {
   const settings = useSettings()
   const logs = useFoodLogs(today, today)
-  const trainingDay = useTrainingDays(today, today)?.has(today) ?? false
-  if (!logs) return <TileSkeleton />
+  const trainingDays = useTrainingDays(today, today)
+  if (!logs || !trainingDays) return <TileSkeleton />
   const totals = sumNutrients(logs.map((log) => log.nutrients))
-  const goals = goalsFor(settings, trainingDay)
+  const goals = goalsFor(settings, trainingDays.has(today))
   const left = goals ? goals.kcal - totals.kcal : undefined
   return (
     <SmallCard icon={Utensils} tone="food" label="Alimentação" to="/alimentacao">
@@ -107,7 +109,7 @@ export function WaterSmall({ today }: { today: DayKey }) {
   const logs = useWaterLogs(today, today)
   const containers = useContainers()
   const addWater = useAddWater()
-  if (!logs) return <TileSkeleton />
+  if (!logs || !containers) return <TileSkeleton />
   const total = sumMl(logs)
   const favorite = containers?.find((container) => container.favorite === 1)
   const add = () => favorite && addWater(favorite.ml, favorite)
@@ -195,12 +197,27 @@ export function JournalSmall({ today }: { today: DayKey }) {
   )
 }
 
+/** Why there's no analysis yet, in short (the analysis screen has the rest). */
+const INSIGHT_WAITS: Record<InsightWait, string> = {
+  soon: 'sai sozinha depois de sincronizar',
+  off: 'a automática está desligada',
+  failed: 'não deu certo hoje; toque para tentar',
+  signedOut: 'entre na sua conta para usar',
+}
+
 export function InsightSmall({ today }: { today: DayKey }) {
-  const insight = useInsight(today)
-  if (!insight) return null
+  const { insight, loading, generating, wait } = useTodayInsight(today)
+  if (loading) return <TileSkeleton />
   return (
     <SmallCard icon={Sparkles} tone="analysis" label="Análise do dia" to="/analise">
-      <span className="line-clamp-3 text-sm leading-snug font-medium">{insight.headline}</span>
+      {insight ? (
+        <span className="line-clamp-3 text-sm leading-snug font-medium">{insight.headline}</span>
+      ) : (
+        <>
+          <span className="block text-base leading-tight font-semibold">{generating ? 'Lendo seus dados…' : 'Ainda não feita'}</span>
+          {!generating && <Note clamp={2}>{INSIGHT_WAITS[wait]}</Note>}
+        </>
+      )}
     </SmallCard>
   )
 }

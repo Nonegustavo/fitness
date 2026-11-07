@@ -8,6 +8,8 @@ export interface SyncState {
   /** False when the build has no Supabase URL/key: the app works offline-only. */
   configured: boolean
   email: string | null
+  /** Whether the saved login has been read yet: until then a null `email` doesn't mean signed out. */
+  authChecked?: boolean
   phase: 'idle' | 'syncing' | 'error' | 'offline'
   lastSyncAt?: number
   error?: string
@@ -72,7 +74,7 @@ function scheduleSync(delayMs = 1500) {
 export function startSync(): void {
   if (!supabase) return
   supabase.auth.onAuthStateChange((_event, session) => {
-    setState({ email: session?.user.email ?? null })
+    setState({ email: session?.user.email ?? null, authChecked: true })
     if (session) scheduleSync(0)
   })
   onLocalChange(() => scheduleSync())

@@ -192,6 +192,39 @@ export const useInsight = (day: DayKey) =>
     return insight && !insight.deleted ? insight : null
   }, [day])
 
+/** Whether this device already made its automatic try of the day; undefined while loading. */
+export const useInsightAttempted = (day: DayKey): boolean | undefined =>
+  useLiveQuery(async () => (await db.meta.get(ATTEMPT_KEY))?.value === day, [day])
+
+/**
+ * Why there's no analysis of the day yet, for the Hoje cards: no account to run it with, the daily
+ * one turned off, a try that didn't work out (today's automatic one, or the last by hand), or else
+ * it's coming by itself a little after the next sync.
+ */
+export type InsightWait = 'signedOut' | 'off' | 'failed' | 'soon'
+
+export function insightWait({
+  configured,
+  email,
+  authChecked = false,
+  auto,
+  attempted,
+  error,
+}: {
+  configured: boolean
+  email: string | null
+  authChecked?: boolean
+  auto: boolean
+  attempted: boolean
+  error?: string
+}): InsightWait {
+  // Before the saved login is read, a missing email isn't a signed-out user yet.
+  if (!configured || (authChecked && !email)) return 'signedOut'
+  if (error) return 'failed'
+  if (!auto) return 'off'
+  return attempted ? 'failed' : 'soon'
+}
+
 /** Past analyses, newest first. */
 export const useInsightHistory = () =>
   useLiveQuery(async () => alive(await db.insights.toArray()).sort((a, b) => b.id.localeCompare(a.id)))

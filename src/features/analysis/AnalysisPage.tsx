@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router'
 import { Confirm, Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { IconTile } from '../../components/tone'
-import { Button, Card, Empty, Page, Switch } from '../../components/ui'
+import { Button, Card, Empty, Page, Pending, SkeletonLines, Switch } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import { patch } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
@@ -32,7 +32,9 @@ export default function AnalysisPage() {
   return (
     <Page title="Análise do dia" icon={Sparkles} tone="analysis" subtitle="O Claude lê seus dados e o diário e diz o que vê e o que fazer">
       <Card>
-        {insight ? (
+        {insight === undefined ? (
+          <SkeletonLines lines={4} />
+        ) : insight ? (
           <InsightView insight={insight} />
         ) : generating ? (
           <p className="flex items-center gap-2 py-6 text-sm text-ink-2">
@@ -99,6 +101,8 @@ export default function AnalysisPage() {
         </Link>
       </Card>
 
+      {/* The other days' card comes in with the screen, not after it. */}
+      {history === undefined && <Pending />}
       {others.length > 0 && (
         <Card title="Outros dias">
           <ul className="divide-y divide-line">
