@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { Confirm, Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { Button, Card, cx, DecimalInput, Empty, Field, Page, SkeletonCard, Switch, TextInput } from '../../components/ui'
+import { useNewFromLink } from '../../components/useNewFromLink'
 import { useToday } from '../../db/hooks'
 import type { Activity, Gear } from '../../db/types'
 import { formatDay, shiftDay, type DayKey } from '../../lib/dates'
@@ -205,6 +206,7 @@ export default function GearPage() {
   const today = useToday()
   const toast = useToast()
   const [editing, setEditing] = useState<Gear | 'new'>()
+  useNewFromLink('tenis', () => setEditing('new'))
   const states = useMemo(() => (gear && activities ? gearStatus(gear, activities) : undefined), [gear, activities])
 
   const page = { title: 'Tênis', icon: SportShoe, tone: 'today' as const, back: { to: '/corrida', label: 'Corrida' } }

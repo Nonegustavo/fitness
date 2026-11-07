@@ -25,7 +25,7 @@ export default function ActivitiesPage() {
   }
 
   return (
-    <Page title="Atividades" back={{ to: '/treinos', label: 'Treinos' }} actions={<ImportFitButton />}>
+    <Page title="Atividades" back={{ to: '/treinos', label: 'Treinos' }} actions={<ImportFitButton fromLink />}>
       {activities.length === 0 ? (
         <Card>
           <Empty>Nenhuma atividade importada ainda.</Empty>

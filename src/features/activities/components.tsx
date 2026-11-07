@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useToast } from '../../components/Toast'
 import { Button } from '../../components/ui'
+import { useNewFromLink } from '../../components/useNewFromLink'
 import type { Activity } from '../../db/types'
 import { formatTime, relativeDay } from '../../lib/dates'
 import { formatDuration } from '../../lib/format'
@@ -10,11 +11,21 @@ import { activityIcon, activityLabel, formatDistance, formatSpeed, speedKind } f
 import { WeatherChip } from './WeatherView'
 
 /** Picks .fit or .zip files (one or many) and imports them. */
-export function ImportFitButton({ size = 'sm', variant = 'secondary' }: { size?: 'sm' | 'md'; variant?: 'primary' | 'secondary' }) {
+export function ImportFitButton({
+  size = 'sm',
+  variant = 'secondary',
+  fromLink = false,
+}: {
+  size?: 'sm' | 'md'
+  variant?: 'primary' | 'secondary'
+  /** `?novo=fit` (the "+" of the screen) opens the file picker. */
+  fromLink?: boolean
+}) {
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const toast = useToast()
   const navigate = useNavigate()
+  useNewFromLink(fromLink ? 'fit' : undefined, () => input.current?.click())
 
   async function onFiles(files: File[]) {
     setBusy(true)

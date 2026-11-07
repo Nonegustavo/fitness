@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Button, Card, Empty, Page, SkeletonCard, TextInput } from '../../components/ui'
+import { useNewFromLink } from '../../components/useNewFromLink'
 import type { MuscleGroup } from '../../db/types'
 import { EQUIPMENT, MUSCLES } from './catalog'
 import { ExerciseForm } from './ExerciseForm'
@@ -13,6 +14,7 @@ export default function ExercisesPage() {
   const [query, setQuery] = useState('')
   const [muscle, setMuscle] = useState<MuscleFilter>('all')
   const [creating, setCreating] = useState(false)
+  useNewFromLink('exercicio', () => setCreating(true))
   if (!exercises) {
     return (
       <Page title="Exercícios" back={{ to: '/treinos', label: 'Treinos' }}>

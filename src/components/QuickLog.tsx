@@ -16,13 +16,13 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useToday } from '../db/hooks'
 import { patch } from '../db/repo'
 import { db, SETTINGS_ID } from '../db/schema'
 import { dayKey, type DayKey } from '../lib/dates'
-import { KIND_ICONS, KIND_TONES } from '../features/calendar/components'
+import { dayTitle, KIND_ICONS, KIND_TONES, PlanModal } from '../features/calendar/components'
 import { useTodayTemplate } from '../features/calendar/plans'
 import { WalkModal } from '../features/calendar/WalkModal'
 import { mealAt } from '../features/food/nutrition'
@@ -32,12 +32,10 @@ import { useRestTimer } from '../features/training/restTimer'
 import { WaterQuickAdd } from '../features/water/WaterQuickAdd'
 import { Modal } from './Modal'
 import { missingItems, quickLogBlocks, quickLogItems, toggleQuickLog, type QuickLogId } from './quickLogItems'
+import { screenAction, type ScreenAction } from './screenActions'
 import { SortableList } from './Sortable'
 import { IconTile, toneStyle, type Tone } from './tone'
 import { Button, cx, IconButton, SkeletonLines } from './ui'
-
-/** Screens where the "+" would be in the way or repeat what's already there. */
-const HIDDEN_ON = ['/alimentacao/adicionar', '/treinos/sessao/', '/treinos/ficha/']
 
 const LOOKS: Record<QuickLogId, { label: string; detail: string; icon: LucideIcon; tone: Tone }> = {
   food: { label: 'Alimento', detail: 'Na refeição desta hora', icon: Utensils, tone: 'food' },
@@ -52,54 +50,135 @@ const LOOKS: Record<QuickLogId, { label: string; detail: string; icon: LucideIco
   water: { label: 'Água', detail: 'Os botões dos copos favoritos', icon: GlassWater, tone: 'water' },
 }
 
+/** The sheet or form the "+" has open. */
+type Opened = { kind: 'sheet' } | { kind: 'water' } | { kind: 'plan'; date: DayKey } | { kind: 'walk'; date: DayKey }
+
 /**
- * The "+" over the bottom bar: logging from any screen (food, water, weight, workout, diary…) in
- * one or two taps, with the items and their order as the user set them. On the computer it sits
- * at the top of the sidebar instead.
+ * The "+" over the bottom bar adds what the screen is about: a food on Alimentação, a weigh-in (or a
+ * measurement, a photo) on Corpo, a pain on the Diário, the workout on Treinos…; on Hoje it opens the
+ * sheet to log anything, with the items and their order as the user set them. Where there's nothing
+ * to add it shrinks away, and comes back on a screen that has. On the computer the button at the top
+ * of the sidebar is always that sheet.
  */
 export function QuickLogButton({ variant }: { variant: 'floating' | 'sidebar' }) {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
+  const navigate = useNavigate()
+  const today = useToday()
   const rest = useRestTimer()
-  const [open, setOpen] = useState(false)
-  // The day of the walk being scheduled from the "+".
-  const [walkDay, setWalkDay] = useState<DayKey>()
-  const hidden = HIDDEN_ON.some((path) => pathname.startsWith(path))
+  const [opened, setOpened] = useState<Opened>()
+  const workout = useRef<() => void>(undefined)
+  const close = () => setOpened(undefined)
+  const actionHere = () =>
+    variant === 'sidebar' ? SHEET : screenAction(pathname, search, { today, meal: mealAt(new Date()) })
+  const action = actionHere()
+
+  function press() {
+    // Read again: the meal of the hour may have changed since the screen opened.
+    const now = actionHere()
+    if (!now) return
+    if (now.kind === 'go') navigate(now.to, { replace: now.replace })
+    else if (now.kind === 'workout') workout.current?.()
+    else setOpened(now.kind === 'plan' ? { kind: 'plan', date: now.date } : { kind: now.kind })
+  }
 
   return (
     <>
       {variant === 'floating' ? (
         // The rest timer takes this spot during a workout.
-        !hidden &&
-        !rest && (
-          <button
-            type="button"
-            aria-label="Registrar"
-            onClick={() => setOpen(true)}
-            className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 inline-flex size-14 items-center justify-center rounded-full bg-accent text-white shadow-lg transition hover:brightness-110 active:scale-95 lg:hidden"
-          >
-            <Plus size={28} />
-          </button>
-        )
+        <FloatingPlus label={rest ? undefined : action?.label} onPress={press} />
       ) : (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={press}
           className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2 text-sm font-medium text-white transition hover:brightness-110"
         >
           <Plus size={18} /> Registrar
         </button>
       )}
-      {open && (
-        <QuickLogSheet
-          onClose={() => setOpen(false)}
-          onWalk={() => {
-            setOpen(false)
-            setWalkDay(dayKey())
-          }}
-        />
+      {action?.kind === 'workout' && <WorkoutRunner runner={workout} fallback="/treinos/ficha/nova" />}
+      {opened?.kind === 'sheet' && <QuickLogSheet onClose={close} onWalk={() => setOpened({ kind: 'walk', date: dayKey() })} />}
+      {opened?.kind === 'water' && (
+        <Modal open title="Água" onClose={close}>
+          <WaterQuickAdd />
+        </Modal>
       )}
-      {walkDay && <WalkModal date={walkDay} today={walkDay} onClose={() => setWalkDay(undefined)} />}
+      {opened?.kind === 'plan' && <PlanSheet date={opened.date} today={today} onClose={close} />}
+      {opened?.kind === 'walk' && <WalkModal date={opened.date} today={opened.date} onClose={close} />}
     </>
+  )
+}
+
+const SHEET: ScreenAction = { kind: 'sheet', label: 'Registrar' }
+
+/**
+ * The floating "+": `label` says what it adds here; without one (nothing to add, or the rest timer
+ * in its place) it shrinks and fades away, and grows back on a screen that has something.
+ */
+function FloatingPlus({ label, onPress }: { label: string | undefined; onPress: () => void }) {
+  const shown = label !== undefined
+  return (
+    <button
+      type="button"
+      aria-label={label ?? 'Registrar'}
+      title={label}
+      inert={!shown}
+      onClick={onPress}
+      className={cx(
+        'fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 inline-flex size-14 items-center justify-center rounded-full bg-accent text-white shadow-lg transition duration-200 ease-out hover:brightness-110 active:scale-95 lg:hidden',
+        !shown && 'pointer-events-none scale-50 opacity-0',
+      )}
+    >
+      <Plus size={28} />
+    </button>
+  )
+}
+
+/** The workout of the moment: back to the one going on, today's (or the next) template, else `fallback`. */
+function useWorkoutAction(fallback: string): { label: string; detail?: string; run: () => void } {
+  const navigate = useNavigate()
+  const sessions = useSessions()
+  const todays = useTodayTemplate(useToday())
+  const start = useStartWorkout()
+  const active = findActive(sessions ?? [])
+  const next = todays?.template
+  return {
+    label: active ? 'Voltar ao treino' : next ? `Treino ${next.name}` : 'Treino',
+    detail: active ? active.name : next ? (todays?.plan ? 'programado para hoje' : 'próxima ficha') : undefined,
+    run: () => {
+      if (active) navigate(`/treinos/sessao/${active.id}`)
+      else if (next) void start(next)
+      else navigate(fallback)
+    },
+  }
+}
+
+/** On Treinos only, where the "+" is the workout: its data loads just there. */
+function WorkoutRunner({ runner, fallback }: { runner: RefObject<(() => void) | undefined>; fallback: string }) {
+  const { run } = useWorkoutAction(fallback)
+  useLayoutEffect(() => {
+    runner.current = run
+  })
+  return null
+}
+
+/** Calendário's "Programar neste dia": a workout from a template, or a walk. */
+function PlanSheet({ date, today, onClose }: { date: DayKey; today: DayKey; onClose: () => void }) {
+  const [kind, setKind] = useState<'gym' | 'walk'>()
+  const { gym: GymIcon, walk: WalkIcon } = KIND_ICONS
+  if (kind === 'gym') return <PlanModal date={date} today={today} onClose={onClose} />
+  if (kind === 'walk') return <WalkModal date={date} today={today} onClose={onClose} />
+  return (
+    <Modal open title="Programar" onClose={onClose}>
+      <p className="mb-3 text-sm text-ink-2 first-letter:uppercase">{dayTitle(date, today)}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button onClick={() => setKind('gym')}>
+          <GymIcon size={18} /> Academia
+        </Button>
+        <Button onClick={() => setKind('walk')}>
+          <WalkIcon size={18} /> Caminhada
+        </Button>
+      </div>
+    </Modal>
   )
 }
 
@@ -107,17 +186,13 @@ function QuickLogSheet({ onClose, onWalk }: { onClose: () => void; onWalk: () =>
   const navigate = useNavigate()
   // Read here rather than with useSettings, whose stand-in while loading would flash the default items.
   const saved = useLiveQuery(async () => (await db.settings.get(SETTINGS_ID))?.quickLog ?? null)
-  const sessions = useSessions()
-  const todays = useTodayTemplate(useToday())
-  const start = useStartWorkout()
+  const workout = useWorkoutAction('/treinos')
   const [editing, setEditing] = useState(false)
   const items = saved === undefined ? undefined : quickLogItems(saved ?? undefined)
   const go = (to: string) => {
     onClose()
     navigate(to)
   }
-  const active = findActive(sessions ?? [])
-  const next = todays?.template
 
   const tile = (id: Exclude<QuickLogId, 'water'>): { label?: string; detail?: string; onClick: () => void } => {
     switch (id) {
@@ -131,13 +206,11 @@ function QuickLogSheet({ onClose, onWalk }: { onClose: () => void; onWalk: () =>
         return { onClick: () => go('/corpo?novo=medida') }
       case 'workout':
         return {
-          label: active ? 'Voltar ao treino' : next ? `Treino ${next.name}` : 'Treino',
-          detail: active ? active.name : next ? (todays?.plan ? 'programado para hoje' : 'próxima ficha') : undefined,
+          label: workout.label,
+          detail: workout.detail,
           onClick: () => {
             onClose()
-            if (active) navigate(`/treinos/sessao/${active.id}`)
-            else if (next) void start(next)
-            else navigate('/treinos')
+            workout.run()
           },
         }
       case 'walk':
