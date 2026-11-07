@@ -27,6 +27,9 @@ export default function CalendarPage() {
   const to = shiftDay(weekStart(dayKey(endOfMonth(parseDay(month)))), 6)
   const agenda = useAgenda(from, to, today)
   const days = byDay(agenda ?? [])
+  // Sunday to Saturday, a row each.
+  const dates = dayRange(from, to)
+  const weeks = Array.from({ length: Math.ceil(dates.length / 7) }, (_, i) => dates.slice(i * 7, i * 7 + 7))
 
   const select = (date: DayKey) => {
     setParams({ dia: date }, { replace: true })
@@ -54,22 +57,27 @@ export default function CalendarPage() {
             </span>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
-          {dayRange(from, to).map((date) =>
-            agenda ? (
-              <DayCell
-                key={date}
-                date={date}
-                items={days.get(date) ?? []}
-                outside={monthOf(date) !== month}
-                isToday={date === today}
-                selected={date === selected}
-                onSelect={() => select(date)}
-              />
-            ) : (
-              <Skeleton key={date} className="h-16 rounded-xl" />
-            ),
-          )}
+        {/* A thin line between the weeks, so a row reads as one week. */}
+        <div className="divide-y divide-line">
+          {weeks.map((week) => (
+            <div key={week[0]} className="grid grid-cols-7 gap-0.5 py-1 sm:gap-1">
+              {week.map((date) =>
+                agenda ? (
+                  <DayCell
+                    key={date}
+                    date={date}
+                    items={days.get(date) ?? []}
+                    outside={monthOf(date) !== month}
+                    isToday={date === today}
+                    selected={date === selected}
+                    onSelect={() => select(date)}
+                  />
+                ) : (
+                  <Skeleton key={date} className="h-16 rounded-xl" />
+                ),
+              )}
+            </div>
+          ))}
         </div>
         <div className="mt-3 flex items-center justify-between gap-2">
           <AgendaLegend />
