@@ -18,12 +18,15 @@ import { Card, cx, Empty, Page, SkeletonCard, SkeletonLines, Stat } from '../../
 import { useToday } from '../../db/hooks'
 import { db } from '../../db/schema'
 import type { DailyHealth, FoodLog } from '../../db/types'
-import { dayRange, formatDay, shiftDay, type DayKey } from '../../lib/dates'
+import { dayKey, dayRange, formatDay, formatTime, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import { aggregate, axisLabel, chartLabel, countLabel, periodTitle, type Bucket, type PeriodWindow } from '../../lib/periods'
 import type { DayValue } from '../../lib/stats'
+import { useWeights } from '../body/body'
 import { useFoodLogs } from '../food/nutrition'
+import { forecastDay, restingEstimate, type Forecast, type RestingSource } from './forecast'
 import { useDailyHealth } from './recovery'
+import { useGarminState } from './sync'
 
 const DAYS = 30
 
@@ -182,12 +185,82 @@ function EnergyHistory({ today }: { today: DayKey }) {
   )
 }
 
+function sourceNote(source: RestingSource, today: DayKey): string {
+  switch (source.kind) {
+    case 'watch':
+      return `repouso pela mediana de ${source.days} ${source.days === 1 ? 'dia' : 'dias'} do relógio`
+    case 'scale':
+      return `repouso pelo metabolismo basal da balança (${relativeDay(source.date, today)})`
+    case 'formula':
+      return 'repouso pela fórmula de Mifflin-St Jeor'
+  }
+}
+
+/**
+ * Today's calories by the end of the day: the active ones Garmin counted so far and the whole day's
+ * resting ones, of which it only has the hours up to its last sync.
+ */
+function ForecastCard({ forecast, updatedAt, today }: { forecast: Forecast; updatedAt?: number; today: DayKey }) {
+  const garmin = useGarminState()
+  const { kcal, active, restingSoFar, restingLeft, resting } = forecast
+  const share = (value: number) => `${(value / kcal) * 100}%`
+  // A forecast, not a count: to the nearest ten.
+  const rounded = Math.round(kcal / 10) * 10
+  const fresh =
+    garmin.phase === 'syncing'
+      ? 'Atualizando com o Garmin…'
+      : updatedAt === undefined
+        ? 'As ativas de hoje ainda não chegaram do Garmin'
+        : `Garmin atualizado ${dayKey(updatedAt) === today ? '' : `${relativeDay(dayKey(updatedAt), today)}, `}às ${formatTime(updatedAt)}`
+  return (
+    <Card title="Previsão para hoje">
+      <p className="text-4xl leading-none font-semibold tabular-nums">
+        ~{formatNumber(rounded, 0)}
+        <span className="ml-1.5 text-base font-normal text-ink-2">kcal</span>
+      </p>
+      <p className="mt-1 text-sm text-ink-2">Sem contar a atividade do resto do dia</p>
+      <div
+        role="img"
+        aria-label={`Previsão de ${formatNumber(rounded, 0)} kcal: ${formatNumber(active, 0)} ativas até agora e ${formatNumber(restingSoFar + restingLeft, 0)} em repouso no dia, ${formatNumber(restingLeft, 0)} delas ainda por vir`}
+        className="mt-3 flex h-3 overflow-hidden rounded-full bg-surface-2"
+      >
+        <span className="h-full bg-(--tone-recovery)" style={{ width: share(active) }} />
+        <span className="h-full bg-series-1" style={{ width: share(restingSoFar) }} />
+        <span className="h-full bg-series-1/30" style={{ width: share(restingLeft) }} />
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-3">
+        <div>
+          <dt className="flex items-center gap-1.5 text-xs text-ink-2">
+            <span aria-hidden className="size-2 rounded-full bg-(--tone-recovery)" /> Ativas até agora
+          </dt>
+          <dd className="text-xl font-semibold tabular-nums">{formatNumber(active, 0)}</dd>
+        </div>
+        <div>
+          <dt className="flex items-center gap-1.5 text-xs text-ink-2">
+            <span aria-hidden className="size-2 rounded-full bg-series-1" /> Repouso do dia
+          </dt>
+          <dd className="text-xl font-semibold tabular-nums">{formatNumber(restingSoFar + restingLeft, 0)}</dd>
+          {restingLeft > 0 && (
+            <dd className="flex items-center gap-1.5 text-xs text-muted">
+              <span aria-hidden className="size-2 rounded-full bg-series-1/30" /> {formatNumber(restingLeft, 0)} ainda por vir
+            </dd>
+          )}
+        </div>
+      </dl>
+      <p className="mt-3 text-xs text-muted">
+        {fresh} · {sourceNote(resting.source, today)}.
+      </p>
+    </Card>
+  )
+}
+
 /** The energy the watch counts each day, active and at rest, next to what the food log says was eaten. */
 export default function CaloriesPage() {
   const today = useToday()
   const from = shiftDay(today, -(DAYS - 1))
   const rows = useDailyHealth(from, today)
   const logs = useFoodLogs(from, today)
+  const weights = useWeights()
 
   const days = useMemo<DayEnergy[] | undefined>(() => {
     if (!rows || !logs) return undefined
@@ -201,6 +274,17 @@ export default function CaloriesPage() {
       eaten: eaten.get(day),
     }))
   }, [rows, logs, from, today])
+
+  const forecast = useMemo(() => {
+    if (!days) return undefined
+    const scale = weights && [...weights].reverse().find((entry) => entry.bmrKcal)
+    // Mifflin–St Jeor (`formulaBmr`) would come next, but it needs the age, which the app doesn't ask.
+    const resting = restingEstimate({ days, today, scaleBmr: scale ? { kcal: scale.bmrKcal!, date: scale.date } : undefined })
+    return resting && forecastDay(days.at(-1), resting)
+  }, [days, weights, today])
+  // When today's numbers last changed, on whichever device fetched them.
+  const todayRow = rows?.find((row) => row.id === today)
+  const updatedAt = todayRow?.calories ? todayRow.updatedAt : undefined
 
   if (!days) {
     return (
@@ -227,10 +311,12 @@ export default function CaloriesPage() {
         </Card>
       ) : (
         <>
+          {forecast && <ForecastCard forecast={forecast} updatedAt={updatedAt} today={today} />}
+
           <Card>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Stat
-                label="Hoje"
+                label="Hoje até agora"
                 value={todays.total !== undefined ? formatNumber(todays.total, 0) : '—'}
                 note={todays.active !== undefined ? `${formatNumber(todays.active, 0)} ativas` : 'até a sincronização'}
               />
