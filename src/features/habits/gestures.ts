@@ -102,11 +102,12 @@ export function useLongPress(onLongPress: () => void): ReturnType<typeof longPre
 const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
- * Slides the items of a list from where they were to their new places when `order` changes (FLIP).
- * Put `itemRef(id)` on each item, inside a positioned container: places are read relative to it,
- * so scrolling in between doesn't count as moving.
+ * Slides the items of a list from where they were to their new places when `order` changes (FLIP),
+ * if `animate`: for a change the user made in the list. A new day, or data arriving, puts them in
+ * place at once. Put `itemRef(id)` on each item, inside a positioned container: places are read
+ * relative to it, so scrolling in between doesn't count as moving.
  */
-export function useReorderMotion(order: string[]): (id: string) => (node: HTMLElement | null) => void {
+export function useReorderMotion(order: string[], animate: boolean): (id: string) => (node: HTMLElement | null) => void {
   const nodes = useRef(new Map<string, HTMLElement>())
   const places = useRef(new Map<string, { x: number; y: number }>())
   const refs = useRef(new Map<string, (node: HTMLElement | null) => void>())
@@ -115,7 +116,7 @@ export function useReorderMotion(order: string[]): (id: string) => (node: HTMLEl
 
   // Every render takes note of the places; only a new order animates.
   useLayoutEffect(() => {
-    const moved = lastKey.current !== key && !reducedMotion()
+    const moved = lastKey.current !== key && animate && !reducedMotion()
     lastKey.current = key
     const next = new Map<string, { x: number; y: number }>()
     for (const [id, node] of nodes.current) {

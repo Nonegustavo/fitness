@@ -1,3 +1,4 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { Minus, Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
@@ -5,8 +6,10 @@ import { celebrate } from '../../components/celebrate'
 import { useToast } from '../../components/Toast'
 import { cx, Empty, IconButton, SkeletonLines } from '../../components/ui'
 import { useToday } from '../../db/hooks'
+import { alive } from '../../db/repo'
+import { db } from '../../db/schema'
 import type { Habit, HabitLog } from '../../db/types'
-import type { DayKey } from '../../lib/dates'
+import { shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { tapFeedback } from '../../lib/haptics'
 import { dayGoals, dayState, keepOrder, orderForDay, type DayState } from './day'
 import { useLongPress, useReorderMotion } from './gestures'
@@ -15,17 +18,18 @@ import {
   habitTime,
   setHabitValue,
   useHabits,
-  useWeekLogs,
   weekProgressText,
   weekResults,
   weeklyTimes,
   type WeekResult,
 } from './habits'
-import { HabitBadge, habitColor, habitIcon, HabitMark, showsBadges } from './look'
+import { HabitBadge, habitColor, habitIcon, HabitMark, showsBadges, useTapPop } from './look'
 import { SkipSheet } from './SkipSheet'
 
 /** How long the list stays as it is after a tap before habits move to their places, so the check is seen. */
 const HOLD_MS = 700
+/** A little longer than the slide to their places (useReorderMotion). */
+const SETTLE_MS = 400
 
 /** Long presses (and right clicks) mustn't select the text or open the phone's menu. */
 const NO_SELECT = 'select-none [-webkit-touch-callout:none]'
@@ -41,27 +45,51 @@ interface ItemProps {
 }
 
 /**
+ * The logs of the week (Sunday to Saturday) a day is in, with the day they're for. Moving to another
+ * week, the old week's logs stay until the new ones come: the list keeps showing the day it has
+ * data for, instead of a moment of the new day with nothing checked.
+ */
+function useDayLogs(date: DayKey): { date: DayKey; logs: HabitLog[] } | undefined {
+  const sunday = weekStart(date)
+  const week = useLiveQuery(
+    async () => ({ sunday, logs: alive(await db.habitLogs.where('date').between(sunday, shiftDay(sunday, 6), true, true).toArray()) }),
+    [sunday],
+  )
+  const current = week?.sunday === sunday ? { date, logs: week.logs } : undefined
+  const last = useRef(current)
+  useEffect(() => {
+    if (current) last.current = current
+  })
+  return current ?? (week ? last.current : undefined)
+}
+
+/**
  * The day's check-in: a toggle for yes/no habits, a stepper for counted ones, in the order of the
  * day (what's left to do first, by time). A long press says "hoje não vou fazer". `compact` lays
  * them out as buttons two per row, without the description (the Hoje card). Weekly habits show
- * how their week goes ("2/3 na semana").
+ * how their week goes ("2/3 na semana"). It shows up in its order, with what's checked already
+ * checked: only the user's own taps animate.
  */
 export function HabitCheckList({ date, compact = false }: { date: DayKey; compact?: boolean }) {
   const today = useToday()
   const habits = useHabits()
   // The whole week of the day, for the weekly habits.
-  const logs = useWeekLogs(date)
+  const day = useDayLogs(date)
   const toast = useToast()
   const [menu, setMenu] = useState<Habit>()
   const [held, setHeld] = useState<{ date: DayKey; ids: string[] }>()
+  const [settling, setSettling] = useState(false)
   const release = useRef<ReturnType<typeof setTimeout>>(undefined)
 
+  const shownDate = day?.date ?? date
+  const logs = day?.logs
   const active = (habits ?? []).filter((habit) => habit.archived === 0)
-  const byHabit = new Map((logs ?? []).filter((log) => log.date === date).map((log) => [log.habitId, log]))
-  const weeks = weekResults(active, logs ?? [], date, today)
+  const byHabit = new Map((logs ?? []).filter((log) => log.date === shownDate).map((log) => [log.habitId, log]))
+  const weeks = weekResults(active, logs ?? [], shownDate, today)
   const target = orderForDay(active, byHabit, weeks).map((habit) => habit.id)
-  const ids = held?.date === date ? keepOrder(held.ids, target) : target
-  const itemRef = useReorderMotion(ids)
+  const ids = held?.date === shownDate ? keepOrder(held.ids, target) : target
+  // Habits slide to their new places only after the user's own tap; anything else puts them there.
+  const itemRef = useReorderMotion(ids, settling)
 
   // Completing the last habit to do of the day (not opening a day already complete, nor skipping
   // the last one left) is worth a party.
@@ -73,23 +101,33 @@ export function HabitCheckList({ date, compact = false }: { date: DayKey; compac
   useEffect(() => {
     if (!habits || !logs) return
     const before = seen.current
-    if (before?.date === date && !before.allDone && allDone && doneCount > before.done) {
+    if (before?.date === shownDate && !before.allDone && allDone && doneCount > before.done) {
       celebrate()
       toast({ message: 'Tudo feito hoje! ✨' })
     }
-    seen.current = { date, allDone, done: doneCount }
-  }, [habits, logs, date, allDone, doneCount, toast])
+    seen.current = { date: shownDate, allDone, done: doneCount }
+  }, [habits, logs, shownDate, allDone, doneCount, toast])
 
   useEffect(() => () => clearTimeout(release.current), [])
+  useEffect(() => {
+    if (!settling) return
+    const timer = setTimeout(() => setSettling(false), SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [settling])
 
-  /** Keeps the list as it is on screen for a moment, then lets it settle. */
+  /** Keeps the list as it is on screen for a moment, then lets it settle, sliding to the new order. */
   function hold() {
-    setHeld((current) => (current?.date === date ? current : { date, ids }))
+    setHeld((current) => (current?.date === shownDate ? current : { date: shownDate, ids }))
     clearTimeout(release.current)
-    release.current = setTimeout(() => setHeld(undefined), HOLD_MS)
+    release.current = setTimeout(() => {
+      setHeld(undefined)
+      setSettling(true)
+    }, HOLD_MS)
   }
 
-  if (!habits) return <SkeletonLines lines={3} />
+  // The habits and the day's logs both: with the habits alone, the list would come in unchecked and
+  // in the wrong order, then jump.
+  if (!habits || !logs) return <SkeletonLines lines={3} />
   if (active.length === 0) {
     return (
       <Empty>
@@ -112,7 +150,7 @@ export function HabitCheckList({ date, compact = false }: { date: DayKey; compac
     onSet: (value) => {
       hold()
       tapFeedback()
-      void setHabitValue(habit, date, value)
+      void setHabitValue(habit, shownDate, value)
     },
     // Only a habit to do can be skipped: one to avoid either happened or not, and setting the day
     // aside would hide it from the correlations.
@@ -143,7 +181,7 @@ export function HabitCheckList({ date, compact = false }: { date: DayKey; compac
       {menu && (
         <SkipSheet
           habit={menu}
-          date={date}
+          date={shownDate}
           today={today}
           log={byHabit.get(menu.id)}
           onChange={hold}
@@ -172,6 +210,8 @@ function HabitChip({ habit, log, week, onSet, onMenu, ref }: ItemProps) {
   const value = log?.value ?? 0
   const color = habitColor(habit)
   const skipped = state === 'skipped'
+  const marked = state === 'done' || state === 'happened'
+  const { pop, tap } = useTapPop(marked)
   const name = (
     <span className="min-w-0 flex-1">
       <span className={cx('line-clamp-2 leading-tight', skipped && 'text-muted')}>{habit.name}</span>
@@ -183,7 +223,6 @@ function HabitChip({ habit, log, week, onSet, onMenu, ref }: ItemProps) {
     </span>
   )
   if (habit.kind === 'check') {
-    const marked = state === 'done' || state === 'happened'
     return (
       <button
         ref={ref}
@@ -192,11 +231,14 @@ function HabitChip({ habit, log, week, onSet, onMenu, ref }: ItemProps) {
         aria-checked={marked}
         aria-label={label(habit, state, log, week)}
         {...press}
-        onClick={() => onSet(marked ? 0 : 1)}
+        onClick={() => {
+          tap()
+          onSet(marked ? 0 : 1)
+        }}
         className={cx('flex min-h-11 items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition active:scale-[0.97]', NO_SELECT)}
         style={{ background: marked ? `color-mix(in oklab, ${color} 16%, var(--surface-2))` : 'var(--surface-2)' }}
       >
-        <HabitMark habit={habit} state={state} />
+        <HabitMark habit={habit} state={state} pop={pop} />
         {name}
       </button>
     )
@@ -227,6 +269,7 @@ function HabitRow({ habit, log, week, onSet, onMenu, ref, badge }: ItemProps & {
   const value = log?.value ?? 0
   const skipped = state === 'skipped'
   const marked = state === 'done' || state === 'happened'
+  const { pop, tap } = useTapPop(marked)
   // A weekly habit says how its week goes instead of how often it's done.
   const detail = skipped
     ? `Pulado${log?.note ? ` · ${log.note}` : ''}`
@@ -253,10 +296,13 @@ function HabitRow({ habit, log, week, onSet, onMenu, ref, badge }: ItemProps & {
           role="checkbox"
           aria-checked={marked}
           aria-label={label(habit, state, log, week)}
-          onClick={() => onSet(marked ? 0 : 1)}
+          onClick={() => {
+            tap()
+            onSet(marked ? 0 : 1)
+          }}
           className="inline-flex size-11 items-center justify-center rounded-full transition active:scale-90"
         >
-          <HabitMark habit={habit} state={state} size={28} icon={false} />
+          <HabitMark habit={habit} state={state} size={28} icon={false} pop={pop} />
         </button>
       ) : (
         <div className="flex items-center">

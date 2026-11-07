@@ -4,7 +4,7 @@ import { DayNav, DayPager } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
 import { useNewFromLink } from '../../components/useNewFromLink'
-import { Button, Card, cx, DecimalInput, Field, IconButton, Page, Segmented, Switch, TextInput } from '../../components/ui'
+import { Button, Card, cx, DecimalInput, Field, IconButton, Page, Segmented, SkeletonLines, Switch, TextInput } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { patch, remove, save, saveOrder } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -208,6 +208,8 @@ function HabitHistory({ habits, today, badges }: { habits: Habit[]; today: DayKe
       }),
     )
   }, [habits, byHabit, today])
+  // Until the logs come, a placeholder: drawn without them, every ring and week would fill in after.
+  if (!logs) return <SkeletonLines lines={6} />
   // With colors of their own, the cells no longer say which kind of habit it is.
   const legend: { label: string; swatch: ReactNode }[] = [
     ...(badges

@@ -35,7 +35,7 @@ import {
   Wine,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cx } from '../../components/ui'
 import type { Habit } from '../../db/types'
 import type { DayState } from './day'
@@ -133,42 +133,60 @@ export function HabitBadge({
 
 /** A little longer than the pop itself (animate-pop in index.css). */
 const POP_MS = 400
+/** How long after a tap its write may take to land and still pop. */
+const TAP_MS = 2000
 
 /**
- * Whether a check just turned on (or showed up on): the pop plays only then. A class left on would
- * play again whenever the list reorders, as moving an element restarts its animations.
+ * The pop of a check the user turns on: `tap()` on the press, and it plays when the mark turns on (the
+ * write lands a moment later). Never when a list shows up, data comes from elsewhere or the day
+ * changes. The class comes off after the pop: left on, it would play again whenever the list
+ * reorders, as moving an element restarts its animations.
  */
-function usePop(on: boolean): boolean {
-  const [popping, setPopping] = useState(on)
+export function useTapPop(marked: boolean): { pop: boolean; tap: () => void } {
+  const tapped = useRef(0)
+  const was = useRef(marked)
+  const [pop, setPop] = useState(false)
   useEffect(() => {
-    if (!on) return
-    setPopping(true)
-    const timer = setTimeout(() => setPopping(false), POP_MS)
+    if (was.current === marked) return
+    was.current = marked
+    const mine = Date.now() - tapped.current < TAP_MS
+    tapped.current = 0
+    setPop(marked && mine)
+  }, [marked])
+  useEffect(() => {
+    if (!pop) return
+    const timer = setTimeout(() => setPop(false), POP_MS)
     return () => clearTimeout(timer)
-  }, [on])
-  return on && popping
+  }, [pop])
+  return {
+    pop: marked && pop,
+    tap: () => {
+      tapped.current = Date.now()
+    },
+  }
 }
 
 /**
  * How a habit stands on the day, as the mark of a check: an empty circle, a check in its color, or a
  * dash when skipped. With `icon`, a habit that has one shows it instead, filled with its color once
- * marked.
+ * marked. `pop` plays the check's little bounce (useTapPop).
  */
 export function HabitMark({
   habit,
   state,
   size = 18,
   icon = true,
+  pop = false,
 }: {
   habit: Pick<Habit, 'color' | 'polarity' | 'icon'>
   state: DayState
   size?: number
   icon?: boolean
+  pop?: boolean
 }) {
   const Icon = icon ? habitIcon(habit) : undefined
   const color = habitColor(habit)
   const marked = state === 'done' || state === 'happened'
-  const pop = usePop(marked)
   if (!Icon) {
     if (state === 'skipped') return <CircleMinus aria-hidden size={size} className="shrink-0 text-muted" />
     return marked ? (
