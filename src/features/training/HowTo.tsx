@@ -218,7 +218,7 @@ export function MediaPicker({
         </p>
       )}
       {index.status === 'done' && (
-        <ul className="mt-2 max-h-[50dvh] divide-y divide-line overflow-y-auto">
+        <ul className="scroll-fade-y mt-2 max-h-[50dvh] divide-y divide-line overflow-y-auto">
           {results.map((entry) => (
             <li key={entry.id}>
               <button

@@ -52,7 +52,7 @@ export function MuscleChips({
     </button>
   )
   return (
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+    <div className="scroll-fade-x -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
       {chip('all', 'Todos')}
       {present.map((muscle) => chip(muscle, MUSCLES[muscle]))}
     </div>
@@ -82,7 +82,7 @@ export function ExercisePicker({ onClose, onPick }: { onClose: () => void; onPic
         />
         <MuscleChips exercises={exercises} value={muscle} onChange={setMuscle} />
       </div>
-      <ul className="mt-2 max-h-[45dvh] divide-y divide-line overflow-y-auto">
+      <ul className="scroll-fade-y mt-2 max-h-[45dvh] divide-y divide-line overflow-y-auto">
         {filtered.map((exercise) => {
           const checked = selected.includes(exercise.id)
           return (

@@ -247,6 +247,68 @@
   }
 }
 
+/* No scrollbars anywhere, the page's own included: everything still scrolls, and an inner area's
+   edges fade where there's more to see (scroll-fade-x and scroll-fade-y below). */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* The edges of a scroll area fade while there's more past them; the fade shrinks to nothing as the
+   end comes, following the scroll (scroll-driven, no script). An area with nothing to scroll has no
+   timeline, so no fade; a clipped one (overflow hidden, as the Em foco cards) fades at the bottom when
+   what's in it is cut. The mask goes on an element without a background of its own. */
+@property --scroll-fade-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes scroll-fade-start {
+  to {
+    --scroll-fade-start: var(--scroll-fade-size);
+  }
+}
+@keyframes scroll-fade-end {
+  from {
+    --scroll-fade-end: var(--scroll-fade-size);
+  }
+}
+/* In the components layer, so a utility can still change it (the size: [--scroll-fade-size:2rem]). */
+@layer components {
+  @supports (animation-timeline: scroll()) {
+    .scroll-fade-x,
+    .scroll-fade-y {
+      --scroll-fade-size: 1.5rem;
+      --scroll-fade-mask: linear-gradient(
+        var(--scroll-fade-to),
+        transparent,
+        #000 var(--scroll-fade-start),
+        #000 calc(100% - var(--scroll-fade-end)),
+        transparent
+      );
+      -webkit-mask-image: var(--scroll-fade-mask);
+      mask-image: var(--scroll-fade-mask);
+      animation: scroll-fade-start linear both, scroll-fade-end linear both;
+      animation-range: 0 var(--scroll-fade-size), calc(100% - var(--scroll-fade-size)) 100%;
+    }
+    .scroll-fade-x {
+      --scroll-fade-to: to right;
+      animation-timeline: scroll(self inline);
+    }
+    .scroll-fade-y {
+      --scroll-fade-to: to bottom;
+      animation-timeline: scroll(self block);
+    }
+  }
+}
+
 html,
 body {
   background: var(--plane);

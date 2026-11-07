@@ -155,7 +155,7 @@ export function RecipeForm({
             onChange={(e) => setQuery(e.target.value)}
           />
           {results.length > 0 && (
-            <ul className="mt-1 max-h-48 divide-y divide-line overflow-y-auto rounded-xl border border-line">
+            <ul className="scroll-fade-y mt-1 max-h-48 divide-y divide-line overflow-y-auto rounded-xl border border-line">
               {results.map((item) => (
                 <li key={item.id}>
                   <button

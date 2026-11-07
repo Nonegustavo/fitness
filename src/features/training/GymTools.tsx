@@ -160,7 +160,7 @@ export function SwapModal({
         onChange={(e) => setQuery(e.target.value)}
       />
       <p className="mt-2 text-xs text-muted">As séries que faltam passam para o novo exercício; as já feitas ficam com este.</p>
-      <ul className="mt-2 max-h-[50dvh] divide-y divide-line overflow-y-auto">
+      <ul className="scroll-fade-y mt-2 max-h-[50dvh] divide-y divide-line overflow-y-auto">
         {options.map((exercise) => (
           <li key={exercise.id}>
             <button

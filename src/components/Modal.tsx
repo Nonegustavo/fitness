@@ -63,7 +63,7 @@ export function Modal({
             <X size={20} />
           </IconButton>
         </header>
-        <div className="overflow-y-auto px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)]">{children}</div>
+        <div className="scroll-fade-y overflow-y-auto px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)]">{children}</div>
       </div>
     </div>,
     document.body,

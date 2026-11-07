@@ -296,7 +296,7 @@ function MealCard({
           <SplitBar nutrients={total} />
         </button>
         {photoIds.length > 0 && (
-          <div className="mb-2 flex gap-2 overflow-x-auto">
+          <div className="scroll-fade-x mb-2 flex gap-2 overflow-x-auto">
             {photoIds.map((id) => (
               <PhotoThumb key={id} id={id} />
             ))}
