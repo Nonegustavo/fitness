@@ -2,10 +2,8 @@ import { ChevronRight, Plus, Scale } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { PageTabs } from '../../components/PageTabs'
-import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { Button, Card, Empty, Page, Select, SkeletonCard, Stat } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
-import { db } from '../../db/schema'
 import type { MeasurementEntry, WeightEntry } from '../../db/types'
 import { formatDay, formatTime, relativeDay } from '../../lib/dates'
 import { formatFixed, formatNumber, formatSigned } from '../../lib/format'
@@ -127,7 +125,6 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
   const today = useToday()
   const settings = useSettings()
   const weights = useWeights()
-  const removeWithUndo = useRemoveWithUndo()
   const [showAll, setShowAll] = useState(false)
   const period = usePeriod('corpo', { earliest: weights?.[0]?.date })
 
@@ -215,14 +212,12 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
       )}
 
       <Card title="Pesagens">
+        {/* No swipe to delete here: a sideways drag changes the tab. "Excluir" is in the weigh-in's sheet. */}
         <ul className="divide-y divide-line">
           {listed.map((entry) => {
             const extras = describeExtras(entry)
             return (
-              <SwipeToDelete
-                key={entry.id}
-                onDelete={() => removeWithUndo(db.weights, entry.id, `Pesagem de ${formatFixed(entry.weightKg)} kg apagada`)}
-              >
+              <li key={entry.id}>
                 <button
                   type="button"
                   onClick={() => onEdit(entry)}
@@ -242,7 +237,7 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
                   </span>
                   <ChevronRight size={16} className="shrink-0 text-muted" />
                 </button>
-              </SwipeToDelete>
+              </li>
             )
           })}
         </ul>
@@ -259,7 +254,6 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
 function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'new') => void }) {
   const { measurementSites: sites } = useSettings()
   const measurements = useMeasurements()
-  const removeWithUndo = useRemoveWithUndo()
   const [siteKey, setSiteKey] = useState<string>()
   // Measurements come weeks apart: month by month shows them best at first.
   const period = usePeriod('medidas', { grain: 'month', earliest: measurements?.[0]?.date })
@@ -352,14 +346,10 @@ function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'n
       )}
 
       <Card title="Histórico">
+        {/* No swipe to delete here either: "Excluir" is in the measurement's sheet. */}
         <ul className="divide-y divide-line">
           {[...measurements].reverse().map((entry) => (
-            <SwipeToDelete
-              key={entry.id}
-              onDelete={() =>
-                removeWithUndo(db.measurements, entry.id, `Medição de ${formatDay(entry.date, "d 'de' MMM")} apagada`)
-              }
-            >
+            <li key={entry.id}>
               <button
                 type="button"
                 onClick={() => onEdit(entry)}
@@ -376,7 +366,7 @@ function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'n
                 </span>
                 <ChevronRight size={16} className="shrink-0 text-muted" />
               </button>
-            </SwipeToDelete>
+            </li>
           ))}
         </ul>
       </Card>
