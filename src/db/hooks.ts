@@ -10,6 +10,28 @@ export function useSettings(): Settings {
   return useLiveQuery(() => db.settings.get(SETTINGS_ID)) ?? fallbackSettings
 }
 
+/** A query's answer, tagged with the key it was asked for. */
+export interface KeyedAnswer<T> {
+  key: string
+  value: T
+}
+
+/** The answer if it is the key's, else undefined: the key's own answer is still on its way. */
+export const answerFor = <T>(answer: KeyedAnswer<T> | undefined, key: string): T | undefined =>
+  answer?.key === key ? answer.value : undefined
+
+/**
+ * useLiveQuery for one key (a day): undefined until the answer for *that* key arrives. Plain
+ * useLiveQuery hands back the previous key's answer for a moment after the key changes, and a form
+ * started from it took the other day's text as this one's.
+ */
+export function useKeyedLiveQuery<T>(key: string, query: () => Promise<T>): T | undefined {
+  return answerFor(
+    useLiveQuery(async (): Promise<KeyedAnswer<T>> => ({ key, value: await query() }), [key]),
+    key,
+  )
+}
+
 /** The time now, moved forward every `everyMs` and when the app comes back to the foreground. */
 export function useNow(everyMs = 60_000): Date {
   const [now, setNow] = useState(() => new Date())

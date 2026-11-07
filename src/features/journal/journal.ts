@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { notifyLocalChange } from '../../db/events'
+import { useKeyedLiveQuery } from '../../db/hooks'
 import { alive } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { JournalEntry } from '../../db/types'
@@ -29,12 +30,17 @@ export const ENERGY: Level[] = [
 
 export const levelOf = (levels: Level[], value?: number) => levels.find((level) => level.value === value)
 
-/** The day's entry: undefined while loading, null when there is none. */
-export const useJournalEntry = (date: DayKey) =>
-  useLiveQuery(async () => {
-    const entry = await db.journal.get(date)
-    return entry && !entry.deleted ? entry : null
-  }, [date])
+/** The day's entry, or null when there is none. */
+export async function journalEntry(date: DayKey): Promise<JournalEntry | null> {
+  const entry = await db.journal.get(date)
+  return entry && !entry.deleted ? entry : null
+}
+
+/**
+ * The day's entry: undefined while loading (also right after the day changes, never the previous
+ * day's entry), null when there is none.
+ */
+export const useJournalEntry = (date: DayKey) => useKeyedLiveQuery(date, () => journalEntry(date))
 
 /** Every entry, newest first. */
 export const useJournal = () =>
