@@ -90,8 +90,9 @@ export function welch(a: number[], b: number[]): GroupComparison {
   const vb = variance(b)
   const se2 = va / a.length + vb / b.length
   const pooled = Math.sqrt(((a.length - 1) * va + (b.length - 1) * vb) / (a.length + b.length - 2))
-  // Both groups constant: nothing to tell chance apart from a real difference.
-  if (se2 === 0) return { diff: ma - mb, p: 1, d: 0 }
+  // Both groups constant: nothing to tell chance apart from a real difference. "Constant" up to the
+  // rounding of the means (70 times 1,6 averages to a hair off 1,6), which would otherwise read as huge.
+  if (se2 <= 1e-12 * Math.max(1, ma * ma, mb * mb)) return { diff: ma - mb, p: 1, d: 0 }
   const t = (ma - mb) / Math.sqrt(se2)
   const df = se2 ** 2 / ((va / a.length) ** 2 / (a.length - 1) + (vb / b.length) ** 2 / (b.length - 1))
   return { diff: ma - mb, p: tTestP(t, df), d: pooled > 0 ? (ma - mb) / pooled : 0 }

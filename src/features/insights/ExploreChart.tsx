@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { axisStyle, baseOption, Chart, escapeHtml, useChartTokens, type ChartOption } from '../../components/Chart'
 import { formatDay } from '../../lib/dates'
 import type { Point } from './analysis'
-import { formatMetric, hourAxis, type Metric } from './metrics'
+import { formatMetric, metricAxis, type Metric } from './metrics'
 import { linearFit, mean } from './stats'
 
 /** A fixed sideways offset per day, so the dots of a group spread out and stay put between renders. */
@@ -71,7 +71,7 @@ export function GroupsChart({ x, y, points }: { x: Metric; y: Metric; points: Po
       yAxis: {
         type: 'value',
         scale: true,
-        ...hourAxis(y, points.map((point) => point.y)),
+        ...metricAxis(y, points.map((point) => point.y)),
         ...axisStyle(t),
         axisLabel: { color: t.muted, fontSize: 11, formatter: (value: number) => formatMetric(y, value) },
       },
@@ -111,7 +111,7 @@ export function TrendChart({ x, y, points }: { x: Metric; y: Metric; points: Poi
       xAxis: {
         type: 'value',
         scale: true,
-        ...hourAxis(x, xs),
+        ...metricAxis(x, xs),
         ...axisStyle(t),
         splitLine: { show: false },
         axisLine: { show: true, lineStyle: { color: t.baseline } },
@@ -120,7 +120,7 @@ export function TrendChart({ x, y, points }: { x: Metric; y: Metric; points: Poi
       yAxis: {
         type: 'value',
         scale: true,
-        ...hourAxis(y, ys),
+        ...metricAxis(y, ys),
         ...axisStyle(t),
         axisLabel: { color: t.muted, fontSize: 11, formatter: (value: number) => formatMetric(y, value) },
       },

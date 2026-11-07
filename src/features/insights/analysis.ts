@@ -1,5 +1,5 @@
 import { shiftDay, type DayKey } from '../../lib/dates'
-import { availableMetrics, formatMetric, type DailyData, type Metric } from './metrics'
+import { availableMetrics, formatMetric, type DailyData, type Metric, type MetricGroup } from './metrics'
 import { benjaminiHochberg, mean, median, spearman, welch } from './stats'
 
 export interface Point {
@@ -11,6 +11,23 @@ export interface Point {
 /** What happens during a day meets the night that follows it, dated the next day. */
 export const lagFor = (x: Metric, y: Metric): 0 | 1 => (x.timing === 'day' && y.timing === 'night' ? 1 : 0)
 
+/** Each row's next day, worked out once per data: the highlights pair hundreds of measures over the same days. */
+const nextDays = new WeakMap<DailyData, Map<DayKey, DayKey>>()
+
+function nextDay(data: DailyData, day: DayKey): DayKey {
+  let days = nextDays.get(data)
+  if (!days) {
+    days = new Map()
+    nextDays.set(data, days)
+  }
+  let next = days.get(day)
+  if (next === undefined) {
+    next = shiftDay(day, 1)
+    days.set(day, next)
+  }
+  return next
+}
+
 /** Days with both values: x on its day, y on the same day or the next night. */
 export function pairPoints(data: DailyData, x: Metric, y: Metric): Point[] {
   const lag = lagFor(x, y)
@@ -18,7 +35,7 @@ export function pairPoints(data: DailyData, x: Metric, y: Metric): Point[] {
   for (const [day, row] of data.rows) {
     const xValue = row[x.key]
     if (xValue === undefined) continue
-    const yValue = data.rows.get(lag ? shiftDay(day, lag) : day)?.[y.key]
+    const yValue = (lag ? data.rows.get(nextDay(data, day)) : row)?.[y.key]
     if (yValue !== undefined) points.push({ day, x: xValue, y: yValue })
   }
   return points.sort((a, b) => a.day.localeCompare(b.day))
@@ -27,6 +44,8 @@ export function pairPoints(data: DailyData, x: Metric, y: Metric): Point[] {
 /** Fewer days than this in either group, and any difference is mostly luck. */
 export const MIN_GROUP = 5
 export const MIN_POINTS = 12
+/** Under this many days a relation found can still change a lot with more data. */
+export const FEW_DAYS = 30
 
 interface FindingBase {
   x: Metric
@@ -95,21 +114,27 @@ export function analyze(data: DailyData, x: Metric, y: Metric): Finding | undefi
   return { kind: 'trend', x, y, lag, n: points.length, p, strength: Math.abs(rho), rho, split, highMean: mean(high), lowMean: mean(low) }
 }
 
-/** A median as a number that reads well: whole quarter hours, 5 minutes, two significant digits. */
+/** A median as a number that reads well: whole quarter hours, 5 minutes or seconds, two significant digits. */
 export function roundSplit(metric: Metric, value: number): number {
   if (metric.unit === 'clock' || metric.unit === 'h') return Math.round(value * 4) / 4
-  if (metric.unit === 'min') return Math.round(value / 5) * 5
+  if (metric.unit === 'min' || metric.unit === 'pace') return Math.round(value / 5) * 5
   if (value === 0) return 0
   const step = 10 ** (Math.floor(Math.log10(Math.abs(value))) - 1)
   return Math.round(value / step) * step
 }
 
+/** An effect computed from the cause (the readiness from the sleep, say): the relation would be the formula's. */
+const computedFrom = (effect: Metric, cause: Metric): boolean =>
+  !!effect.madeOf && (!!effect.madeOf.keys?.includes(cause.key) || !!effect.madeOf.groups?.includes(cause.group))
+
 /**
- * The pairs worth testing: a day against the next night, a night against the day after it,
- * and bedtime against its own night. A day against the same day mostly finds things measured twice.
+ * The pairs worth testing: a day against the next night or morning, a night or morning against the day
+ * after it, bedtime against its own night, and a run's weather against that same run. A day against
+ * the same day mostly finds things measured twice.
  */
-function testable(x: Metric, y: Metric): boolean {
-  if (x.key === y.key || !x.cause || !y.effect) return false
+export function testable(x: Metric, y: Metric): boolean {
+  if (x.key === y.key || !x.cause || !y.effect || computedFrom(y, x)) return false
+  if (x.condition) return y.during !== undefined && y.during === x.during
   return (x.timing === 'day' && y.timing === 'night') || (x.timing === 'night' && y.timing === 'day') || x.key === 'bedtime'
 }
 
@@ -152,6 +177,17 @@ export function highlights(data: DailyData, limit = 6): Finding[] {
   return [...first, ...kept.filter((finding) => !first.includes(finding))].slice(0, limit)
 }
 
+/** The findings by what they explain (sleep, recovery, the runs…): the strongest first, in each group and among them. */
+export function byEffect(findings: Finding[]): { group: MetricGroup; findings: Finding[] }[] {
+  const groups = new Map<MetricGroup, Finding[]>()
+  for (const finding of [...findings].sort(strongestFirst)) {
+    const list = groups.get(finding.y.group)
+    if (list) list.push(finding)
+    else groups.set(finding.y.group, [finding])
+  }
+  return [...groups].map(([group, list]) => ({ group, findings: list }))
+}
+
 export function strengthLabel(finding: Finding): 'forte' | 'moderada' | 'fraca' {
   if (finding.strength >= STRONG[finding.kind]) return 'forte'
   return finding.strength >= MODERATE[finding.kind] ? 'moderada' : 'fraca'
@@ -159,12 +195,14 @@ export function strengthLabel(finding: Finding): 'forte' | 'moderada' | 'fraca' 
 
 /** When y is measured, relative to x. */
 export function timingNote(x: Metric, y: Metric): string {
-  if (lagFor(x, y) === 1) return 'na noite seguinte'
-  if (x.timing === 'night' && y.timing === 'day') return 'no dia seguinte à noite'
-  return 'na mesma noite'
+  if (x.condition) return 'na mesma corrida'
+  if (lagFor(x, y) === 1) return y.morning ? 'na manhã seguinte' : 'na noite seguinte'
+  if (x.timing === 'night' && y.timing === 'day') return x.morning ? 'no mesmo dia' : 'no dia seguinte à noite'
+  if (x.timing === 'day') return 'no mesmo dia'
+  return x.morning && y.morning ? 'na mesma manhã' : 'na mesma noite'
 }
 
-// Acronyms (HRV, FC, REM) and Garmin's "Body Battery" keep their capitals mid-sentence.
+// Acronyms (HRV, FC, REM, RIR) and Garmin's "Body Battery" keep their capitals mid-sentence.
 const KEEP_CASE = /^(?:[A-ZÀ-Ý]{2,}\b|Body Battery)/
 export const lowerFirst = (label: string) =>
   KEEP_CASE.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1)
@@ -172,18 +210,22 @@ export const lowerFirst = (label: string) =>
 /** One plain sentence with the two averages, so the number speaks for itself. */
 export function describe(finding: Finding): string {
   const { x, y } = finding
-  const what = lowerFirst(y.label)
   const fy = (value: number) => formatMetric(y, value)
+  // "HRV da noite de 52 ms", or number first where it reads better: "20% dos treinos com desconforto".
+  const amount = (value: number) => (y.noun ? `${fy(value)} ${y.noun}` : `${lowerFirst(y.label)} de ${fy(value)}`)
   if (finding.kind === 'groups') {
-    return `Depois de ${x.phrase ?? lowerFirst(x.label)}: ${what} de ${fy(finding.withMean)}, contra ${fy(finding.withoutMean)} nos outros dias.`
+    const lead = x.timing === y.timing && !lagFor(x, y) ? 'Em' : 'Depois de'
+    return `${lead} ${x.phrase ?? lowerFirst(x.label)}: ${amount(finding.withMean)}, contra ${fy(finding.withoutMean)} nos outros dias.`
   }
   const when = timingNote(x, y)
-  if (x.key === 'bedtime') {
-    return `Dormindo depois das ${formatMetric(x, finding.split)}: ${what} de ${fy(finding.highMean)} ${when}; antes disso, ${fy(finding.lowMean)}.`
-  }
-  if (x.key === 'lastMeal') {
-    return `Comendo depois das ${formatMetric(x, finding.split)}: ${what} de ${fy(finding.highMean)} ${when}; comendo antes, ${fy(finding.lowMean)}.`
-  }
-  const above = finding.split === 0 ? 'acima de zero' : `acima de ${formatMetric(x, finding.split)}`
-  return `${x.label} ${above}: ${what} de ${fy(finding.highMean)} ${when}; nos outros dias, ${fy(finding.lowMean)}.`
+  const high = amount(finding.highMean)
+  const low = fy(finding.lowMean)
+  const split = formatMetric(x, finding.split)
+  if (x.key === 'bedtime') return `Dormindo depois das ${split}: ${high} ${when}; antes disso, ${low}.`
+  if (x.key === 'wakeTime') return `Acordando depois das ${split}: ${high} ${when}; antes disso, ${low}.`
+  if (x.key === 'lastMeal') return `Comendo depois das ${split}: ${high} ${when}; comendo antes, ${low}.`
+  if (x.condition) return `${x.label} acima de ${split}: ${high}; nas outras corridas, ${low}.`
+  // A pace above another is a slower one.
+  const above = finding.split === 0 ? 'acima de zero' : x.unit === 'pace' ? `mais lento que ${split}` : `acima de ${split}`
+  return `${x.label} ${above}: ${high} ${when}; nos outros dias, ${low}.`
 }

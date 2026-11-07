@@ -2,13 +2,15 @@ import { ArrowDown, ChartScatter } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { LineOverTime } from '../../components/TimeCharts'
-import { Card, Empty, Field, Page, Segmented, Select, SkeletonCard } from '../../components/ui'
+import { Button, Card, Empty, Field, Page, Segmented, Select, SkeletonCard } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { shiftDay } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import {
   analyze,
+  byEffect,
   describe,
+  FEW_DAYS,
   highlights,
   lowerFirst,
   MIN_GROUP,
@@ -19,7 +21,7 @@ import {
   type Finding,
 } from './analysis'
 import { GroupsChart, TrendChart } from './ExploreChart'
-import { availableMetrics, formatMetric, hourAxis, type DailyData, type Metric, type MetricGroup } from './metrics'
+import { availableMetrics, formatMetric, metricAxis, type DailyData, type Metric, type MetricGroup } from './metrics'
 import { useDailyData } from './useDailyData'
 
 type Period = '90' | '180' | '365' | 'all'
@@ -31,23 +33,32 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: 'all', label: 'Tudo' },
 ]
 
-const GROUP_ORDER: MetricGroup[] = ['Sono', 'Recuperação', 'Dia', 'Treino', 'Alimentação', 'Hábitos', 'Diário', 'Corpo']
+const GROUP_ORDER: MetricGroup[] = ['Sono', 'Recuperação', 'Dia', 'Treino', 'Corrida', 'Alimentação', 'Hábitos', 'Diário', 'Corpo']
 
 /** Pairs to open the explorer with when there are no highlights yet, first available wins. */
 const STARTERS: [string, string][] = [
+  ['trainingLoad', 'hrv'],
   ['activityMinutes', 'hrv'],
   ['bedtime', 'sleepScore'],
   ['sleepHours', 'steps'],
   ['steps', 'sleepHours'],
 ]
 
+/** The highlights shown before "Mostrar mais", and the most there can be. */
+const SHOWN = 6
+const MAX_HIGHLIGHTS = 16
+
+/** "18 dias (poucos: pode mudar)" under this many days, as a relation found on few can still change. */
+const daysNote = (n: number) => `${n} dias${n < FEW_DAYS ? ' (poucos: pode mudar)' : ''}`
+
 export default function InsightsPage() {
   const today = useToday()
   const [period, setPeriod] = useState<Period>('all')
   const from = period === 'all' ? undefined : shiftDay(today, -(Number(period) - 1))
   const data = useDailyData(from, today)
-  const found = useMemo(() => (data ? highlights(data) : undefined), [data])
+  const found = useMemo(() => (data ? highlights(data, MAX_HIGHLIGHTS) : undefined), [data])
   const [pick, setPick] = useState<{ x: string; y: string }>()
+  const [all, setAll] = useState(false)
   const explorer = useRef<HTMLDivElement>(null)
 
   if (!data || !found) {
@@ -71,31 +82,53 @@ export default function InsightsPage() {
     explorer.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  // The strongest first; grouped by what they explain (sleep, recovery, the runs…) so a longer list still reads.
+  const shown = byEffect(all ? found : found.slice(0, SHOWN))
+
   return (
-    <Page title="Correlações" icon={ChartScatter} tone="insights" subtitle="Como hábitos, treino e alimentação andam junto com seu sono, recuperação e peso">
+    <Page
+      title="Correlações"
+      icon={ChartScatter}
+      tone="insights"
+      subtitle="Como hábitos, treino, alimentação e clima andam junto com seu sono, recuperação, corridas e peso"
+    >
       <Segmented label="Período" value={period} options={PERIODS} onChange={setPeriod} />
 
       <Card title="Destaques">
         {found.length === 0 ? (
           <NoHighlights data={data} />
         ) : (
-          <ul className="divide-y divide-line">
-            {found.map((finding) => (
-              <li key={`${finding.x.key}-${finding.y.key}`} className="py-3">
-                <p className="text-sm">{describe(finding)}</p>
-                <p className="mt-1 text-xs text-muted">
-                  Relação {strengthLabel(finding)} · {finding.n} dias ·{' '}
-                  <button
-                    type="button"
-                    onClick={() => explore(finding)}
-                    className="inline-flex items-center gap-0.5 font-medium text-accent-ink"
-                  >
-                    ver no gráfico <ArrowDown size={12} aria-hidden />
-                  </button>
-                </p>
-              </li>
-            ))}
-          </ul>
+          <>
+            <div className="space-y-3">
+              {shown.map(({ group, findings }) => (
+                <section key={group}>
+                  <h3 className="text-xs font-medium text-muted">{group}</h3>
+                  <ul className="divide-y divide-line">
+                    {findings.map((finding) => (
+                      <li key={`${finding.x.key}-${finding.y.key}`} className="py-3">
+                        <p className="text-sm">{describe(finding)}</p>
+                        <p className="mt-1 text-xs text-muted">
+                          Relação {strengthLabel(finding)} · {daysNote(finding.n)} ·{' '}
+                          <button
+                            type="button"
+                            onClick={() => explore(finding)}
+                            className="inline-flex items-center gap-0.5 font-medium text-accent-ink"
+                          >
+                            ver no gráfico <ArrowDown size={12} aria-hidden />
+                          </button>
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+            {found.length > SHOWN && (
+              <Button variant="ghost" size="sm" className="mt-1 w-full" onClick={() => setAll(!all)}>
+                {all ? 'Mostrar menos' : `Mostrar mais ${found.length - SHOWN}`}
+              </Button>
+            )}
+          </>
         )}
       </Card>
 
@@ -112,12 +145,23 @@ export default function InsightsPage() {
       <Card title="Como ler">
         <ul className="list-disc space-y-1.5 pl-5 text-sm text-ink-2">
           <li>
-            O que acontece num dia é comparado com a noite seguinte: o sono conta para a manhã em que termina, como o
-            Garmin faz.
+            A causa vem antes: o que acontece num dia é comparado com a noite e a manhã seguintes (o sono conta para a
+            manhã em que termina, como o Garmin faz), e a noite e a manhã, com o dia que vem depois, como os treinos. O
+            clima de uma corrida só é comparado com aquela corrida.
           </li>
           <li>
-            Os destaques passam por um filtro contra o acaso: mesmo testando dezenas de pares de uma vez, no máximo 1 em
+            Um destaque precisa de pelo menos {MIN_POINTS} dias com as duas medidas, ou {MIN_GROUP} dias com e {MIN_GROUP}{' '}
+            sem, para um hábito. As medidas da corrida só existem nos dias de corrida (as etapas no alvo, só nos treinos
+            com etapas), então juntam dias mais devagar; com menos de {FEW_DAYS}, uma relação ainda pode mudar bastante.
+          </li>
+          <li>
+            Os destaques passam por um filtro contra o acaso: mesmo testando centenas de pares de uma vez, no máximo 1 em
             cada 10 seria coincidência.
+          </li>
+          <li>
+            A prontidão é calculada pelo app a partir do sono, da HRV, da FC de repouso, da carga de treino e das dores,
+            e a forma, a partir da carga. Por isso a prontidão não é comparada com essas medidas nem com os treinos da
+            véspera: a relação seria a da própria conta.
           </li>
           <li>
             Andar junto não prova causa. Um dia de treino pesado e uma noite pior podem ter uma terceira causa, como o
@@ -209,7 +253,7 @@ function Explorer({
               <p className="mt-1 text-xs text-ink-2">
                 Relação {strengthLabel(finding)} ·{' '}
                 {finding.kind === 'trend' ? `ρ ${formatNumber(finding.rho, 2)}` : `d ${formatNumber(finding.strength, 2)}`} ·
-                {finding.p < 0.01 ? ' p < 0,01' : ` p = ${formatNumber(finding.p, 2)}`} · {finding.n} dias
+                {finding.p < 0.01 ? ' p < 0,01' : ` p = ${formatNumber(finding.p, 2)}`} · {daysNote(finding.n)}
                 {finding.p >= 0.05 && ' · pode ser acaso'}
               </p>
             </>
@@ -235,7 +279,7 @@ function Explorer({
                   label={metric.label}
                   digits={metric.digits}
                   format={(value) => formatMetric(metric, value)}
-                  axis={hourAxis(metric, points.map((point) => point.value))}
+                  axis={metricAxis(metric, points.map((point) => point.value))}
                 />
               </div>
             )
@@ -276,6 +320,9 @@ function NoHighlights({ data }: { data: DailyData }) {
     )
   }
   if (count('kcal') < 21) tips.push('Registre a alimentação por algumas semanas para cruzar calorias com o peso e o sono.')
+  if (count('runPace') >= MIN_GROUP && count('runEffort') < MIN_POINTS) {
+    tips.push('Dê a nota de esforço (PSE) depois das corridas: com algumas semanas, dá para ver como o sono e a prontidão mudam o esforço.')
+  }
   return (
     <div className="space-y-3 text-sm">
       <p className="text-ink-2">

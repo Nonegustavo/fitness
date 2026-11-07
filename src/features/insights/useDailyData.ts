@@ -1,7 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { alive } from '../../db/repo'
 import { db } from '../../db/schema'
+import type { ActivityStream } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
+import { needsSamples } from '../running/load'
 import { buildDailyData, type DailyData, type Sources } from './metrics'
 
 /** Every table the correlations (and the daily analysis) read, without deleted rows. */
@@ -18,6 +20,10 @@ export async function loadSources(): Promise<Sources> {
     db.journal.toArray(),
     db.pains.toArray(),
   ])
+  const live = alive(activities)
+  // Only the few activities without the watch's zones need their samples, for the training load.
+  const missing = live.filter(needsSamples)
+  const streams = missing.length > 0 ? await db.activityStreams.bulkGet(missing.map((activity) => activity.id)) : []
   return {
     health: alive(health),
     weights: alive(weights),
@@ -25,10 +31,13 @@ export async function loadSources(): Promise<Sources> {
     waterLogs: alive(waterLogs),
     habits: alive(habits),
     habitLogs: alive(habitLogs),
-    activities: alive(activities),
+    activities: live,
     sessions: alive(sessions),
     journal: alive(journal),
     pains: alive(pains),
+    streams: new Map(
+      streams.filter((stream): stream is ActivityStream => !!stream && !stream.deleted).map((stream) => [stream.id, stream]),
+    ),
   }
 }
 

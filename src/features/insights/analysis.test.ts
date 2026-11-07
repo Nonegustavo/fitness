@@ -1,7 +1,19 @@
 import { describe as group, expect, it } from 'vitest'
 import type { Activity, DailyHealth, Habit, HabitLog, WeightEntry } from '../../db/types'
 import { dayRange, dayTime, shiftDay } from '../../lib/dates'
-import { analyze, describe, highlights, lagFor, pairPoints, roundSplit, strongestFirst, type Finding } from './analysis'
+import {
+  analyze,
+  byEffect,
+  describe,
+  highlights,
+  lagFor,
+  pairPoints,
+  roundSplit,
+  strongestFirst,
+  testable,
+  timingNote,
+  type Finding,
+} from './analysis'
 import { buildDailyData, formatMetric, type Metric, type Sources } from './metrics'
 
 const meta = { updatedAt: 1, deleted: 0, dirty: 0 } as const
@@ -110,7 +122,7 @@ group('findings', () => {
   })
 
   it('shows two findings per cause before a third one of the same cause', () => {
-    // Habit A moves three night measures a lot, habit B moves deep sleep a little.
+    // Habit A moves three night measures a lot (and the readiness made of them), habit B moves deep sleep a little.
     const habit = (id: string): Habit => ({ id, name: id, kind: 'check', polarity: 'bad', startDate: FROM, archived: 0, order: 0, ...meta })
     const a = days.filter((_, i) => i % 3 === 0)
     const b = days.filter((_, i) => i % 2 === 1)
@@ -130,7 +142,7 @@ group('findings', () => {
     }))
     const sources = { ...empty, habits: [habit('a'), habit('b')], habitLogs: [...a.map(log('a')), ...b.map(log('b'))], health }
     const pairs = highlights(buildDailyData(sources, FROM, TO), 4).map((finding) => `${finding.x.key} > ${finding.y.key}`)
-    expect(pairs).toEqual(['habit:a > hrv', 'habit:a > sleepScore', 'habit:b > deepHours', 'habit:a > restingHr'])
+    expect(pairs).toEqual(['habit:a > readiness', 'habit:a > hrv', 'habit:b > deepHours', 'habit:a > sleepScore'])
   })
 
   it('ranks a strong trend above a moderate difference between groups', () => {
@@ -155,6 +167,141 @@ group('findings', () => {
     expect(split((i) => 5123 + (i % 10) * 1000)).toBe(9100)
     // 8.000 would leave 6 days on one side: the exact median instead.
     expect(split((i) => 8000 + (i % 10) * 10)).toBe(8040)
+  })
+})
+
+group('new measures in the findings', () => {
+  const activity = (date: string, extra: Partial<Activity>): Activity => ({
+    id: `a-${date}`,
+    sport: 'running',
+    date,
+    startTime: dayTime(date, '07:00'),
+    elapsedSec: 2400,
+    timerSec: 2400,
+    distanceM: 8000,
+    laps: [],
+    hasTrack: false,
+    ...meta,
+    ...extra,
+  })
+
+  it('finds the heat raising the heart rate of the run, said of that same run', () => {
+    const activities = days.map((date, i) => {
+      const tempC = 14 + (i % 16)
+      return activity(date, { avgHr: Math.round(128 + tempC * 0.9 + (i % 3)), weather: { tempC, humidity: 70 } })
+    })
+    const found = highlights(buildDailyData({ ...empty, activities }, FROM, TO))
+    expect(found.map((finding) => `${finding.x.key} > ${finding.y.key}`)).toEqual(['runTemp > runHr'])
+    expect(describe(found[0])).toMatch(/^Temperatura na corrida acima de \d+ °C: FC média da corrida de \d+ bpm; nas outras corridas, \d+ bpm\.$/)
+  })
+
+  it('finds a hard day lowering the next night’s HRV, but never the readiness made of the training', () => {
+    const hard = new Set(days.filter((_, i) => i % 3 === 0))
+    const activities = days.map((date, i) => {
+      // Minutes in zones 2 and 4: hard days well above the easy ones, all a little different.
+      const seconds = hard.has(date) ? [0, 0, 600, 0, (40 + (i % 5) * 4) * 60, 0] : [0, 0, (15 + (i % 4) * 3) * 60, 0, 0, 0]
+      return activity(date, { sport: 'cycling', hrZones: { seconds, limits: [110, 125, 140, 155, 170, 185] } })
+    })
+    const health: DailyHealth[] = days.map((date, i) => ({
+      id: date,
+      hrv: { lastNight: (hard.has(shiftDay(date, -1)) ? 48 : 58) + (i % 4) },
+      sleep: { totalSec: 7 * 3600, score: 75 + (i % 6) },
+      restingHr: 50 + (i % 3),
+      ...meta,
+    }))
+    const data = buildDailyData({ ...empty, activities, health }, FROM, TO)
+    const found = highlights(data, 30)
+    const load = found.find((finding) => finding.x.key === 'trainingLoad' && finding.y.key === 'hrv')
+    expect(load && describe(load)).toMatch(/^Carga de treino acima de \d+: HRV da noite de \d+ ms na noite seguinte; nos outros dias, \d+ ms\.$/)
+    const training = new Set(data.metrics.filter((m) => m.group === 'Treino' || m.group === 'Corrida').map((m) => m.key))
+    expect(found.filter((finding) => finding.y.key === 'readiness' && training.has(finding.x.key))).toEqual([])
+  })
+})
+
+group('pairing rules', () => {
+  const data = buildDailyData(empty, FROM, TO)
+  const m = (key: string) => metric(data, key)
+
+  it('compares the weather of a run only with that same run', () => {
+    expect(testable(m('runTemp'), m('runHr'))).toBe(true)
+    expect(testable(m('runHumidity'), m('runPace'))).toBe(true)
+    expect(testable(m('runTemp'), m('hrv'))).toBe(false)
+    expect(testable(m('runTemp'), m('effort'))).toBe(false)
+    expect(lagFor(m('runTemp'), m('runHr'))).toBe(0)
+  })
+
+  it('never explains the readiness with what it is computed from, but lets it explain the day', () => {
+    expect(testable(m('trainingLoad'), m('readiness'))).toBe(false)
+    expect(testable(m('runEffort'), m('readiness'))).toBe(false)
+    expect(testable(m('pain'), m('readiness'))).toBe(false)
+    expect(testable(m('kcal'), m('readiness'))).toBe(true)
+    expect(testable(m('trainingLoad'), m('hrv'))).toBe(true)
+    expect(testable(m('readiness'), m('runEffort'))).toBe(true)
+    expect(lagFor(m('readiness'), m('runEffort'))).toBe(0)
+  })
+
+  it('says when the effect is measured', () => {
+    expect(timingNote(m('trainingLoad'), m('hrv'))).toBe('na noite seguinte')
+    expect(timingNote(m('kcal'), m('weightChange'))).toBe('na manhã seguinte')
+    expect(timingNote(m('readiness'), m('runEffort'))).toBe('no mesmo dia')
+    expect(timingNote(m('sleepScore'), m('runEffort'))).toBe('no dia seguinte à noite')
+    expect(timingNote(m('bedtime'), m('sleepScore'))).toBe('na mesma noite')
+    expect(timingNote(m('runTemp'), m('runHr'))).toBe('na mesma corrida')
+    expect(timingNote(m('kcal'), m('steps'))).toBe('no mesmo dia')
+  })
+})
+
+group('wording of the new measures', () => {
+  const data = buildDailyData(empty, FROM, TO)
+  const m = (key: string) => metric(data, key)
+  const trend = (x: string, y: string, split: number, highMean: number, lowMean: number, strength = 0.4): Finding => ({
+    kind: 'trend',
+    x: m(x),
+    y: m(y),
+    lag: lagFor(m(x), m(y)),
+    n: 40,
+    p: 0.01,
+    strength,
+    rho: -strength,
+    split,
+    highMean,
+    lowMean,
+  })
+
+  it('reads the morning, the wake time and the next weigh-in', () => {
+    expect(describe(trend('readiness', 'runEffort', 70, 5.2, 6.4))).toBe('Prontidão acima de 70: esforço da corrida de 5,2 no mesmo dia; nos outros dias, 6,4.')
+    expect(describe(trend('wakeTime', 'energy', 7.5, 3.2, 3.8))).toBe('Acordando depois das 07:30: energia de 3,2 no mesmo dia; antes disso, 3,8.')
+    expect(describe(trend('trainingLoad', 'weightChange', 120, -0.3, 0.1))).toBe(
+      'Carga de treino acima de 120: variação do peso de -0,3 kg na manhã seguinte; nos outros dias, +0,1 kg.',
+    )
+  })
+
+  it('puts the number first for a share of the workouts or a count', () => {
+    expect(describe(trend('form', 'discomfort', -10, 15, 40))).toBe(
+      'Forma (TSB) acima de -10: 15% dos treinos com desconforto no mesmo dia; nos outros dias, 40%.',
+    )
+    const pain: Finding = { kind: 'groups', x: m('pain'), y: m('awakenings'), lag: 1, n: 40, p: 0.01, strength: 0.6, withMean: 3.4, withoutMean: 2, nWith: 12, nWithout: 28 }
+    expect(describe(pain)).toBe('Depois de dias com dor: 3,4 despertares, contra 2 nos outros dias.')
+  })
+
+  it('says "em" for days compared with themselves, and "mais lento" for a pace', () => {
+    const gym: Finding = { kind: 'groups', x: m('strengthDay'), y: m('kcal'), lag: 0, n: 40, p: 0.01, strength: 0.6, withMean: 2400, withoutMean: 2100, nWith: 15, nWithout: 25 }
+    expect(describe(gym)).toBe('Em dias de musculação: calorias consumidas de 2.400 kcal, contra 2.100 kcal nos outros dias.')
+    expect(describe(trend('runPace', 'hrv', 330, 52, 57))).toBe('Ritmo da corrida mais lento que 5:30 /km: HRV da noite de 52 ms na noite seguinte; nos outros dias, 57 ms.')
+  })
+
+  it('groups the findings by what they explain, the strongest first', () => {
+    const found = [
+      trend('trainingLoad', 'hrv', 100, 50, 56, 0.35),
+      trend('bedtime', 'sleepScore', 23.5, 72, 80, 0.6),
+      trend('readiness', 'runEffort', 70, 5, 6, 0.45),
+      trend('kcal', 'hrv', 2400, 52, 57, 0.55),
+    ]
+    expect(byEffect(found).map(({ group, findings }) => `${group}: ${findings.map((finding) => finding.x.key).join(', ')}`)).toEqual([
+      'Sono: bedtime',
+      'Recuperação: kcal, trainingLoad',
+      'Corrida: readiness',
+    ])
   })
 })
 

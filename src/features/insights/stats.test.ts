@@ -24,6 +24,9 @@ describe('welch', () => {
 
   it('does not claim anything from two constant groups', () => {
     expect(welch([1, 1, 1], [2, 2, 2]).p).toBe(1)
+    // The same value whose means come out a rounding error apart.
+    const same = welch(Array<number>(70).fill(1.6), Array<number>(79).fill(1.6))
+    expect(same).toMatchObject({ p: 1, d: 0 })
   })
 })
 
