@@ -1,8 +1,9 @@
 import { ChevronRight, Plus, Scale } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
+import { PageTabs } from '../../components/PageTabs'
 import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
-import { Button, Card, Empty, Page, Segmented, Select, SkeletonCard, Stat } from '../../components/ui'
+import { Button, Card, Empty, Page, Select, SkeletonCard, Stat } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import { db } from '../../db/schema'
 import type { MeasurementEntry, WeightEntry } from '../../db/types'
@@ -20,6 +21,17 @@ import { CompositionCard } from './CompositionCard'
 
 type Tab = 'peso' | 'medidas' | 'fotos'
 
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'peso', label: 'Peso e gordura' },
+  { value: 'medidas', label: 'Medidas' },
+  { value: 'fotos', label: 'Fotos' },
+]
+
+/** The tab each shortcut (`?novo=`) opens its form on. */
+const TAB_OF_NEW: Record<string, Tab> = { peso: 'peso', medida: 'medidas', foto: 'fotos' }
+
+const isTab = (value: string | null): value is Tab => TABS.some((tab) => tab.value === value)
+
 const WEIGH_INS = ['pesagem', 'pesagens'] as const
 const MEASURES = ['medição', 'medições'] as const
 
@@ -28,28 +40,44 @@ const LIST_LIMIT = 15
 export default function BodyPage() {
   const [params, setParams] = useSearchParams()
   const settings = useSettings()
-  const [tab, setTab] = useState<Tab>(() => {
-    const aba = params.get('aba')
-    return params.get('novo') === 'medida' ? 'medidas' : aba === 'medidas' || aba === 'fotos' ? aba : 'peso'
-  })
+  // The tab lives in the address (?aba=), so going back returns to it and the "+" knows it.
+  const aba = params.get('aba')
+  const tab: Tab = isTab(aba) ? aba : (TAB_OF_NEW[params.get('novo') ?? ''] ?? 'peso')
+  const setTab = (next: Tab) =>
+    setParams(
+      (current) => {
+        const changed = new URLSearchParams(current)
+        changed.set('aba', next)
+        return changed
+      },
+      { replace: true },
+    )
   const [weightEditing, setWeightEditing] = useState<WeightEntry | 'new' | null>(
     params.get('novo') === 'peso' ? 'new' : null,
   )
   const [measurementEditing, setMeasurementEditing] = useState<MeasurementEntry | 'new' | null>(
     params.get('novo') === 'medida' ? 'new' : null,
   )
+  // Bumped by `?novo=foto`: the photos tab opens the picker, then sets it back.
+  const [photoAsked, setPhotoAsked] = useState(0)
 
-  // The shortcuts (`?novo=peso`, `?novo=medida`: the "+", the reminders) open the form once, also
-  // when Corpo is already open; then the flag goes, so it doesn't reopen.
+  // The shortcuts (`?novo=peso`, `?novo=medida`, `?novo=foto`: the "+", the reminders) open the form
+  // once, on its tab, also when Corpo is already open; then the flag goes, so it doesn't reopen.
   useEffect(() => {
     const novo = params.get('novo')
     if (!novo) return
     if (novo === 'peso') setWeightEditing('new')
-    if (novo === 'medida') {
-      setTab('medidas')
-      setMeasurementEditing('new')
-    }
-    setParams({}, { replace: true })
+    if (novo === 'medida') setMeasurementEditing('new')
+    if (novo === 'foto') setPhotoAsked((count) => count + 1)
+    setParams(
+      (current) => {
+        const changed = new URLSearchParams(current)
+        changed.delete('novo')
+        if (TAB_OF_NEW[novo]) changed.set('aba', TAB_OF_NEW[novo])
+        return changed
+      },
+      { replace: true },
+    )
   }, [params, setParams])
 
   return (
@@ -69,20 +97,17 @@ export default function BodyPage() {
         )
       }
     >
-      <Segmented
-        label="Seção"
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: 'peso', label: 'Peso e gordura' },
-          { value: 'medidas', label: 'Medidas' },
-          { value: 'fotos', label: 'Fotos' },
-        ]}
-      />
-
-      {tab === 'peso' && <WeightSection onEdit={setWeightEditing} />}
-      {tab === 'medidas' && <MeasurementsSection onEdit={setMeasurementEditing} />}
-      {tab === 'fotos' && <ProgressPhotos />}
+      <PageTabs label="Seção" value={tab} options={TABS} onChange={setTab} className="space-y-4">
+        {(shown) =>
+          shown === 'peso' ? (
+            <WeightSection onEdit={setWeightEditing} />
+          ) : shown === 'medidas' ? (
+            <MeasurementsSection onEdit={setMeasurementEditing} />
+          ) : (
+            <ProgressPhotos asked={photoAsked} onAsked={() => setPhotoAsked(0)} />
+          )
+        }
+      </PageTabs>
 
       {weightEditing && (
         <WeightModal entry={weightEditing === 'new' ? null : weightEditing} onClose={() => setWeightEditing(null)} />

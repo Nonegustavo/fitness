@@ -1,7 +1,7 @@
 import { NotebookPen } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { DayNav } from '../../components/DayNav'
+import { DayNav, DayPager } from '../../components/DayNav'
 import { Button, Card, Empty, Page, TextInput } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { formatDay, type DayKey } from '../../lib/dates'
@@ -38,12 +38,17 @@ export default function JournalPage() {
 
   return (
     <Page title="Diário" icon={NotebookPen} tone="journal" subtitle="O que os números não contam, nas suas palavras">
-      <Card>
-        <DayNav date={date} today={today} onChange={setDate} />
-        <JournalEditor date={date} />
-      </Card>
-
-      <PainsCard date={date} today={today} openAdd={addPain} onOpened={onPainFormOpened} />
+      <DayPager date={date} today={today} onChange={setDate} className="space-y-4">
+        {(day) => (
+          <>
+            <Card>
+              <DayNav date={day} today={today} onChange={setDate} />
+              <JournalEditor date={day} />
+            </Card>
+            <PainsCard date={day} today={today} openAdd={addPain && day === date} onOpened={onPainFormOpened} />
+          </>
+        )}
+      </DayPager>
 
       <Card title="Outros dias">
         <TextInput

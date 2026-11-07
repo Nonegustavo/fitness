@@ -92,7 +92,9 @@ export default function InsightsPage() {
       tone="insights"
       subtitle="Como hábitos, treino, alimentação e clima andam junto com seu sono, recuperação, corridas e peso"
     >
-      <Segmented label="Período" value={period} options={PERIODS} onChange={setPeriod} />
+      <div className="flex justify-center">
+        <Segmented label="Período" value={period} options={PERIODS} onChange={setPeriod} />
+      </div>
 
       <Card title="Destaques">
         {found.length === 0 ? (

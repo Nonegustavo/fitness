@@ -3,7 +3,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { PeriodBars } from '../../components/PeriodBars'
 import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
-import { DayNav } from '../../components/DayNav'
+import { DayNav, DayPager } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
 import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { useToast } from '../../components/Toast'
@@ -30,23 +30,10 @@ const kcal = (value: number) => `${formatNumber(value, 0)} kcal`
 
 export default function FoodPage() {
   const today = useToday()
-  const toast = useToast()
-  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const date = params.get('data') ?? today
-  const settings = useSettings()
-  const logs = useFoodLogs(date, date)
-  const trainingDay = useTrainingDays(date, date)?.has(date) ?? false
   const looks = useFoodLooks()
   const [goalsOpen, setGoalsOpen] = useState(false)
-
-  const dayLogs = logs ?? []
-  const totals = sumNutrients(dayLogs.map((log) => log.nutrients))
-  const goals = goalsFor(settings, trainingDay)
-  async function copyDay() {
-    for (const { key } of MEALS) await logItems(dayLogs.filter((log) => log.meal === key), key, today)
-    toast({ message: `${dayLogs.length} ${dayLogs.length === 1 ? 'item copiado' : 'itens copiados'} para hoje` })
-  }
   const setDate = (next: DayKey) => setParams(next === today ? {} : { data: next }, { replace: true })
 
   return (
@@ -60,8 +47,49 @@ export default function FoodPage() {
         </Button>
       }
     >
+      <DayPager date={date} today={today} onChange={setDate} className="space-y-4">
+        {(day) => <FoodDay date={day} today={today} looks={looks} onDate={setDate} />}
+      </DayPager>
+
+      <Card title="Histórico">
+        <FoodHistory today={today} />
+      </Card>
+
+      {goalsOpen && <GoalsModal onClose={() => setGoalsOpen(false)} />}
+    </Page>
+  )
+}
+
+/** One day: its totals against the goals, the cards that help close today, and the meals. */
+function FoodDay({
+  date,
+  today,
+  looks,
+  onDate,
+}: {
+  date: DayKey
+  today: DayKey
+  looks: (foodId: string) => FoodLook
+  onDate: (date: DayKey) => void
+}) {
+  const toast = useToast()
+  const navigate = useNavigate()
+  const settings = useSettings()
+  const logs = useFoodLogs(date, date)
+  const trainingDay = useTrainingDays(date, date)?.has(date) ?? false
+
+  const dayLogs = logs ?? []
+  const totals = sumNutrients(dayLogs.map((log) => log.nutrients))
+  const goals = goalsFor(settings, trainingDay)
+  async function copyDay() {
+    for (const { key } of MEALS) await logItems(dayLogs.filter((log) => log.meal === key), key, today)
+    toast({ message: `${dayLogs.length} ${dayLogs.length === 1 ? 'item copiado' : 'itens copiados'} para hoje` })
+  }
+
+  return (
+    <>
       <Card>
-        <DayNav date={date} today={today} onChange={setDate} />
+        <DayNav date={date} today={today} onChange={onDate} />
         {trainingDay && (
           <p className="mb-2 flex items-center gap-1.5 text-xs text-ink-2">
             <Dumbbell size={14} /> Dia de treino{settings.nutrition?.training ? ': metas de treino' : ''}
@@ -105,13 +133,7 @@ export default function FoodPage() {
           />
         ),
       )}
-
-      <Card title="Histórico">
-        <FoodHistory today={today} />
-      </Card>
-
-      {goalsOpen && <GoalsModal onClose={() => setGoalsOpen(false)} />}
-    </Page>
+    </>
   )
 }
 

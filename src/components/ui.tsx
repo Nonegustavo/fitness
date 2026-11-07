@@ -1,6 +1,17 @@
 import { ChevronLeft, type LucideIcon } from 'lucide-react'
-import { createContext, useContext, type ButtonHTMLAttributes, type ComponentProps, type ReactNode, type SelectHTMLAttributes } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type ButtonHTMLAttributes,
+  type ComponentProps,
+  type ReactNode,
+  type SelectHTMLAttributes,
+} from 'react'
 import { Link } from 'react-router'
+import type { PagerDrag } from './SwipePager'
 import { IconTile, toneColor, ToneContext, type Tone } from './tone'
 
 export function cx(...classes: (string | false | null | undefined)[]): string {
@@ -188,29 +199,117 @@ export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectE
   return <select className={cx(inputClass, 'pr-8', className)} {...props} />
 }
 
+/** A drag between the pages of a tab bar (PageTabs), for its pill to follow. */
+export interface PillFeed<T extends string> {
+  subscribe: (listener: (drag: PagerDrag<T>) => void) => () => void
+}
+
+const PILL_MS = 220
+const PILL_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+
+interface OptionBox {
+  x: number
+  width: number
+}
+
+/**
+ * Puts the pill under an option, or part of the way to another (`fraction`, during a drag); `ms`
+ * animates it there. Moved by transform; its width follows by size, a small box on its own. The
+ * boxes come measured, so a drag only writes styles.
+ */
+function placePill(pill: HTMLElement, from: OptionBox | undefined, to: OptionBox | undefined, fraction: number, ms: number) {
+  if (!from) {
+    pill.style.opacity = '0'
+    return
+  }
+  const between = (a: number, b: number) => a + (b - a) * fraction
+  const x = to ? between(from.x, to.x) : from.x
+  const width = to ? between(from.width, to.width) : from.width
+  pill.style.transition = ms > 0 ? `transform ${ms}ms ${PILL_EASE}, width ${ms}ms ${PILL_EASE}` : 'none'
+  pill.style.transform = `translateX(${x}px)`
+  pill.style.width = `${width}px`
+  pill.style.opacity = '1'
+}
+
+/**
+ * Options side by side, the chosen one on a pill that slides to the next choice. With `follow`
+ * (PageTabs), the pill also follows a drag between the tab pages.
+ */
 export function Segmented<T extends string>({
   value,
   options,
   onChange,
   label,
+  follow,
 }: {
   value: T
   options: { value: T; label: string }[]
   onChange: (value: T) => void
   label: string
+  follow?: PillFeed<T>
 }) {
+  const group = useRef<HTMLDivElement>(null)
+  const pill = useRef<HTMLSpanElement>(null)
+  const latest = useRef(value)
+  const placed = useRef(false)
+  const boxes = useRef(new Map<string, OptionBox>())
+
+  /** Where each option sits, read once per change of choice or size. */
+  const measure = () => {
+    boxes.current = new Map(
+      [...(group.current?.querySelectorAll<HTMLElement>('[data-option]') ?? [])].map((button) => [
+        button.dataset.option!,
+        { x: button.offsetLeft, width: button.offsetWidth },
+      ]),
+    )
+  }
+  const box = (key: T | undefined) => (key === undefined ? undefined : boxes.current.get(key))
+
+  // A new choice slides the pill over; the first one just puts it there. Only then: other renders
+  // (one during a drag, say) leave it where it is.
+  const labels = options.map((option) => `${option.value}:${option.label}`).join('|')
+  useLayoutEffect(() => {
+    latest.current = value
+    measure()
+    if (!pill.current) return
+    placePill(pill.current, box(value), undefined, 0, placed.current ? PILL_MS : 0)
+    placed.current = true
+  }, [value, labels])
+
+  // Labels that change size (a wider screen, text that wraps) move the options under it.
+  useEffect(() => {
+    const element = group.current
+    if (!element) return
+    const observer = new ResizeObserver(() => {
+      measure()
+      if (pill.current) placePill(pill.current, box(latest.current), undefined, 0, 0)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(
+    () =>
+      follow?.subscribe((drag) => {
+        if (pill.current) placePill(pill.current, box(latest.current), box(drag.to), drag.fraction, drag.settleMs ?? 0)
+      }),
+    [follow],
+  )
+
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex max-w-full rounded-xl bg-surface-2 p-1">
+    <div ref={group} role="radiogroup" aria-label={label} className="relative inline-flex max-w-full rounded-xl bg-surface-2 p-1">
+      <span ref={pill} aria-hidden className="pointer-events-none absolute top-1 bottom-1 left-0 rounded-lg bg-pill opacity-0 shadow-sm" />
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
           role="radio"
+          data-option={option.value}
           aria-checked={option.value === value}
           onClick={() => onChange(option.value)}
           className={cx(
-            'h-9 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition',
-            option.value === value ? 'bg-pill text-accent-ink shadow-sm' : 'text-ink-2 hover:text-ink',
+            'relative h-9 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-colors',
+            option.value === value ? 'text-accent-ink' : 'text-ink-2 hover:text-ink',
           )}
         >
           {option.label}

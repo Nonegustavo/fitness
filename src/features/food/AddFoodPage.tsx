@@ -2,9 +2,10 @@ import { Camera, CookingPot, MessageSquareText, Plus, ScanBarcode, ScanText, Sta
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Modal } from '../../components/Modal'
+import { PageTabs } from '../../components/PageTabs'
 import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { useToast } from '../../components/Toast'
-import { Button, Card, Empty, Field, IconButton, Page, Segmented, Select, TextInput } from '../../components/ui'
+import { Button, Card, Empty, Field, IconButton, Page, Select, TextInput } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { remove } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -26,6 +27,12 @@ import { PortionModal } from './PortionModal'
 import { RecipeForm } from './RecipeForm'
 
 type Tab = 'favorites' | 'meals' | 'recent'
+
+const LISTS: { value: Tab; label: string }[] = [
+  { value: 'favorites', label: 'Favoritos' },
+  { value: 'meals', label: 'Refeições' },
+  { value: 'recent', label: 'Recentes' },
+]
 
 /** What the camera button photographs: the plate, a barcode, or a nutrition table. */
 type CameraMode = 'plate' | 'barcode' | 'label'
@@ -205,58 +212,52 @@ export default function AddFoodPage() {
         </Card>
       ) : (
         <Card>
-          <Segmented
-            label="Lista"
-            value={tab}
-            onChange={setTab}
-            options={[
-              { value: 'favorites', label: 'Favoritos' },
-              { value: 'meals', label: 'Refeições' },
-              { value: 'recent', label: 'Recentes' },
-            ]}
-          />
-          <div className="mt-3">
-            {tab === 'favorites' && list(favorites, 'Toque na estrela de um alimento para favoritá-lo.')}
-            {tab === 'meals' && (
+          <PageTabs label="Lista" value={tab} onChange={setTab} options={LISTS} bleed={false} gap="space-y-3">
+            {(shown) => (
               <>
-                {savedMeals?.length ? (
-                  <ul className="divide-y divide-line">
-                    {savedMeals.map((saved) => {
-                      const onDelete = () => removeWithUndo(db.savedMeals, saved.id, `${saved.name} apagada`)
-                      return (
-                        <SwipeToDelete key={saved.id} onDelete={onDelete}>
-                          <div className="flex items-center gap-2 py-2">
-                            <button type="button" onClick={() => void addSavedMeal(saved)} className="min-w-0 flex-1 text-left">
-                              <span className="block truncate text-sm font-medium">{saved.name}</span>
-                              <span className="block truncate text-xs text-muted">
-                                {formatNumber(sumNutrients(saved.items.map((i) => i.nutrients)).kcal, 0)} kcal ·{' '}
-                                {saved.items.map((i) => i.name.split(',')[0]).join(', ')}
-                              </span>
-                            </button>
-                            <IconButton label={`Apagar ${saved.name}`} onClick={onDelete}>
-                              <Trash2 size={16} />
-                            </IconButton>
-                          </div>
-                        </SwipeToDelete>
-                      )
-                    })}
-                  </ul>
-                ) : (
-                  <Empty>Abra uma refeição do dia e toque em “Salvar como refeição” para reaproveitá-la aqui.</Empty>
+                {shown === 'favorites' && list(favorites, 'Toque na estrela de um alimento para favoritá-lo.')}
+                {shown === 'meals' && (
+                  <>
+                    {savedMeals?.length ? (
+                      <ul className="divide-y divide-line">
+                        {savedMeals.map((saved) => {
+                          const onDelete = () => removeWithUndo(db.savedMeals, saved.id, `${saved.name} apagada`)
+                          return (
+                            <SwipeToDelete key={saved.id} onDelete={onDelete}>
+                              <div className="flex items-center gap-2 py-2">
+                                <button type="button" onClick={() => void addSavedMeal(saved)} className="min-w-0 flex-1 text-left">
+                                  <span className="block truncate text-sm font-medium">{saved.name}</span>
+                                  <span className="block truncate text-xs text-muted">
+                                    {formatNumber(sumNutrients(saved.items.map((i) => i.nutrients)).kcal, 0)} kcal ·{' '}
+                                    {saved.items.map((i) => i.name.split(',')[0]).join(', ')}
+                                  </span>
+                                </button>
+                                <IconButton label={`Apagar ${saved.name}`} onClick={onDelete}>
+                                  <Trash2 size={16} />
+                                </IconButton>
+                              </div>
+                            </SwipeToDelete>
+                          )
+                        })}
+                      </ul>
+                    ) : (
+                      <Empty>Abra uma refeição do dia e toque em “Salvar como refeição” para reaproveitá-la aqui.</Empty>
+                    )}
+                    <h3 className="mt-4 mb-1 text-sm font-semibold text-ink-2">Receitas</h3>
+                    {list(recipes, 'Monte uma receita com os ingredientes e registre por porção ou em gramas.')}
+                  </>
                 )}
-                <h3 className="mt-4 mb-1 text-sm font-semibold text-ink-2">Receitas</h3>
-                {list(recipes, 'Monte uma receita com os ingredientes e registre por porção ou em gramas.')}
+                {shown === 'recent' && (
+                  <>
+                    {recent.length > 0 && (
+                      <p className="mb-1 text-xs text-muted">Os mais comuns no {MEAL_LABEL[meal].toLowerCase()} primeiro.</p>
+                    )}
+                    {list(recent, 'Os alimentos que você registrar aparecem aqui.')}
+                  </>
+                )}
               </>
             )}
-            {tab === 'recent' && (
-              <>
-                {recent.length > 0 && (
-                  <p className="mb-1 text-xs text-muted">Os mais comuns no {MEAL_LABEL[meal].toLowerCase()} primeiro.</p>
-                )}
-                {list(recent, 'Os alimentos que você registrar aparecem aqui.')}
-              </>
-            )}
-          </div>
+          </PageTabs>
           <div className="mt-2 flex flex-wrap gap-1">
             <Button size="sm" variant="ghost" onClick={() => setDraft({})}>
               <Plus size={16} /> Criar alimento

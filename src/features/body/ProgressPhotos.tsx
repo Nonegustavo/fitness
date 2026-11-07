@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Camera, ImageIcon, Trash2 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { Button, Card, cx, Empty, Field, Segmented, Select, SkeletonCard } from '../../components/ui'
@@ -33,8 +33,11 @@ function useTrendOn(): (date: DayKey) => number | undefined {
   }, [weights])
 }
 
-/** Body photos by pose, and two dates side by side to see the change. */
-export function ProgressPhotos() {
+/**
+ * Body photos by pose, and two dates side by side to see the change. `asked` (the "+") opens the
+ * picker for a new photo once the tab is ready; `onAsked` says it was done.
+ */
+export function ProgressPhotos({ asked = 0, onAsked }: { asked?: number; onAsked?: () => void }) {
   const today = useToday()
   const toast = useToast()
   const photos = useProgressPhotos()
@@ -42,6 +45,13 @@ export function ProgressPhotos() {
   const input = useRef<HTMLInputElement>(null)
   const [pose, setPose] = useState<Pose>('front')
   const [viewing, setViewing] = useState<ProgressPhoto | null>(null)
+  const ready = photos !== undefined
+
+  useEffect(() => {
+    if (!asked || !ready) return
+    input.current?.click()
+    onAsked?.()
+  }, [asked, ready, onAsked])
 
   const ofPose = (photos ?? []).filter((photo) => photo.pose === pose)
   const dates = [...new Set(ofPose.map((photo) => photo.date))]

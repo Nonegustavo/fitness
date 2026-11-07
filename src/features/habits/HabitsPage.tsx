@@ -1,8 +1,9 @@
 import { Archive, ArchiveRestore, Check, Circle, ListChecks, Plus, Trash2, X } from 'lucide-react'
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
-import { DayNav } from '../../components/DayNav'
+import { DayNav, DayPager } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
+import { useNewFromLink } from '../../components/useNewFromLink'
 import { Button, Card, cx, DecimalInput, Field, IconButton, Page, Segmented, Switch, TextInput } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { patch, remove, save, saveOrder } from '../../db/repo'
@@ -46,6 +47,7 @@ export default function HabitsPage() {
   const [date, setDate] = useState(today)
   const habits = useHabits()
   const [editing, setEditing] = useState<Habit | 'new' | null>(null)
+  useNewFromLink('habito', () => setEditing('new'))
 
   const active = habits?.filter((habit) => habit.archived === 0) ?? []
   const archived = habits?.filter((habit) => habit.archived === 1) ?? []
@@ -68,13 +70,17 @@ export default function HabitsPage() {
         </Button>
       }
     >
-      <Card>
-        <DayNav date={date} today={today} onChange={setDate} />
-        <HabitCheckList date={date} />
-        {active.some((habit) => habit.polarity === 'good') && (
-          <p className="mt-2 text-xs text-muted">Toque e segure um hábito a fazer para pular o dia (chuva, viagem…).</p>
+      <DayPager date={date} today={today} onChange={setDate}>
+        {(day) => (
+          <Card>
+            <DayNav date={day} today={today} onChange={setDate} />
+            <HabitCheckList date={day} />
+            {active.some((habit) => habit.polarity === 'good') && (
+              <p className="mt-2 text-xs text-muted">Toque e segure um hábito a fazer para pular o dia (chuva, viagem…).</p>
+            )}
+          </Card>
         )}
-      </Card>
+      </DayPager>
 
       {habits && active.length < 3 && (
         <Card title="Sugestões">
