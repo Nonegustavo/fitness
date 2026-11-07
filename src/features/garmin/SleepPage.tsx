@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Moon } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { DayNav } from '../../components/DayNav'
+import { DayNav, DayPager } from '../../components/DayNav'
 import { PeriodBars } from '../../components/PeriodBars'
 import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
 import { PeriodLine } from '../../components/TimeCharts'
@@ -49,7 +49,6 @@ export default function SleepPage() {
   const date = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) && asked <= today ? asked : today
   const setDate = (next: DayKey) => setParams(next === today ? {} : { data: next }, { replace: true })
   const latest = useLatestNight()
-  const days = useDailyHealth(date, date)
 
   if (latest === undefined) {
     return (
@@ -74,24 +73,34 @@ export default function SleepPage() {
         </Card>
       ) : (
         <>
-          {/* The chosen night's cards, kept together right under the day picker. */}
-          <div>
-            <DayNav date={date} today={today} onChange={setDate} />
-            <div className="space-y-4">
-              {days ? (
-                <NightCards day={days[0]} date={date} today={today} latest={latest} onPick={setDate} />
-              ) : (
-                <>
-                  <SkeletonCard lines={4} />
-                  <SkeletonCard lines={3} />
-                </>
-              )}
-            </div>
-          </div>
+          {/* The chosen night's cards move with the finger; the one before or after slides in. */}
+          <DayPager date={date} today={today} onChange={setDate}>
+            {(day) => <SleepDay date={day} today={today} latest={latest} onDate={setDate} />}
+          </DayPager>
           <TrendsCard />
         </>
       )}
     </Page>
+  )
+}
+
+/** One night under the day picker: its own query, since the pager also draws the night coming in. */
+function SleepDay({ date, today, latest, onDate }: { date: DayKey; today: DayKey; latest: DailyHealth; onDate: (date: DayKey) => void }) {
+  const days = useDailyHealth(date, date)
+  return (
+    <div>
+      <DayNav date={date} today={today} onChange={onDate} />
+      <div className="space-y-4">
+        {days ? (
+          <NightCards day={days[0]} date={date} today={today} latest={latest} onPick={onDate} />
+        ) : (
+          <>
+            <SkeletonCard lines={4} />
+            <SkeletonCard lines={3} />
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
