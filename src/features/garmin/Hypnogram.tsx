@@ -15,11 +15,12 @@ const EDGE = 6
  * The night as steps (from Health Connect): each stretch is a block rising from the baseline to its
  * stage's level, deep sleep the lowest and awake the highest, so every change of stage reads as a step.
  * Fills the width it's given; `height` is the plot's. Hovering or tapping a block tells its stage and times.
+ * In a card of fixed height (Hoje's "Em foco") it's compact: shorter, and without the start and wake
+ * times under it (the card shows them above) nor the picking, so the time in each stage fits below.
  */
 export function Hypnogram({ spans, height }: { spans: SleepStageSpan[]; height?: number }) {
-  // In a card of fixed height (Hoje's "Em foco"), shorter, so the whole chart fits without scrolling.
-  const fill = useContext(CardFill)
-  const plotHeight = height ?? (fill ? 76 : 112)
+  const compact = useContext(CardFill)
+  const plotHeight = height ?? (compact ? 56 : 112)
   const night = useMemo(() => spans.filter((span) => span.end > span.start).sort((a, b) => a.start - b.start), [spans])
   // Lower steps first: a short awakening drawn wider than it lasted covers its neighbors, not the other way round.
   const painted = useMemo(() => [...night].sort((a, b) => STAGE_LEVEL[a.stage] - STAGE_LEVEL[b.stage] || a.start - b.start), [night])
@@ -73,11 +74,11 @@ export function Hypnogram({ spans, height }: { spans: SleepStageSpan[]; height?:
         className="relative border-b border-baseline"
         style={{ height: plotHeight }}
         onPointerDown={(event) => (pointer.current = event.pointerType)}
-        onPointerMove={(event) => event.pointerType === 'mouse' && setPicked(spanUnder(event.clientX))}
+        onPointerMove={(event) => !compact && event.pointerType === 'mouse' && setPicked(spanUnder(event.clientX))}
         onPointerLeave={(event) => event.pointerType === 'mouse' && setPicked(undefined)}
         onClick={(event) => {
           // A tap shows a stretch and a second tap on it hides it; the mouse shows it by hovering.
-          if (pointer.current === 'mouse') return
+          if (compact || pointer.current === 'mouse') return
           const span = spanUnder(event.clientX)
           setPicked(span === selected ? undefined : span)
         }}
@@ -118,9 +119,9 @@ export function Hypnogram({ spans, height }: { spans: SleepStageSpan[]; height?:
           ))}
       </div>
 
-      <span />
+      {!compact && <span />}
       {/* Under the plot only, so the times line up with its ends; a picked stretch takes their place. */}
-      <figcaption className="mt-1 text-xs tabular-nums">
+      <figcaption className={compact ? 'sr-only' : 'mt-1 text-xs tabular-nums'}>
         {selected ? (
           <p className="text-center">
             <span className="font-medium">{STAGE_LABEL[selected.stage]}</span>{' '}
