@@ -244,6 +244,16 @@ export interface Settings extends Synced {
   goalCheckIn?: GoalCheckIn
   /** A notification on Android when the coach sends new workouts (SisRUN, through the Garmin calendar); on unless false. */
   sisrunAlerts?: boolean
+  /** Where the forecast is for (Clima and the scheduled workouts); unset means near the latest outdoor activity. */
+  weatherPlace?: WeatherPlace
+}
+
+/** A place picked for the weather forecast, its coordinates rounded to 2 decimals (about 1 km). */
+export interface WeatherPlace {
+  /** "Porto Alegre, RS", or "Minha localização". */
+  name: string
+  lat: number
+  lon: number
 }
 
 /** A weekly check-in of the calorie and macro targets, from the expenditure estimate and the weight goal. */

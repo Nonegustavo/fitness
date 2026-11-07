@@ -1,4 +1,5 @@
 import { Link2, Pencil, Play, TrendingUp } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Modal } from '../../components/Modal'
 import { Button, SkeletonLines } from '../../components/ui'
@@ -151,12 +152,15 @@ export function TemplateSheet({
   subtitle,
   canStart,
   onClose,
+  children,
 }: {
   templateId: string
   /** When it's planned: "sexta-feira, 7 de novembro · às 12:00". */
   subtitle?: string
   canStart: boolean
   onClose: () => void
+  /** More about that day, above the exercises (the weather expected). */
+  children?: ReactNode
 }) {
   const templates = useTemplates()
   const navigate = useNavigate()
@@ -181,6 +185,7 @@ export function TemplateSheet({
               <Pencil size={16} /> Editar ficha
             </Button>
           </div>
+          {children}
           <TemplateDetails template={template} />
         </>
       )}

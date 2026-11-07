@@ -30,6 +30,9 @@ import { useStartWorkout } from '../training/components'
 import { summarize } from '../training/stats'
 import { TemplateSheet } from '../training/TemplateDetails'
 import { useSessions, useTemplates } from '../training/training'
+import { WorkoutWeatherDetails, WorkoutWeatherLine } from '../weather/components'
+import { workoutWeather, type WorkoutWeather } from '../weather/forecast'
+import { useForecast } from '../weather/store'
 import { suggestTemplate, type AgendaItem, type AgendaKind, type AgendaStatus } from './agenda'
 import { EventDetails } from './EventDetails'
 import { coachSummary, descriptionPreview } from './eventText'
@@ -194,6 +197,7 @@ function ItemRow({
   item,
   today,
   day,
+  weather,
   onEdit,
   onTime,
   onDetails,
@@ -202,6 +206,8 @@ function ItemRow({
   today: DayKey
   /** The day it's for, when the list mixes days. */
   day?: string
+  /** The forecast for it, while it's ahead and within the forecast's days. */
+  weather?: WorkoutWeather
   onEdit: (item: AgendaItem) => void
   onTime: (item: AgendaItem) => void
   onDetails: (item: AgendaItem) => void
@@ -224,8 +230,11 @@ function ItemRow({
   const hideable = item.eventKey && item.status === 'missed'
   const template = plan?.templateId ? templates?.find((t) => t.id === plan.templateId) : undefined
   // What isn't done yet opens its ficha: a gym workout's template, a Garmin workout's steps (a rest
-  // day only when the coach wrote something for it). What was done opens its own page instead.
-  const details = !link && (!!plan?.templateId || (!!item.event && (item.kind !== 'rest' || !!item.event.description)))
+  // day only when the coach wrote something for it), a walk's forecast. What was done opens its own
+  // page instead.
+  const details =
+    !link &&
+    (!!plan?.templateId || (!!item.event && (item.kind !== 'rest' || !!item.event.description)) || (plan?.kind === 'walk' && !!weather))
   // The steps in a line: the coach's from SisRUN, else the Garmin calendar's description.
   const preview =
     item.status === 'done'
@@ -261,6 +270,7 @@ function ItemRow({
         </span>
       )}
       <span className="block text-xs text-muted">{describeItem(item)}</span>
+      {weather && <WorkoutWeatherLine weather={weather} />}
       {item.activity?.notes?.trim() && (
         <span className="mt-0.5 flex items-start gap-1 text-xs text-ink-2">
           <MessageSquareText size={12} aria-label="Comentário" className="mt-0.5 shrink-0" />
@@ -282,7 +292,7 @@ function ItemRow({
           className="relative min-w-0 flex-1 rounded-lg text-left transition hover:text-accent-ink active:opacity-70"
         >
           {text}
-          <span className="sr-only">{plan?.templateId ? 'Ver a ficha' : 'Ver os detalhes'}</span>
+          <span className="sr-only">{plan?.templateId ? 'Ver a ficha' : plan?.kind === 'walk' ? 'Ver a previsão' : 'Ver os detalhes'}</span>
         </button>
       ) : (
         <div className="min-w-0 flex-1">{text}</div>
@@ -334,6 +344,8 @@ export function AgendaItems({ items, today, showDay = false }: { items: AgendaIt
   const [editing, setEditing] = useState<AgendaItem>()
   const [timing, setTiming] = useState<AgendaItem>()
   const [viewing, setViewing] = useState<AgendaItem>()
+  // The forecast is only fetched for lists with something still ahead (not a past day's).
+  const { forecast } = useForecast({ active: items.some((item) => item.status === 'planned' && item.date >= today) })
   const plan = editing?.plan
   const close = () => setEditing(undefined)
   return (
@@ -345,6 +357,7 @@ export function AgendaItems({ items, today, showDay = false }: { items: AgendaIt
             item={item}
             today={today}
             day={showDay && item.date !== today ? itemDay(item.date, today) : undefined}
+            weather={workoutWeather(item, forecast, today)}
             onEdit={setEditing}
             onTime={setTiming}
             onDetails={setViewing}
@@ -378,7 +391,8 @@ function whenLine(item: AgendaItem, today: DayKey): string {
 
 /**
  * The ficha of a workout not done yet: a scheduled template's exercises (with Iniciar on its day), or
- * what the Garmin calendar says of a coach's workout.
+ * what the Garmin calendar says of a coach's workout; for a walk, its forecast. Each with the
+ * weather expected, within the forecast's days.
  */
 function ItemDetails({ item, today, onClose }: { item: AgendaItem; today: DayKey; onClose: () => void }) {
   const templateId = item.plan?.templateId
@@ -389,14 +403,17 @@ function ItemDetails({ item, today, onClose }: { item: AgendaItem; today: DayKey
         subtitle={whenLine(item, today)}
         canStart={item.date === today && item.status === 'planned'}
         onClose={onClose}
-      />
+      >
+        <WorkoutWeatherDetails item={item} today={today} />
+      </TemplateSheet>
     )
   }
-  if (!item.event) return null
+  if (!item.event && item.plan?.kind !== 'walk') return null
   return (
     <Modal open title={item.title} onClose={onClose}>
       <p className="-mt-1 mb-4 text-xs text-muted first-letter:uppercase">{whenLine(item, today)}</p>
-      <EventDetails event={item.event} kind={item.kind} coach={item.coach} />
+      <WorkoutWeatherDetails item={item} today={today} />
+      {item.event && <EventDetails event={item.event} kind={item.kind} coach={item.coach} />}
     </Modal>
   )
 }

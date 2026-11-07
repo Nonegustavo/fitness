@@ -32,6 +32,7 @@ const GearPage = lazy(() => import('./features/gear/GearPage'))
 const CaloriesPage = lazy(() => import('./features/garmin/CaloriesPage'))
 const WeekPage = lazy(() => import('./features/today/WeekPage'))
 const RecapPage = lazy(() => import('./features/recap/RecapPage'))
+const WeatherPage = lazy(() => import('./features/weather/WeatherPage'))
 
 const router = createHashRouter([
   {
@@ -65,6 +66,7 @@ const router = createHashRouter([
       { path: 'analise', element: <AnalysisPage /> },
       { path: 'mais', element: <MorePage /> },
       { path: 'agua', element: <WaterPage /> },
+      { path: 'clima', element: <WeatherPage /> },
       { path: 'habitos', element: <HabitsPage /> },
       { path: 'ajustes', element: <SettingsPage /> },
       { path: '*', element: <Navigate to="/" replace /> },

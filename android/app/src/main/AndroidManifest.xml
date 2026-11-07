@@ -95,6 +95,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- The plate photo and the barcode scanner use the camera from inside the app. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- "Usar minha localização" in Clima: the approximate location is enough for the forecast.
+         Capacitor's WebChromeClient asks for it when the page calls navigator.geolocation. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- The end of a rest has to ring on time, also with the screen off. The notifications plugin
          declares SCHEDULE_EXACT_ALARM, which Android 14+ denies by default; this one is granted. -->

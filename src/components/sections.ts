@@ -1,6 +1,7 @@
 import {
   CalendarDays,
   ChartScatter,
+  CloudSun,
   Dumbbell,
   Flame,
   Footprints,
@@ -39,6 +40,8 @@ export const SECTIONS: Section[] = [
   { to: '/analise', label: 'Análise', icon: Sparkles, tone: 'analysis' },
   { to: '/correlacoes', label: 'Correlações', icon: ChartScatter, tone: 'insights' },
   { to: '/agua', label: 'Água', icon: GlassWater, tone: 'water' },
+  // Sky blue like Água: the rain is what matters most in it.
+  { to: '/clima', label: 'Clima', icon: CloudSun, tone: 'water' },
   { to: '/habitos', label: 'Hábitos', icon: ListChecks, tone: 'habits' },
   { to: '/diario', label: 'Diário', icon: NotebookPen, tone: 'journal' },
   { to: '/ajustes', label: 'Ajustes', icon: Settings, tone: 'settings' },

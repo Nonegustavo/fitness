@@ -16,6 +16,9 @@ const TIMEOUT_MS = 15_000
 
 const INDOOR = new Set(['treadmill', 'indoorRunning', 'indoorCycling', 'indoorWalking', 'indoorRowing', 'spin', 'virtualActivity'])
 
+/** An activity done indoors (treadmill, spin…), whose route, if any, says nothing of the weather. */
+export const isIndoor = (activity: Pick<Activity, 'subSport'>): boolean => INDOOR.has(activity.subSport ?? '')
+
 interface Pending {
   id: string
   /** Not before this day: set when a try fails. */
