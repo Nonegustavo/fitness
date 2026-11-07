@@ -185,15 +185,6 @@ export function lastCheckedSet(session: WorkoutSession, timed: (exerciseId: stri
   return found
 }
 
-/** The weight still to lift moved by a step, on every working set not done yet. */
-export function shiftLoad(exercise: SessionExercise, step: number, from: number): SessionExercise {
-  const next = Math.max(0, Math.round((from + step) * 100) / 100)
-  return {
-    ...exercise,
-    sets: exercise.sets.map((set) => (set.kind === 'normal' && !set.done ? { ...set, weightKg: next } : set)),
-  }
-}
-
 /**
  * Another exercise in the place of this one (the machine is busy): the sets not done yet move to
  * it, without the old loads. Sets already done stay with the original exercise.

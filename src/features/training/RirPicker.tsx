@@ -4,7 +4,11 @@ import { formatRir } from './catalog'
 /** 0 to 3 reps in reserve, and 4 standing for "4 or more". */
 const VALUES = [0, 1, 2, 3, 4]
 
-/** "RIR 2" under a checked working set, or a faint "RIR" before one is told; opens the picker. */
+/**
+ * "RIR 2" under a checked working set, or a faint "RIR" before one is told; opens the picker. It
+ * keeps to the height of the line under the set (the rows are all one height), and its ::after
+ * makes the spot to tap taller than what shows.
+ */
 export function RirToggle({
   rir,
   open,
@@ -24,7 +28,7 @@ export function RirToggle({
       aria-label={`Repetições na reserva da série ${label}${rir === undefined ? '' : `: ${formatRir(rir)}`}`}
       onClick={onToggle}
       className={cx(
-        'mx-auto block h-6 rounded-md px-1 text-[11px] leading-none whitespace-nowrap tabular-nums transition',
+        'relative mx-auto block h-3.5 rounded px-1 text-[11px] leading-none whitespace-nowrap tabular-nums transition after:absolute after:-inset-x-1.5 after:-top-1 after:-bottom-1.5',
         rir === undefined ? 'text-muted' : 'font-semibold text-ink-2',
         open && 'bg-surface-2',
       )}

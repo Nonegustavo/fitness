@@ -95,7 +95,7 @@ export function pendingSets(session: WorkoutSession): PendingSet[] {
 export const setLabel = (kind: SetKind, position: number, count: number): string =>
   `${kind === 'warmup' ? 'Aquecimento' : 'Série'} ${position + 1} de ${count}`
 
-/** The load −/+ step: the equipment's, as the app's load stepper, and 2.5 kg when it has none. */
+/** The load −/+ step: the equipment's (as in the load suggestion), and 2.5 kg when it has none. */
 export const loadStep = (info: Exercise | undefined): number =>
   info && LOAD_STEP[info.equipment] > 0 ? LOAD_STEP[info.equipment] : 2.5
 

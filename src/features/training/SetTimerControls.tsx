@@ -34,7 +34,10 @@ export function SetTimerButton({
   )
 }
 
-/** The running set's clock, in place of its time field: what's left of the countdown, or the time so far. */
+/**
+ * The running set's clock, in place of its time field (and as tall, so the row keeps its height):
+ * what's left of the countdown, or the time so far.
+ */
 export function SetTimerClock({ timer, label }: { timer: SetTimer; label: string }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -46,7 +49,7 @@ export function SetTimerClock({ timer, label }: { timer: SetTimer; label: string
     <div
       role="timer"
       aria-label={`${up ? 'Tempo da série' : 'Tempo restante da série'} ${label}`}
-      className="flex h-10 items-center justify-center rounded-xl border border-accent-ink bg-accent/10 font-semibold text-accent-ink tabular-nums"
+      className="flex h-11 items-center justify-center rounded-xl border border-accent-ink bg-accent/10 font-semibold text-accent-ink tabular-nums"
     >
       {up && <span className="mr-0.5 text-xs font-normal" aria-hidden>↑</span>}
       {formatClock(clockSec(timer, now))}

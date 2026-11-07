@@ -264,12 +264,6 @@ describe('workout helpers', () => {
     expect(restsAfter(session.exercises, 1)).toBe(true)
   })
 
-  it('moves the load of the sets still to do', async () => {
-    const { shiftLoad } = await import('./training')
-    const shifted = shiftLoad(session.exercises[0], 2.5, 60)
-    expect(shifted.sets.map((s) => s.weightKg)).toEqual([60, 62.5])
-  })
-
   it('swaps an exercise, keeping the sets already done with the original', async () => {
     const { swapExercise } = await import('./training')
     const swapped = swapExercise(session, 'a', 'supino-halteres')

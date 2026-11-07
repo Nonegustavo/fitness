@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Modal } from '../../components/Modal'
-import { Button, cx, DecimalInput, Field, TextInput } from '../../components/ui'
+import { cx, DecimalInput, Field, TextInput } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { patch } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
@@ -183,24 +183,5 @@ export function SwapModal({
         {options.length === 0 && <li className="py-6 text-center text-sm text-muted">Nenhum exercício encontrado.</li>}
       </ul>
     </Modal>
-  )
-}
-
-/** The load of the sets still to do, one step up or down at a time. */
-export function LoadStepper({ weightKg, step, onShift }: { weightKg: number; step: number; onShift: (step: number) => void }) {
-  const label = formatNumber(step, 2)
-  return (
-    <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-surface-2 py-1 pr-1 pl-3 text-sm">
-      <span className="text-ink-2">Próximas séries</span>
-      <div className="flex items-center gap-1">
-        <Button size="sm" variant="ghost" aria-label={`Diminuir ${label} kg`} disabled={weightKg <= 0} onClick={() => onShift(-step)}>
-          −{label}
-        </Button>
-        <span className="min-w-16 text-center font-semibold tabular-nums">{kg(weightKg)}</span>
-        <Button size="sm" variant="ghost" aria-label={`Aumentar ${label} kg`} onClick={() => onShift(step)}>
-          +{label}
-        </Button>
-      </div>
-    </div>
   )
 }

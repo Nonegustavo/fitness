@@ -41,7 +41,7 @@ import { cancelSetTimer, completeSetTimer, startSetTimer, stopSetTimer, useSetTi
 import { SetTimerButton, SetTimerClock } from './SetTimerControls'
 import { firstWorkingLoad, replaceWarmups, suggestWarmup, warmupSets } from './warmup'
 import { WarmupPreview } from './WarmupPreview'
-import { LoadStepper, PlatesModal, SwapModal } from './GymTools'
+import { PlatesModal, SwapModal } from './GymTools'
 import {
   compareSet,
   DEFAULT_GYM,
@@ -70,7 +70,6 @@ import {
   reorderExercises,
   restOf,
   restSecAfter,
-  shiftLoad,
   swapExercise,
   templateInOrder,
   updateSession,
@@ -370,11 +369,10 @@ function ExerciseCard({
     { label: 'Remover exercício', icon: Trash2, danger: true, onClick: () => setConfirmRemove(true) },
   ]
 
-  // The load the next sets will use: typed, or last time's, or the template's.
+  // The next working set's load, for the plates: typed, or last time's, or the template's.
   const firstLeft = rows.find(({ set }) => set.kind === 'normal' && !set.done)
   const nextLoad = firstLeft && (firstLeft.set.weightKg ?? firstLeft.previous?.weightKg ?? firstLeft.set.target?.weightKg)
   const barbell = info?.equipment === 'barbell' || info?.equipment === 'smith'
-  const step = info && LOAD_STEP[info.equipment] > 0 ? LOAD_STEP[info.equipment] : 2.5
 
   // The warm-up climbs to the first working set's load: typed, or last time's, or the template's.
   const workKg = firstWorkingLoad(exercise.sets, lastSets)
@@ -463,9 +461,6 @@ function ExerciseCard({
         />
       )}
 
-      {active && type === 'weight_reps' && nextLoad !== undefined && (
-        <LoadStepper weightKg={nextLoad} step={step} onShift={(delta) => update((current) => shiftLoad(current, delta, nextLoad))} />
-      )}
       {active && barbell && type === 'weight_reps' && (
         <button type="button" onClick={() => setPlates(true)} className="mt-2 flex items-center gap-1.5 text-xs font-medium text-accent-ink">
           <Disc3 size={14} /> Anilhas{nextLoad !== undefined && ` para ${formatNumber(nextLoad, 2)} kg`}
@@ -854,18 +849,16 @@ function SetRow({
       >
         <Check size={20} />
       </button>
-      {(before !== undefined || comparison || rirShown) && (
-        <>
-          <span />
-          <span className="truncate text-center text-[11px] leading-tight text-muted tabular-nums">
-            {before !== undefined && formatE1rm(before)}
-          </span>
-          <span className={cx(type === 'weight_reps' && 'col-span-2')}>
-            {comparison && <ComparisonLine comparison={comparison} />}
-          </span>
-          {rirShown && <RirToggle rir={set.rir} open={rirOpen} label={label} onToggle={onToggleRir} />}
-        </>
-      )}
+      {/* The line under the set. Every set has it, empty where there's nothing to show (warm-ups,
+          sets not typed yet), so all rows are the same height and none grows as it's typed. */}
+      <span className="h-3.5" />
+      <span className="truncate text-center text-[11px] leading-3.5 text-muted tabular-nums">
+        {before !== undefined && formatE1rm(before)}
+      </span>
+      <span className={cx(type === 'weight_reps' && 'col-span-2')}>
+        {comparison && <ComparisonLine comparison={comparison} />}
+      </span>
+      {rirShown && <RirToggle rir={set.rir} open={rirOpen} label={label} onToggle={onToggleRir} />}
       {rirShown && rirOpen && <RirPicker rir={set.rir} label={label} onChange={(rir) => void write({ rir })} />}
     </div>
   )
@@ -883,7 +876,7 @@ function ComparisonLine({ comparison }: { comparison: SetComparison }) {
   return (
     <span
       className={cx(
-        'block truncate text-center text-[11px] leading-tight tabular-nums',
+        'block truncate text-center text-[11px] leading-3.5 tabular-nums',
         trend?.className ?? 'text-muted',
       )}
       title={comparison.metric === 'e1rm' ? '1RM estimado (Epley)' : undefined}
