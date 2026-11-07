@@ -1,21 +1,20 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { Moon } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
+import { DayNav } from '../../components/DayNav'
 import { PeriodBars } from '../../components/PeriodBars'
 import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
 import { PeriodLine } from '../../components/TimeCharts'
-import { Card, cx, Empty, Page, SkeletonCard, SkeletonLines, Stat } from '../../components/ui'
+import { Button, Card, cx, Empty, Page, SkeletonCard, SkeletonLines, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { db } from '../../db/schema'
 import type { DailyHealth } from '../../db/types'
-import { formatTime, relativeDay, shiftDay } from '../../lib/dates'
+import { formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 import type { DayValue } from '../../lib/stats'
 import { Hypnogram } from './Hypnogram'
-import { hrvStatus, latestNight, sleepStages, STAGE_CLASS, useDailyHealth } from './recovery'
-
-/** The last nights, for the latest one and the recovery numbers. */
-const RECENT_DAYS = 30
+import { hrvStatus, sleepStages, STAGE_CLASS, useDailyHealth } from './recovery'
 
 const NIGHTS = ['noite', 'noites'] as const
 const hasNight = (day: DailyHealth) => day.sleep !== undefined || day.hrv?.lastNight !== undefined || day.restingHr !== undefined
@@ -29,11 +28,30 @@ const readings = (days: DailyHealth[], pick: (day: DailyHealth) => number | unde
     return value ? [{ date: day.id, value }] : []
   })
 
+/** "Noite de 5 para 6 de novembro": a night counts for the morning it ends, as Garmin dates it. */
+function nightLabel(date: DayKey): string {
+  const before = shiftDay(date, -1)
+  const sameMonth = before.slice(0, 7) === date.slice(0, 7)
+  return `Noite de ${formatDay(before, sameMonth ? 'd' : "d 'de' MMMM")} para ${formatDay(date, "d 'de' MMMM")}`
+}
+
+/** The latest day with a night; null when there's none at all. */
+function useLatestNight(): DailyHealth | null | undefined {
+  return useLiveQuery(
+    async () => (await db.dailyHealth.orderBy('id').reverse().filter((day) => !day.deleted && day.sleep !== undefined).first()) ?? null,
+  )
+}
+
 export default function SleepPage() {
   const today = useToday()
-  const from = shiftDay(today, -(RECENT_DAYS - 1))
-  const days = useDailyHealth(from, today)
-  if (!days) {
+  const [params, setParams] = useSearchParams()
+  const asked = params.get('data')
+  const date = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) && asked <= today ? asked : today
+  const setDate = (next: DayKey) => setParams(next === today ? {} : { data: next }, { replace: true })
+  const latest = useLatestNight()
+  const days = useDailyHealth(date, date)
+
+  if (latest === undefined) {
     return (
       <Page title="Sono e recuperação" icon={Moon} tone="sleep">
         <SkeletonCard lines={4} />
@@ -41,15 +59,9 @@ export default function SleepPage() {
       </Page>
     )
   }
-  const latest = latestNight(days)
 
   return (
-    <Page
-      title="Sono e recuperação"
-      icon={Moon}
-      tone="sleep"
-      subtitle={latest ? `Última noite: ${relativeDay(latest.id, today)}` : 'Do relógio Garmin'}
-    >
+    <Page title="Sono e recuperação" icon={Moon} tone="sleep" subtitle={latest ? nightLabel(date) : 'Do relógio Garmin'}>
       {!latest ? (
         <Card>
           <Empty>Nenhum dado de sono ainda.</Empty>
@@ -62,12 +74,64 @@ export default function SleepPage() {
         </Card>
       ) : (
         <>
-          <NightCard day={latest} />
-          <RecoveryCard day={latest} />
+          {/* The chosen night's cards, kept together right under the day picker. */}
+          <div>
+            <DayNav date={date} today={today} onChange={setDate} />
+            <div className="space-y-4">
+              {days ? (
+                <NightCards day={days[0]} date={date} today={today} latest={latest} onPick={setDate} />
+              ) : (
+                <>
+                  <SkeletonCard lines={4} />
+                  <SkeletonCard lines={3} />
+                </>
+              )}
+            </div>
+          </div>
           <TrendsCard />
         </>
       )}
     </Page>
+  )
+}
+
+/** The night of a day and the recovery numbers of that day, or what's missing. */
+function NightCards({
+  day,
+  date,
+  today,
+  latest,
+  onPick,
+}: {
+  day: DailyHealth | undefined
+  date: DayKey
+  today: DayKey
+  latest: DailyHealth
+  onPick: (date: DayKey) => void
+}) {
+  const stats = day ? recoveryStats(day) : []
+  return (
+    <>
+      {day?.sleep ? (
+        <NightCard day={day} />
+      ) : (
+        <Card title="Noite">
+          <Empty>
+            {date === today
+              ? 'A noite de hoje ainda não chegou do Garmin.'
+              : stats.length > 0
+                ? 'O relógio não registrou o sono desta noite.'
+                : 'Sem dados de sono nesta noite.'}
+          </Empty>
+          {latest.id < date && (
+            <Button size="sm" variant="ghost" className="w-full" onClick={() => onPick(latest.id)}>
+              Ver a {nightLabel(latest.id).toLowerCase()}
+            </Button>
+          )}
+        </Card>
+      )}
+      {day && stats.length > 0 && <RecoveryCard stats={stats} hrv={day.hrv} />}
+    </>
   )
 }
 
@@ -110,7 +174,7 @@ function NightCard({ day }: { day: DailyHealth }) {
       )}
       {day.sleepStages && day.sleepStages.length > 1 && (
         <div className="mt-5">
-          <p className="mb-2 text-sm font-medium">Ao longo da noite</p>
+          <p className="mb-1 text-sm font-medium">Ao longo da noite</p>
           <Hypnogram spans={day.sleepStages} />
         </div>
       )}
@@ -118,9 +182,15 @@ function NightCard({ day }: { day: DailyHealth }) {
   )
 }
 
-function RecoveryCard({ day }: { day: DailyHealth }) {
-  const { hrv, restingHr, bodyBattery, stress, steps } = day
-  const stats: { label: string; value: ReactNode; note?: string }[] = []
+interface RecoveryStat {
+  label: string
+  value: ReactNode
+  note?: string
+}
+
+/** The day's recovery numbers that the watch has. */
+function recoveryStats({ hrv, restingHr, bodyBattery, stress, steps }: DailyHealth): RecoveryStat[] {
+  const stats: RecoveryStat[] = []
   if (hrv?.lastNight !== undefined) {
     stats.push({ label: 'HRV da noite', value: `${hrv.lastNight} ms`, note: hrvStatus(hrv.status) })
   }
@@ -136,7 +206,10 @@ function RecoveryCard({ day }: { day: DailyHealth }) {
     stats.push({ label: 'Estresse médio', value: stress.avg, note: stress.max ? `máx ${stress.max}` : undefined })
   }
   if (steps !== undefined) stats.push({ label: 'Passos', value: formatNumber(steps, 0) })
-  if (stats.length === 0) return null
+  return stats
+}
+
+function RecoveryCard({ stats, hrv }: { stats: RecoveryStat[]; hrv?: DailyHealth['hrv'] }) {
   return (
     <Card title="Recuperação">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
