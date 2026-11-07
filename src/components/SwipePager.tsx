@@ -41,12 +41,21 @@ const translate = (x: number) => `translate3d(${x}px, 0, 0)`
 /** What owns a sideways drag itself: fields, rows that delete, charts (their tooltip follows the finger). */
 const OWNS_SWIPE = 'input, textarea, select, [contenteditable], [data-swipe-row], [data-no-swipe], [data-no-day-swipe], [_echarts_instance_]'
 
-function ownsSwipe(target: EventTarget | null, pager: HTMLElement): boolean {
+/**
+ * Outside the pager, where a screen-wide one still takes a drag: the screen's own content (its title,
+ * the cards around the pager) and the empty background under it. Not the bars and buttons on top of
+ * the screen, nor its sheets.
+ */
+const onScreen = (target: Element) =>
+  !!target.closest('main') || target.hasAttribute('data-screen') || target === document.body || target === document.documentElement
+
+function ownsSwipe(target: EventTarget | null, pager: HTMLElement, anywhere: boolean): boolean {
   if (!(target instanceof Element)) return true
   if (document.querySelector('[role="dialog"]')) return true
   if (target.closest(OWNS_SWIPE)) return true
-  // A pager inside this one moves its own pages.
-  if (target.closest('[data-pager]') !== pager) return true
+  // A pager inside this one moves its own pages; outside any pager, only a screen-wide one takes it.
+  const inPager = target.closest('[data-pager]')
+  if (inPager !== pager && !(anywhere && inPager === null && onScreen(target))) return true
   // So does anything scrolling sideways.
   for (let element: Element | null = target; element && element !== pager; element = element.parentElement) {
     const { overflowX } = getComputedStyle(element)
@@ -100,6 +109,10 @@ interface Motion<K> {
  *
  * `bleed`: the pages slide out to the edges of the screen's content area instead of stopping at the
  * pager's own edges (off for a pager inside a card).
+ *
+ * `anywhere` (with `bleed`, by default): a drag that starts outside the pager moves it too, on the
+ * screen's title, the cards around it or the empty space under the last one, as long as nothing
+ * there moves sideways itself.
  */
 export function SwipePager<K extends string>({
   value,
@@ -110,6 +123,7 @@ export function SwipePager<K extends string>({
   children,
   className,
   bleed = true,
+  anywhere = bleed,
 }: {
   value: K
   /** The page before (-1) or after (1) one; undefined at an end. */
@@ -122,6 +136,7 @@ export function SwipePager<K extends string>({
   /** For each page (spacing between its cards, say). */
   className?: string
   bleed?: boolean
+  anywhere?: boolean
 }) {
   const viewport = useRef<HTMLDivElement>(null)
   const track = useRef<HTMLDivElement>(null)
@@ -226,7 +241,7 @@ export function SwipePager<K extends string>({
 
   const onDown = useEffectEvent((event: PointerEvent) => {
     const m = motion.current
-    if (!event.isPrimary || ownsSwipe(event.target, viewport.current!)) return
+    if (!event.isPrimary || ownsSwipe(event.target, viewport.current!, anywhere)) return
     // A new first finger means the last one is gone: a drag whose release never came puts its page back.
     if (m.drag) {
       const stale = m.drag
@@ -320,42 +335,52 @@ export function SwipePager<K extends string>({
 
   useEffect(() => {
     const element = viewport.current!
-    const down = (event: PointerEvent) => onDown(event)
-    const move = (event: PointerEvent) => onMove(event)
-    const up = (event: PointerEvent) => onEnd(event, false)
-    const cancel = (event: PointerEvent) => onEnd(event, true)
+    // A screen-wide pager listens on the whole document, so a drag from outside it reaches it too
+    // (its moves come from wherever the finger is until the pager captures them).
+    const host: HTMLElement | Document = anywhere ? document : element
+    const down = (event: Event) => onDown(event as PointerEvent)
+    const move = (event: Event) => onMove(event as PointerEvent)
+    const up = (event: Event) => onEnd(event as PointerEvent, false)
+    const cancel = (event: Event) => onEnd(event as PointerEvent, true)
     // Only the pager losing its own capture ends the drag: taking it fires one on the element that had it.
     const lost = (event: PointerEvent) => event.target === element && onEnd(event, true)
-    const click = (event: MouseEvent) => {
+    const click = (event: Event) => {
       if (event.timeStamp > motion.current.swallowUntil) return
       motion.current.swallowUntil = 0
       event.preventDefault()
       event.stopPropagation()
     }
-    element.addEventListener('pointerdown', down)
-    element.addEventListener('pointermove', move)
-    element.addEventListener('pointerup', up)
-    element.addEventListener('pointercancel', cancel)
+    host.addEventListener('pointerdown', down)
+    host.addEventListener('pointermove', move)
+    host.addEventListener('pointerup', up)
+    host.addEventListener('pointercancel', cancel)
     element.addEventListener('lostpointercapture', lost)
-    element.addEventListener('click', click, true)
+    host.addEventListener('click', click, true)
+    // Up and down stay the browser's scroll across the screen, sideways is the pager's: else a drag
+    // starting outside it could be taken as the page's own pan, which cancels the pointer. Rows that
+    // scroll sideways still do (the browser's pan stops at the nearest scroller).
+    const touchAction = document.body.style.touchAction
+    if (anywhere) document.body.style.touchAction = 'pan-y pinch-zoom'
     // A sideways drag is ours to the end: left to the browser, a quick one counted as a fling, and the
     // tap after it only stopped that fling instead of clicking. Each move's pointer event comes first,
-    // so the drag is already locked when its touch event arrives.
-    const touchMove = (event: TouchEvent) => {
+    // so the drag is already locked when its touch event arrives. Touches stay with the element they
+    // started on, so a drag from outside the pager is only seen on the document.
+    const touchMove = (event: Event) => {
       if (motion.current.drag?.locked && event.cancelable) event.preventDefault()
     }
-    element.addEventListener('touchmove', touchMove, { passive: false })
+    host.addEventListener('touchmove', touchMove, { passive: false })
     return () => {
-      element.removeEventListener('touchmove', touchMove)
-      element.removeEventListener('pointerdown', down)
-      element.removeEventListener('pointermove', move)
-      element.removeEventListener('pointerup', up)
-      element.removeEventListener('pointercancel', cancel)
+      host.removeEventListener('touchmove', touchMove)
+      host.removeEventListener('pointerdown', down)
+      host.removeEventListener('pointermove', move)
+      host.removeEventListener('pointerup', up)
+      host.removeEventListener('pointercancel', cancel)
       element.removeEventListener('lostpointercapture', lost)
-      element.removeEventListener('click', click, true)
+      host.removeEventListener('click', click, true)
+      if (anywhere) document.body.style.touchAction = touchAction
       motion.current.animation?.cancel()
     }
-  }, [])
+  }, [anywhere])
 
   const pages: { key: K; side: Side | 0 }[] = [{ key: current.shown, side: 0 }]
   if (current.other && current.other.key !== current.shown) pages.push(current.other)

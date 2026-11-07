@@ -275,7 +275,7 @@ export function LapsTable({ activity }: { activity: Activity }) {
   const speed = (lap: ActivityLap) =>
     lap.avgSpeed && (lap.distanceM ?? 0) > 0 ? formatSpeed(lap.avgSpeed, kind) : '—'
   return (
-    <div className="scroll-fade-x -mx-4 overflow-x-auto px-4">
+    <div className="scroll-fade-x relative -mx-4 overflow-x-auto px-4">
       <table className="w-full text-sm tabular-nums">
         <thead>
           <tr className="text-left text-xs whitespace-nowrap text-muted">

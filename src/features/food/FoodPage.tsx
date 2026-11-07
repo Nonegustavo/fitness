@@ -5,7 +5,7 @@ import { PeriodBars } from '../../components/PeriodBars'
 import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
 import { DayNav, DayPager } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
-import { SwipeToDelete, useRemoveWithUndo } from '../../components/SwipeToDelete'
+import { useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { useToast } from '../../components/Toast'
 import { Button, Card, DecimalInput, Field, Page, Select, SkeletonCard, SkeletonLines, TextInput } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
@@ -266,7 +266,6 @@ function MealCard({
   looks: (foodId: string) => FoodLook
   onAdd: () => void
 }) {
-  const removeWithUndo = useRemoveWithUndo()
   const [editing, setEditing] = useState<FoodLog | null>(null)
   const [viewing, setViewing] = useState(false)
   const total = sumNutrients(entries.map((entry) => entry.nutrients))
@@ -296,15 +295,16 @@ function MealCard({
           <SplitBar nutrients={total} />
         </button>
         {photoIds.length > 0 && (
-          <div className="scroll-fade-x mb-2 flex gap-2 overflow-x-auto">
+          <div className="scroll-fade-x relative mb-2 flex gap-2 overflow-x-auto">
             {photoIds.map((id) => (
               <PhotoThumb key={id} id={id} />
             ))}
           </div>
         )}
+        {/* No swipe to delete here: a sideways drag changes the day. "Remover" is in the food's sheet. */}
         <ul className="divide-y divide-line">
           {entries.map((entry) => (
-            <SwipeToDelete key={entry.id} onDelete={() => removeWithUndo(db.foodLogs, entry.id, `${entry.name} removido`)}>
+            <li key={entry.id}>
               <button type="button" onClick={() => setEditing(entry)} className="flex w-full items-center gap-3 py-2 text-left">
                 <FoodAvatar name={entry.name} {...looks(entry.foodId)} />
                 <div className="min-w-0 flex-1">
@@ -316,7 +316,7 @@ function MealCard({
                 </div>
                 <span className="shrink-0 text-sm tabular-nums">{kcal(entry.nutrients.kcal)}</span>
               </button>
-            </SwipeToDelete>
+            </li>
           ))}
         </ul>
       </>

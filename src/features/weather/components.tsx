@@ -110,8 +110,11 @@ export function HourStrip({
   // A line for the millimetres only when some hour has them, the same height in every hour.
   const wet = hours.some((hour) => rains(hour.rainMm))
   return (
+    // Relative, so the labels for screen readers (absolutely positioned) stay inside the strip: past
+    // the screen they made the page wider than the phone, and on Android everything fixed (sheets,
+    // the bottom bar, the "+") laid out against that width, off the screen.
     <ol
-      className={cx(scroll ? 'scroll-fade-x -mx-4 flex gap-1 overflow-x-auto overscroll-x-contain px-4 pb-1' : 'grid gap-1')}
+      className={cx('relative', scroll ? 'scroll-fade-x -mx-4 flex gap-1 overflow-x-auto overscroll-x-contain px-4 pb-1' : 'grid gap-1')}
       style={scroll ? undefined : { gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}
     >
       {hours.map((hour, i) => {
@@ -136,10 +139,10 @@ export function HourStrip({
             <span className="text-sm font-semibold">{degrees(hour.tempC)}</span>
             {chance !== undefined && (
               <>
-                {/* The chance as a column on a shared baseline; nothing at 0%. */}
+                {/* The chance as a column on a shared baseline, square on top; nothing at 0%. */}
                 {!dense && (
                   <span aria-hidden className="flex h-4 items-end">
-                    <span className="w-2 rounded-t bg-series-1" style={{ height: `${chance}%` }} />
+                    <span className="w-2 bg-series-1" style={{ height: `${chance}%` }} />
                   </span>
                 )}
                 <span className="text-[11px] text-ink-2 tabular-nums">

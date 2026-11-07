@@ -91,7 +91,7 @@ export function WorkoutCheckCard({ activity, check }: { activity: Activity; chec
               de terminar).
             </p>
           )}
-          <div className="scroll-fade-x -mx-4 mt-3 overflow-x-auto px-4">
+          <div className="scroll-fade-x relative -mx-4 mt-3 overflow-x-auto px-4">
             <table className="w-full text-sm tabular-nums">
               <thead>
                 <tr className="text-left text-xs whitespace-nowrap text-muted">
