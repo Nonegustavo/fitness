@@ -132,7 +132,8 @@ O app Android também avisa por notificação: os lembretes dos hábitos (marcad
 - Produtos por código de barras: [Open Food Facts](https://world.openfoodfacts.org), base aberta sob a licença ODbL.
 - Atividades: arquivos .FIT lidos com o [FIT SDK](https://developer.garmin.com/fit) da Garmin. No site do Garmin Connect, abra a atividade, clique na engrenagem e escolha **Exportar original**; o app aceita o .zip baixado.
 - Mapas: © colaboradores do [OpenStreetMap](https://www.openstreetmap.org/copyright), desenhados com [Leaflet](https://leafletjs.com).
-- Clima das corridas e caminhadas: [Open-Meteo](https://open-meteo.com) (gratuito para uso não comercial). O app manda só a posição do início, arredondada para uns 1 km, e a data.
+- Clima das corridas e caminhadas e previsão do tempo (página Clima e treinos programados): [Open-Meteo](https://open-meteo.com) (gratuito para uso não comercial), com a busca de cidades da geocodificação dele. O app manda só uma posição arredondada para uns 1 km: o início da atividade, ou o local escolhido em Clima (uma cidade, ou "Usar minha localização", que no Android pede a localização aproximada). Sem local escolhido, a previsão é para o início da última atividade ao ar livre.
+- Desenho do corpo com os músculos da semana (Treinos): as formas do [react-native-body-highlighter](https://github.com/HichamELBSI/react-native-body-highlighter) (MIT), copiadas com a licença em [`LICENSE-body-highlighter`](src/features/training/LICENSE-body-highlighter).
 - Planilha do treinador: lida do site do aluno do [SisRUN](https://appsisrun.com.br) com o login do próprio aluno, com o leitor adaptado do [sisrun-mcp](https://github.com/cdutr/sisrun-mcp) (MIT).
 - Fotos e passos dos exercícios: [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (Unlicense), carregados na hora pelo jsDelivr, sem copiar as imagens para o app. As fotos vêm de fontes de licença incerta: servem para uso pessoal, não para redistribuir. Os passos em português foram escritos para o app.
 
@@ -150,7 +151,7 @@ src/
   db/          banco local (Dexie), tipos e backup
   sync/        motor de sincronização e cliente do Supabase
   features/    telas: hoje, treinos, atividades e sono do Garmin, alimentação (com receitas e fotos), corpo, água,
-               hábitos (com lembretes), diário, análise do dia, correlações, ajustes
+               hábitos (com lembretes), diário, clima, análise do dia, correlações, ajustes
   components/  componentes de interface, gráficos (ECharts), arrastar e soltar, deslizar para apagar
 supabase/      SQL do banco e do Storage (e os testes deles) e as funções da refeição, da análise do dia, do Garmin e do SisRUN
 android/       app Android (Capacitor), com a ponte para o Health Connect

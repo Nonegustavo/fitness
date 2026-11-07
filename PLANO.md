@@ -75,7 +75,7 @@ No app instalado pelo Chrome, com o celular bloqueado o aviso do fim do descanso
 - [x] Botão "+" em qualquer tela (no computador, "Registrar" na barra lateral): alimento, pesagem, próximo treino, diário e água em 1 toque
 - [x] Lembretes do dia no app Android (Ajustes): pesagem, almoço e jantar nos horários escolhidos e água no ritmo às 11h, 15h e 19h, só quando falta registrar
 - [x] Telas e cartões mostram o formato do conteúdo enquanto carregam, em vez de ficar em branco ou mostrar zeros
-- [x] Na academia: carga das próximas séries com ±1 degrau (2,5 kg na barra, 2 kg no halter, 5 kg na máquina), calculadora de anilhas com a barra e as anilhas da academia, trocar um exercício por outro do mesmo grupo e bi-sets (na ficha e durante o treino, com o descanso depois do par)
+- [x] Na academia: calculadora de anilhas com a barra e as anilhas da academia, trocar um exercício por outro do mesmo grupo e bi-sets (na ficha e durante o treino, com o descanso depois do par). Os botões de ±1 degrau na carga das próximas séries saíram a pedido; o degrau (2,5 kg na barra, 2 kg no halter, 5 kg na máquina) continua na sugestão de carga e na notificação
 - [x] Treino: mapa do corpo (frente e costas) com as séries da semana por músculo contra a faixa de 10–20
 - [x] Treino: exercícios sem evoluir (3 treinos sem bater o melhor 1RM estimado) e aviso de deload
 - [x] Treino: esforço (RPE 1–10) e dor ou desconforto por região em cada sessão; o esforço entra nas correlações
@@ -177,6 +177,19 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Gráficos por dia, semana, mês ou ano (Corpo, Sono, Passos, Calorias, Alimentação, Água, Corrida e exercícios), com setas para andar no tempo e "Intervalo"; média ou total conforme a medida, dito na dica
 - [x] Detalhes dos treinos programados: tocar num treino do calendário, de "Próximos treinos" ou de "Próximos 7 dias" abre a ficha. A de musculação tem cada exercício com séries, carga, descanso, aquecimento, bi-set, observações, a última vez e "Que tal 57,5 kg?", com Iniciar e Editar ficha. A de corrida tem a distância do nome e as etapas que o calendário do Garmin manda na descrição (ele pode mandar só o nome; aí as etapas aparecem depois da corrida), e "Da última vez", a última corrida do mesmo tipo (outro "Intervalado ativo") com o resultado dos tiros e o comentário
 - [x] SisRUN: a planilha do treinador lida do site do aluno (função `sisrun`, com o e-mail e a senha nos segredos do Supabase), só quando o calendário do Garmin traz um treino do SisRUN ainda não lido (semana nova ou treino mudado), até a semana dele. No Android, uma notificação quando chegam treinos novos, mesmo com o app fechado: o celular confere o calendário do Garmin a cada 3 horas (WorkManager), sem consultar o SisRUN. Cada treino do SisRUN no calendário ganha na ficha as etapas, a intensidade, a FC, o tempo e a observação do treinador; os km previstos da semana e do relatório para o treinador passam a ser os prescritos, e a análise do dia lê a prescrição. Em Ajustes → SisRUN, o estado da leitura e "Ler agora"
+- [x] Sono: a linha do tempo da noite em degraus (cada fase um bloco subindo da base, do profundo ao acordado, com as horas embaixo; tocar num bloco mostra a fase e os horários), as noites anteriores com as setas ou arrastando, como na Alimentação, e o cartão do Em foco com nota, horários, HRV, FC de repouso, o gráfico e o tempo em cada fase
+- [x] Calorias: previsão do gasto de hoje, com as ativas até agora e o repouso do dia inteiro (mediana dos últimos 14 dias completos, ou o metabolismo basal da balança)
+- [x] Corpo: altura e sexo (no Corpo e em Ajustes), IMC com a classe da OMS, a faixa de peso saudável para a altura (IMC 18,5–24,9) e a gordura pela fórmula da Marinha dos EUA (pescoço e abdômen; nas mulheres, cintura e quadril), ao lado da gordura da balança
+- [x] Clima: a previsão do Open-Meteo (16 dias) em cada treino programado, com o céu, a temperatura e a chance de chuva na hora do treino (ou a mínima e a máxima do dia), mais detalhes na ficha; e a página Clima com agora, as próximas horas, os próximos dias com os treinos e o local
+- [x] Treino: séries da mesma altura (o espaço do 1RM fica vazio no aquecimento), corpo anatômico na semana e barras das séries por músculo com a faixa de 10–20 marcada
+- [x] Corrida com ícone de tênis; caminhada com as pegadas e em azul, também como bolinha no "Minha semana" e no widget
+- [x] Calendário com linhas entre as semanas
+- [x] Correlações com os dados novos: carga e forma, prontidão, corridas (ritmo, FC, esforço, etapas no alvo, temperatura e umidade), musculação (volume, RIR, desconforto), despertares, hora de acordar, saldo calórico e dias com dor, sempre com a causa antes do efeito; os destaques agrupados pelo que explicam, com "Mostrar mais"
+- [x] Arrastar para o lado troca o dia (Alimentação, Hábitos, Diário e Sono) e as abas (Corpo, Adicionar alimento) acompanhando o dedo, com animação; as abas ficam no centro
+- [x] O "+" faz o que a tela pede (no Hoje, a janela geral) e some, com animação, onde não há o que adicionar
+- [x] Em foco: os cartões trocam com animação em vez de rolar até eles, sem rolagem dentro deles; o cartão da análise aparece mesmo antes da análise
+- [x] As telas entram prontas, sem cartões surgindo um a um, hábitos trocando de lugar ou checks animando sozinhos; bordas esmaecidas onde ainda há o que rolar e nenhuma barra de rolagem
+- [x] Diário: trocar de dia não mistura mais os textos de dois dias
 
 ## Observações
 
