@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { CalendarCheck, Footprints, Gauge, Trophy } from 'lucide-react'
+import { CalendarCheck, Gauge, SportShoe, Trophy } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { MiniBars, Sparkline } from '../../components/MiniCharts'
@@ -60,7 +60,7 @@ export function RunVolumeBig({ today }: { today: DayKey }) {
   const change = percent(current.km, last.km)
   return (
     <Card
-      icon={Footprints}
+      icon={SportShoe}
       tone="today"
       title="Volume de corrida"
       action={
@@ -99,7 +99,7 @@ export function RunVolumeSmall({ today }: { today: DayKey }) {
   const { weeks, planned } = volume
   const current = weeks.at(-1)!
   return (
-    <SmallCard icon={Footprints} tone="today" label="Corrida na semana" to="/corrida">
+    <SmallCard icon={SportShoe} tone="today" label="Corrida na semana" to="/corrida">
       <Value value={formatNumber(current.km, 1)} unit={planned ? `de ${formatNumber(planned, 1)} km` : 'km'} />
       <Note>semana passada {formatNumber(weeks.at(-2)!.km, 1)} km</Note>
       <MiniBars values={weeks.map((week) => week.km)} color={RUN} label="Quilômetros por semana nas últimas 8 semanas" className="mt-1.5 h-5" />

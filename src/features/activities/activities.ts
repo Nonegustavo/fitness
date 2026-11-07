@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Activity as ActivityIcon, Bike, Dumbbell, Footprints, HeartPulse, Mountain, Waves, type LucideIcon } from 'lucide-react'
+import { Activity as ActivityIcon, Bike, Dumbbell, Footprints, HeartPulse, Mountain, SportShoe, Waves, type LucideIcon } from 'lucide-react'
 import { alive, patch, remove } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Activity, ActivityStream, WorkoutSession } from '../../db/types'
@@ -120,7 +120,9 @@ export function activityLabel(activity: Pick<Activity, 'sport' | 'subSport'>): s
 export function activityIcon(activity: Pick<Activity, 'sport' | 'subSport'>): LucideIcon {
   if (activity.subSport === 'strengthTraining') return Dumbbell
   switch (activity.sport) {
+    // The calendar's icons: a running shoe for runs, the footprints for walks.
     case 'running':
+      return SportShoe
     case 'walking':
       return Footprints
     case 'hiking':

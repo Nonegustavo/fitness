@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { createContext, type CSSProperties } from 'react'
 
-/** The sections of the app, each with its own color (--tone-* in index.css). */
+/** The sections of the app, each with its own color (--tone-* in index.css); walks have one too. */
 export type Tone =
   | 'today'
   | 'training'
@@ -15,6 +15,7 @@ export type Tone =
   | 'journal'
   | 'recovery'
   | 'settings'
+  | 'walk'
 
 export const toneColor = (tone: Tone): string => `var(--tone-${tone})`
 

@@ -34,6 +34,8 @@
   --tone-journal: #db2777;
   --tone-recovery: #e11d48;
   --tone-settings: #57534e;
+  /* Walking, apart from running's teal: a plain blue, lighter than Sono's indigo and less cyan than Água. */
+  --tone-walk: #3b82f6;
 
   /* Macronutrients, always in this order: carbs (blue), protein (purple), fat (yellow). */
   --macro-carbs: #2f7fdc;
@@ -73,6 +75,7 @@
     --tone-journal: #f472b6;
     --tone-recovery: #fb7185;
     --tone-settings: #a8a29e;
+    --tone-walk: #60a5fa;
 
     --macro-carbs: #4294ec;
     --macro-protein: #a585f5;
@@ -131,6 +134,10 @@
   --accent: #57534e;
   --accent-ink: #57534e;
 }
+[data-tone='walk'] {
+  --accent: #2563eb;
+  --accent-ink: #2563eb;
+}
 
 /* On the dark surface the lighter tone itself reads best as text; fills keep the darker step. */
 @media (prefers-color-scheme: dark) {
@@ -169,6 +176,9 @@
   }
   [data-tone='settings'] {
     --accent-ink: var(--tone-settings);
+  }
+  [data-tone='walk'] {
+    --accent-ink: var(--tone-walk);
   }
 }
 

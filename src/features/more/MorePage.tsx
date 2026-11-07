@@ -15,6 +15,7 @@ import {
   Scale,
   Settings,
   Sparkles,
+  SportShoe,
   Utensils,
 } from 'lucide-react'
 import { Link } from 'react-router'
@@ -34,7 +35,7 @@ const LINKS: { to: string; label: string; detail: string; icon: typeof Moon; ton
     icon: CalendarDays,
     tone: 'training',
   },
-  { to: '/corrida', label: 'Corrida', detail: 'Volume, ritmo, constância, recordes e a próxima prova', icon: Footprints, tone: 'today' },
+  { to: '/corrida', label: 'Corrida', detail: 'Volume, ritmo, constância, recordes e a próxima prova', icon: SportShoe, tone: 'today' },
   { to: '/alimentacao', label: 'Alimentação', detail: 'Refeições, calorias e macros do dia', icon: Utensils, tone: 'food' },
   { to: '/corpo', label: 'Corpo', detail: 'Peso, medidas e a tendência', icon: Scale, tone: 'body' },
   { to: '/calorias', label: 'Calorias gastas', detail: 'Ativas e em repouso, contra o que você comeu', icon: Flame, tone: 'training' },

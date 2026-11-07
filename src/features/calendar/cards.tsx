@@ -9,7 +9,7 @@ import { useStartWorkout } from '../training/components'
 import { TemplateSheet } from '../training/TemplateDetails'
 import { findActive, useSessions } from '../training/training'
 import { byDay, type AgendaItem } from './agenda'
-import { AgendaIcon, AgendaItems, DayDetails, dayTitle, KIND_ICONS, KIND_LABELS, KIND_TONES } from './components'
+import { AgendaIcon, AgendaItems, DayDetails, dayTitle, KIND_LABELS, KIND_TONES } from './components'
 import { useAgenda, useTodayTemplate } from './plans'
 
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
@@ -111,27 +111,9 @@ export function DayMarks({ items, onAccent = false }: { items: AgendaItem[]; onA
   )
 }
 
-/**
- * A workout as a dot in its kind's color (white on today's pill). A walk shows its little figure
- * instead, faded while planned, so it never reads as a run.
- */
+/** A workout as a dot in its kind's color (white on today's pill): a walk's is blue, a run's teal. */
 function Dot({ item, onAccent }: { item: AgendaItem; onAccent: boolean }) {
   const color = onAccent ? '#ffffff' : toneColor(KIND_TONES[item.kind])
-  if (item.kind === 'walk') {
-    const Walk = KIND_ICONS.walk
-    const missed = item.status === 'missed'
-    return (
-      <Walk
-        size={11}
-        strokeWidth={3}
-        className="shrink-0"
-        style={{
-          color: missed ? (onAccent ? 'rgb(255 255 255 / 0.45)' : 'var(--muted)') : color,
-          opacity: item.status === 'planned' ? 0.6 : 1,
-        }}
-      />
-    )
-  }
   const style: CSSProperties =
     item.status === 'missed'
       ? { background: onAccent ? 'rgb(255 255 255 / 0.45)' : 'var(--muted)' }

@@ -1,4 +1,4 @@
-import { CalendarCheck, CalendarDays, Footprints, Gauge, TrendingUp } from 'lucide-react'
+import { CalendarCheck, CalendarDays, Gauge, SportShoe, TrendingUp } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { PeriodControl, usePeriod } from '../../components/PeriodControl'
@@ -34,7 +34,7 @@ export default function RunningPage() {
 
   if (!activities || !weeks || !agenda || !consistency) {
     return (
-      <Page title="Corrida" icon={Footprints} tone="today">
+      <Page title="Corrida" icon={SportShoe} tone="today">
         <SkeletonCard lines={3} />
         <SkeletonCard lines={6} />
       </Page>
@@ -50,7 +50,7 @@ export default function RunningPage() {
   const beforePace = pooledPace(weeks.slice(-8, -4))
 
   return (
-    <Page title="Corrida" icon={Footprints} tone="today" subtitle="Volume, ritmo, constância e recordes">
+    <Page title="Corrida" icon={SportShoe} tone="today" subtitle="Volume, ritmo, constância e recordes">
       <Card icon={CalendarDays} tone="today" title="Esta semana" action={<GearLink />}>
         <div className="grid grid-cols-3 gap-3">
           <Stat
@@ -101,7 +101,7 @@ export default function RunningPage() {
       <RaceBig today={today} inRunning />
 
       <Card
-        icon={Footprints}
+        icon={SportShoe}
         tone="today"
         title="Corridas recentes"
         action={

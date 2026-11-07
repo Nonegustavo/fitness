@@ -9,11 +9,10 @@ import {
   GlassWater,
   ListChecks,
   Moon,
-  Mountain,
   NotebookPen,
   PartyPopper,
-  Route,
   Scale,
+  SportShoe,
   Trophy,
   Utensils,
 } from 'lucide-react'
@@ -121,7 +120,7 @@ function RecapView({ recap, onCopy }: { recap: Recap; onCopy: () => void }) {
       {recap.trainingDays > 0 && <MonthStrip recap={recap} />}
       {recap.running && <RunningCard running={recap.running} />}
       {recap.walking && (
-        <Card title="Caminhada" icon={Mountain} tone="today">
+        <Card title="Caminhada" icon={Footprints} tone="walk">
           <Tiles
             items={[
               { label: 'Distância', value: km(recap.walking.km) },
@@ -295,7 +294,7 @@ function MonthStrip({ recap }: { recap: Recap }) {
 function RunningCard({ running }: { running: NonNullable<Recap['running']> }) {
   const records = running.bests.filter((best) => best.record).length
   return (
-    <Card title="Corrida" icon={Route} tone="today">
+    <Card title="Corrida" icon={SportShoe} tone="today">
       <Tiles
         items={[
           { label: 'Distância', value: km(running.km) },

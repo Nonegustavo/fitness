@@ -121,11 +121,16 @@ public class QuickWidget extends AppWidgetProvider {
             this.title = title;
             this.when = when;
             switch (kind) {
+                // As in the app: a running shoe for runs, the footprints in blue for walks.
                 case "run":
-                case "walk":
-                    icon = R.drawable.widget_ic_footprints;
+                    icon = R.drawable.widget_ic_sport_shoe;
                     color = 0xFF2DD4BF;
                     tile = R.drawable.widget_tile_today;
+                    break;
+                case "walk":
+                    icon = R.drawable.widget_ic_footprints;
+                    color = 0xFF60A5FA;
+                    tile = R.drawable.widget_tile_walk;
                     break;
                 case "ride":
                     icon = R.drawable.widget_ic_bike;

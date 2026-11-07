@@ -1,4 +1,4 @@
-import { Footprints } from 'lucide-react'
+import { SportShoe } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { Card, Select } from '../../components/ui'
@@ -21,7 +21,7 @@ export function GearPicker({ activity }: { activity: Activity }) {
   return (
     <Card>
       <div className="flex items-center gap-3">
-        <Footprints size={20} aria-hidden className="shrink-0 text-ink-2" />
+        <SportShoe size={20} aria-hidden className="shrink-0 text-ink-2" />
         {options.length === 0 ? (
           <p className="min-w-0 flex-1 text-sm text-ink-2">Nenhum tênis cadastrado ainda.</p>
         ) : (

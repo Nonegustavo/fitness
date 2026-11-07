@@ -1,4 +1,4 @@
-import { Archive, Footprints, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Archive, Pencil, Plus, RotateCcw, SportShoe, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Confirm, Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
@@ -207,7 +207,7 @@ export default function GearPage() {
   const [editing, setEditing] = useState<Gear | 'new'>()
   const states = useMemo(() => (gear && activities ? gearStatus(gear, activities) : undefined), [gear, activities])
 
-  const page = { title: 'Tênis', icon: Footprints, tone: 'today' as const, back: { to: '/corrida', label: 'Corrida' } }
+  const page = { title: 'Tênis', icon: SportShoe, tone: 'today' as const, back: { to: '/corrida', label: 'Corrida' } }
   if (!states || !activities) {
     return (
       <Page {...page}>

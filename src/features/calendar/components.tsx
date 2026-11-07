@@ -10,8 +10,8 @@ import {
   Footprints,
   MessageSquareText,
   Pencil,
-  PersonStanding,
   Play,
+  SportShoe,
   Trash2,
   Waves,
   type LucideIcon,
@@ -53,9 +53,9 @@ import { tapFeedback } from '../../lib/haptics'
 
 export const KIND_ICONS: Record<AgendaKind, LucideIcon> = {
   gym: Dumbbell,
-  run: Footprints,
-  // Its own figure, so a walk never reads as a run.
-  walk: PersonStanding,
+  // A running shoe for runs, the footprints for walks: with its own blue, a walk never reads as a run.
+  run: SportShoe,
+  walk: Footprints,
   ride: Bike,
   swim: Waves,
   rest: BedDouble,
@@ -65,7 +65,7 @@ export const KIND_ICONS: Record<AgendaKind, LucideIcon> = {
 export const KIND_TONES: Record<AgendaKind, Tone> = {
   gym: 'training',
   run: 'today',
-  walk: 'today',
+  walk: 'walk',
   ride: 'today',
   swim: 'water',
   rest: 'sleep',

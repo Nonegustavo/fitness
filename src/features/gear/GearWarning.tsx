@@ -1,4 +1,4 @@
-import { Footprints, TriangleAlert } from 'lucide-react'
+import { SportShoe, TriangleAlert } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { cx } from '../../components/ui'
@@ -48,7 +48,7 @@ export function GearWarnings() {
 export function GearLink() {
   return (
     <Link to={GEAR_ROUTE} className="inline-flex items-center gap-1 text-sm font-medium text-accent-ink">
-      <Footprints size={14} aria-hidden /> Tênis
+      <SportShoe size={14} aria-hidden /> Tênis
     </Link>
   )
 }
