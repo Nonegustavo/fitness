@@ -16,6 +16,7 @@ import { PeriodLine } from '../../components/TimeCharts'
 import { describeExtras, WeightModal } from './WeightModal'
 import { WeightGoalCard } from './WeightGoalCard'
 import { ProgressPhotos } from './ProgressPhotos'
+import { CompositionCard } from './CompositionCard'
 
 type Tab = 'peso' | 'medidas' | 'fotos'
 
@@ -152,6 +153,8 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
       </Card>
 
       <WeightGoalCard trend={weight.trend} today={today} />
+
+      <CompositionCard weights={weights} today={today} />
 
       <PeriodControl period={period} className="" />
 

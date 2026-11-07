@@ -10,6 +10,7 @@ import { patch } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
 import { dayKey } from '../../lib/dates'
 import { signIn, signOut, syncNow, useSyncState } from '../../sync/controller'
+import { BodyProfileCard } from '../body/BodyProfile'
 import { GarminCard } from '../garmin/GarminCard'
 import { HealthConnectCard } from '../healthconnect/HealthConnectCard'
 import { SisrunCard } from '../sisrun/SisrunCard'
@@ -26,6 +27,7 @@ export default function SettingsPage() {
     <Page title="Ajustes" icon={Settings} tone="settings">
       <SyncCard />
       <ProfileCard />
+      <BodyProfileCard />
       {isAndroidApp() && <SmartRemindersCard />}
       {isAndroidApp() && <WorkoutRemindersCard />}
       <NavBarCard />

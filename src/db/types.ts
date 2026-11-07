@@ -246,6 +246,10 @@ export interface Settings extends Synced {
   sisrunAlerts?: boolean
   /** Where the forecast is for (Clima and the scheduled workouts); unset means near the latest outdoor activity. */
   weatherPlace?: WeatherPlace
+  /** Height in centimeters, for the BMI, the healthy weights and the Navy body fat formula. */
+  heightCm?: number
+  /** The Navy body fat formula has one version for each. */
+  sex?: Sex
 }
 
 /** A place picked for the weather forecast, its coordinates rounded to 2 decimals (about 1 km). */
@@ -255,6 +259,8 @@ export interface WeatherPlace {
   lat: number
   lon: number
 }
+
+export type Sex = 'male' | 'female'
 
 /** A weekly check-in of the calorie and macro targets, from the expenditure estimate and the weight goal. */
 export interface GoalCheckIn {
