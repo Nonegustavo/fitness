@@ -11,7 +11,7 @@ import { weatherCondition } from '../activities/weather'
 import type { AgendaItem } from '../calendar/agenda'
 import { AgendaIcon, AgendaItems } from '../calendar/components'
 import { useAgenda } from '../calendar/plans'
-import { forecastSource, HourStrip, skyIcon } from './components'
+import { forecastSource, HourStrip, rainIntensity, skyIcon } from './components'
 import {
   dayHours,
   dayOf,
@@ -22,6 +22,8 @@ import {
   localDay,
   nextHours,
   nowWeather,
+  peakRain,
+  rains,
   spotOf,
   tempRange,
   uvLevel,
@@ -155,7 +157,19 @@ function CurrentCard({ forecast, place, now, today }: { forecast: Forecast; plac
       </div>
       <dl className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3">
         {day?.rainChance !== undefined && (
-          <Fact icon={Umbrella} label="Chuva hoje" value={join([`${day.rainChance}%`, !!day.rainMm && `${formatNumber(day.rainMm, 1)} mm`])} />
+          <Fact
+            icon={Umbrella}
+            label="Chuva hoje"
+            value={
+              <>
+                {day.rainChance}%
+                {/* How hard it falls in the day's heaviest hour. */}
+                {rainIntensity(peakRain(forecast, day.date), true) && (
+                  <span className="block text-xs font-normal text-ink-2">{rainIntensity(peakRain(forecast, day.date), true)}</span>
+                )}
+              </>
+            }
+          />
         )}
         {current?.windKmh !== undefined && <Fact icon={Wind} label="Vento" value={`${Math.round(current.windKmh)} km/h`} />}
         {current?.humidity !== undefined && <Fact icon={Droplets} label="Umidade" value={`${current.humidity}%`} />}
@@ -197,10 +211,19 @@ function HoursCard({ forecast, now, planned }: { forecast: Forecast; now: number
   const hours = nextHours(forecast, now, 24)
   if (hours.length === 0) return null
   const marks = hourMarks(forecast, hours, planned)
+  const wet = hours.some((hour) => rains(hour.rainMm))
   return (
     <Card icon={Clock} tone="water" title="Próximas horas">
       <HourStrip hours={hours} offsetSec={forecast.utcOffsetSec} firstLabel="Agora" marks={marks} scroll />
-      {marks && <p className="mt-1 text-xs text-muted">Os ícones acima das horas são os treinos programados.</p>}
+      {(marks || wet) && (
+        <p className="mt-1 text-xs text-muted">
+          {join([
+            wet && 'Embaixo da chance de chuva, os milímetros previstos em cada hora (mm/h)',
+            marks && 'os ícones acima das horas são os treinos programados',
+          ]).replace(/^./, (first) => first.toUpperCase())}
+          .
+        </p>
+      )}
     </Card>
   )
 }
@@ -249,6 +272,7 @@ function DaysCard({
           <DayRow
             key={day.date}
             day={day}
+            peakMm={peakRain(forecast, day.date)}
             name={dayName(day.date, today)}
             items={planned.filter((item) => item.date === day.date)}
             low={low}
@@ -263,6 +287,7 @@ function DaysCard({
 
 function DayRow({
   day,
+  peakMm,
   name,
   items,
   low,
@@ -270,6 +295,8 @@ function DayRow({
   onOpen,
 }: {
   day: DayForecast
+  /** The day's heaviest hour of rain, mm/h. */
+  peakMm?: number
   name: string
   items: AgendaItem[]
   low: number
@@ -282,10 +309,12 @@ function DayRow({
   const left = ((day.minC - low) / span) * 100
   const width = Math.max(((day.maxC - day.minC) / span) * 100, 4)
   const chance = day.rainChance
+  const intensity = rainIntensity(peakMm, true)
   const described = join([
     sky,
     tempRange(day),
     chance !== undefined && `chuva ${chance}%`,
+    intensity,
     items.length > 0 && `${items.length === 1 ? '1 treino' : `${items.length} treinos`}: ${items.map((item) => item.title).join(', ')}`,
   ])
   return (
@@ -295,7 +324,7 @@ function DayRow({
         onClick={onOpen}
         aria-haspopup="dialog"
         aria-label={`${name}: ${described}`}
-        className="grid min-h-12 w-full grid-cols-[5.5rem_1.5rem_3rem_minmax(0,1fr)] items-center gap-2 rounded-lg px-2 py-2 text-left transition hover:bg-surface-2 active:opacity-70"
+        className="grid min-h-12 w-full grid-cols-[5.5rem_1.5rem_4rem_minmax(0,1fr)] items-center gap-2 rounded-lg px-2 py-2 text-left transition hover:bg-surface-2 active:opacity-70"
       >
         <span className="min-w-0">
           <span className="block truncate text-sm font-medium">{name}</span>
@@ -308,13 +337,15 @@ function DayRow({
           )}
         </span>
         <Icon size={20} aria-hidden className="text-ink-2" />
-        <span aria-hidden className={cx('flex items-center gap-0.5 text-xs tabular-nums', chance !== undefined && chance >= 30 ? 'text-ink-2' : 'text-muted')}>
+        <span aria-hidden className={cx('text-xs tabular-nums', chance !== undefined && chance >= 30 ? 'text-ink-2' : 'text-muted')}>
           {chance !== undefined && (
-            <>
+            <span className="flex items-center gap-0.5">
               <Umbrella size={12} className="shrink-0" />
               {chance}%
-            </>
+            </span>
           )}
+          {/* How hard it rains in the day's heaviest hour. */}
+          {intensity && <span className="block text-[10px] whitespace-nowrap text-muted">{intensity}</span>}
         </span>
         <span aria-hidden className="flex items-center gap-2">
           <span className="w-8 text-right text-sm text-muted tabular-nums">{degrees(day.minC)}</span>
@@ -365,7 +396,8 @@ function DaySheet({
             <p className="text-sm text-ink-2 first-letter:uppercase">
               {join([
                 day.rainChance !== undefined && `chuva até ${day.rainChance}%`,
-                !!day.rainMm && `${formatNumber(day.rainMm, 1)} mm`,
+                rainIntensity(peakRain(forecast, date), true),
+                !!day.rainMm && `${formatNumber(day.rainMm, 1)} mm no dia`,
                 day.windKmh !== undefined && `vento até ${Math.round(day.windKmh)} km/h`,
               ])}
             </p>

@@ -10,6 +10,9 @@ import {
   degrees,
   hourLabel,
   hoursAround,
+  peakRain,
+  rainRate,
+  rains,
   tempRange,
   uvLevel,
   workoutWeather,
@@ -33,9 +36,31 @@ export function forecastSource(forecast: Forecast, place: ResolvedPlace, today: 
   return `Previsão de ${when} para ${where}.`
 }
 
+/** "1,2 mm/h", or "até 1,2 mm/h" for a day's heaviest hour; undefined without rain to speak of. */
+export const rainIntensity = (mm: number | undefined, peak = false): string | undefined => {
+  const rate = rainRate(mm)
+  return rate && (peak ? `até ${rate}` : rate)
+}
+
+/**
+ * The chance of rain with its intensity: "☂ 75% · 1,2 mm/h" (for a day, "até" its heaviest hour).
+ * Spans only, kept whole on one line.
+ */
+export function RainChance({ chance, mm, peak = false, className }: { chance: number; mm?: number; peak?: boolean; className?: string }) {
+  const intensity = rainIntensity(mm, peak)
+  return (
+    <span className={cx('flex items-center gap-0.5 whitespace-nowrap', className)}>
+      <Umbrella size={12} aria-hidden className="shrink-0" />
+      <span className="sr-only">chuva </span>
+      {chance}%
+      {intensity && <span className="text-muted">&nbsp;·&nbsp;{intensity}</span>}
+    </span>
+  )
+}
+
 /**
  * A workout's forecast in its row: the sky, the temperature (at its hour, else the day's low and
- * high) and the chance of rain. Spans only: the row's text can sit inside a button.
+ * high) and the chance of rain with how hard it falls. Spans only: the row's text can sit inside a button.
  */
 export function WorkoutWeatherLine({ weather }: { weather: WorkoutWeather }) {
   const { day, hour } = weather
@@ -52,21 +77,17 @@ export function WorkoutWeatherLine({ weather }: { weather: WorkoutWeather }) {
         <span className="sr-only">Previsão: {sky ? `${sky}, ` : ''}</span>
         {hour ? degrees(hour.tempC) : tempRange(day)}
       </span>
-      {chance !== undefined && (
-        <span className="flex items-center gap-0.5 whitespace-nowrap">
-          <Umbrella size={12} aria-hidden className="shrink-0" />
-          <span className="sr-only">, chuva </span>
-          {chance}%
-        </span>
-      )}
+      {chance !== undefined && <RainChance chance={chance} mm={hour ? hour.rainMm : weather.peakMm} peak={!hour} />}
     </span>
   )
 }
 
 /**
  * The hours side by side: the hour, the sky, the temperature and the chance of rain, which also
- * rises as a little column so the wet hours stand out. `marks` puts something over an hour (the
- * workouts on the Clima page); `highlight` is the workout's own hour.
+ * rises as a little column so the wet hours stand out, with the millimetres of rain of each hour
+ * (its intensity, mm/h) under it when any of them rains. `marks` puts something over an hour (the
+ * workouts on the Clima page); `highlight` is the workout's own hour; `dense` drops the columns, for
+ * a card of fixed height.
  */
 export function HourStrip({
   hours,
@@ -75,6 +96,7 @@ export function HourStrip({
   marks,
   firstLabel,
   scroll = false,
+  dense = false,
 }: {
   hours: HourForecast[]
   offsetSec: number
@@ -83,10 +105,13 @@ export function HourStrip({
   /** "Agora", for the hour going on. */
   firstLabel?: string
   scroll?: boolean
+  dense?: boolean
 }) {
+  // A line for the millimetres only when some hour has them, the same height in every hour.
+  const wet = hours.some((hour) => rains(hour.rainMm))
   return (
     <ol
-      className={cx(scroll ? '-mx-4 flex gap-1 overflow-x-auto overscroll-x-contain px-4 pb-1' : 'grid gap-1')}
+      className={cx(scroll ? 'scroll-fade-x -mx-4 flex gap-1 overflow-x-auto overscroll-x-contain px-4 pb-1' : 'grid gap-1')}
       style={scroll ? undefined : { gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}
     >
       {hours.map((hour, i) => {
@@ -98,27 +123,41 @@ export function HourStrip({
           <li
             key={hour.time}
             className={cx(
-              'flex flex-col items-center gap-1 rounded-xl py-2',
+              'flex flex-col items-center rounded-xl',
+              dense ? 'gap-0.5 py-1' : 'gap-1 py-2',
               scroll && 'w-12 shrink-0',
               hour.time === highlight && 'bg-surface ring-1 ring-line',
             )}
           >
             {marks && <span className="flex h-[18px] items-center gap-0.5">{marks.get(hour.time)}</span>}
             <span className={cx('text-xs', hour.time === highlight ? 'font-semibold text-ink' : 'text-muted')}>{label}</span>
-            <Icon size={20} aria-hidden className="text-ink-2" />
+            <Icon size={dense ? 18 : 20} aria-hidden className="text-ink-2" />
             {sky && <span className="sr-only">{sky}</span>}
             <span className="text-sm font-semibold">{degrees(hour.tempC)}</span>
             {chance !== undefined && (
               <>
                 {/* The chance as a column on a shared baseline; nothing at 0%. */}
-                <span aria-hidden className="flex h-4 items-end">
-                  <span className="w-2 rounded-t bg-series-1" style={{ height: `${chance}%` }} />
-                </span>
+                {!dense && (
+                  <span aria-hidden className="flex h-4 items-end">
+                    <span className="w-2 rounded-t bg-series-1" style={{ height: `${chance}%` }} />
+                  </span>
+                )}
                 <span className="text-[11px] text-ink-2 tabular-nums">
                   <span className="sr-only">chuva </span>
                   {chance}%
                 </span>
               </>
+            )}
+            {wet && (
+              <span className="h-3.5 text-[10px] leading-3.5 whitespace-nowrap text-muted tabular-nums">
+                {rains(hour.rainMm) && (
+                  <>
+                    {formatNumber(hour.rainMm, 1)}
+                    <span aria-hidden> mm</span>
+                    <span className="sr-only"> milímetros por hora</span>
+                  </>
+                )}
+              </span>
             )}
           </li>
         )
@@ -152,14 +191,15 @@ export function WorkoutWeatherDetails({ item, today }: { item: AgendaItem; today
   const headline = `${hour ? `${degrees(hour.tempC)} às ${hourLabel(hour.time, offset)}` : tempRange(day)}${sky ? `, ${sky}` : ''}`
   const details = hour
     ? join([
-        hour.rainChance !== undefined && `chuva ${hour.rainChance}%`,
+        hour.rainChance !== undefined && `chuva ${hour.rainChance}%${rains(hour.rainMm) ? `, ${rainRate(hour.rainMm)}` : ''}`,
         hour.feelsC !== undefined && Math.round(hour.feelsC) !== Math.round(hour.tempC) && `sensação ${degrees(hour.feelsC)}`,
         hour.windKmh !== undefined && `vento ${Math.round(hour.windKmh)} km/h`,
         hour.humidity !== undefined && `umidade ${hour.humidity}%`,
       ])
     : join([
         day.rainChance !== undefined && `chuva até ${day.rainChance}%`,
-        !!day.rainMm && `${formatNumber(day.rainMm, 1)} mm`,
+        rainIntensity(weather.peakMm, true),
+        !!day.rainMm && `${formatNumber(day.rainMm, 1)} mm no dia`,
         day.windKmh !== undefined && `vento até ${Math.round(day.windKmh)} km/h`,
         day.uv !== undefined && `UV ${Math.round(day.uv)} (${uvLevel(day.uv)})`,
       ])
@@ -174,7 +214,11 @@ export function WorkoutWeatherDetails({ item, today }: { item: AgendaItem; today
             {details && <p className="text-xs text-ink-2 first-letter:uppercase">{details}</p>}
             {hour && (
               <p className="text-xs text-ink-2">
-                {join([`No dia: ${tempRange(day)}`, day.rainChance !== undefined && `chuva até ${day.rainChance}%`])}
+                {join([
+                  `No dia: ${tempRange(day)}`,
+                  day.rainChance !== undefined && `chuva até ${day.rainChance}%`,
+                  rainIntensity(peakRain(forecast, day.date), true),
+                ])}
               </p>
             )}
           </div>

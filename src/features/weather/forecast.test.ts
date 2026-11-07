@@ -7,6 +7,8 @@ import {
   hoursAround,
   nextHours,
   nowWeather,
+  peakRain,
+  rainRate,
   readForecast,
   tempRange,
   uvLevel,
@@ -184,6 +186,45 @@ describe('the weather of a workout', () => {
     expect(dayHours(forecast, '2026-11-08', { from: 6, to: 21, step: 3 }).map((hour) => hour.time)).toEqual(
       [30, 33, 36, 39, 42, 45].map((h) => MIDNIGHT + h * HOUR),
     )
+  })
+})
+
+describe('how hard it rains', () => {
+  // The second day rains from 6h, heaviest at 15h (2,4 mm in that hour); the first stays dry.
+  const wetAnswer = answer()
+  wetAnswer.hourly.precipitation = wetAnswer.hourly.time.map((_, i) => (i < 30 ? 0 : i === 39 ? 2.44 : i % 2 === 0 ? 0.04 : 0.6))
+  const wet = readForecast(wetAnswer, SPOT, MIDNIGHT + 10 * HOUR)!
+
+  it('takes the heaviest hour of the place’s day, ignoring less than 0,1 mm', () => {
+    expect(peakRain(wet, '2026-11-08')).toBe(2.4)
+    expect(peakRain(wet, '2026-11-07')).toBeUndefined()
+    expect(peakRain(wet, '2026-11-09')).toBeUndefined()
+    // An hour of 0,04 mm is no rain to speak of.
+    expect(peakRain({ hours: [{ time: MIDNIGHT + 30 * HOUR, tempC: 20, rainMm: 0 }], utcOffsetSec: OFFSET }, '2026-11-08')).toBeUndefined()
+  })
+
+  it('counts the hours by the place’s day, not UTC’s', () => {
+    // 1h on 8 Nov in Brazil is still 7 Nov in UTC−3… and 8 Nov at 4h UTC.
+    const lateRain = { hours: [{ time: MIDNIGHT + 25 * HOUR, tempC: 18, rainMm: 1.2 }], utcOffsetSec: OFFSET }
+    expect(peakRain(lateRain, '2026-11-08')).toBe(1.2)
+    expect(peakRain(lateRain, '2026-11-07')).toBeUndefined()
+  })
+
+  it('writes the intensity in mm/h, with nothing below 0,1 mm', () => {
+    expect(rainRate(2.4)).toBe('2,4 mm/h')
+    expect(rainRate(0.6)).toBe('0,6 mm/h')
+    expect(rainRate(12)).toBe('12 mm/h')
+    expect(rainRate(0)).toBeUndefined()
+    expect(rainRate(0.04)).toBeUndefined()
+    expect(rainRate(undefined)).toBeUndefined()
+  })
+
+  it('gives a workout without a time its day’s heaviest hour; one with a time keeps its own hour', () => {
+    const planned = { status: 'planned', kind: 'run', date: '2026-11-08' } as const
+    expect(workoutWeather(planned, wet, '2026-11-07')).toEqual({ day: wet.days[1], peakMm: 2.4 })
+    expect(workoutWeather({ ...planned, time: MIDNIGHT + 31 * HOUR }, wet, '2026-11-07')?.hour?.rainMm).toBe(0.6)
+    // A dry day has no peak.
+    expect(workoutWeather({ ...planned, date: '2026-11-07' }, wet, '2026-11-07')).toEqual({ day: wet.days[0] })
   })
 })
 

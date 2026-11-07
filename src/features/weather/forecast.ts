@@ -1,4 +1,5 @@
 import type { DayKey } from '../../lib/dates'
+import { formatNumber } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
 
 const HOUR = 3_600_000
@@ -27,6 +28,7 @@ export interface HourForecast {
   feelsC?: number
   /** Chance of rain in that hour, %. */
   rainChance?: number
+  /** The rain expected in that hour, mm: its intensity in mm/h. */
   rainMm?: number
   /** WMO weather code (0 clear … 95 thunderstorm). */
   code?: number
@@ -253,26 +255,56 @@ export function hourAt(forecast: Pick<Forecast, 'hours'>, time: number): HourFor
 export const dayOf = (forecast: Pick<Forecast, 'days'>, date: DayKey): DayForecast | undefined =>
   forecast.days.find((day) => day.date === date)
 
+/** Less than this in an hour is no rain to speak of: Open-Meteo gives tenths of a millimetre. */
+const NO_RAIN_MM = 0.1
+
+/** The forecast's hours of one day, with the place's offset to tell the days apart (UTC without it). */
+type DayHoursSource = Pick<Forecast, 'hours'> & Partial<Pick<Forecast, 'utcOffsetSec'>>
+
+/**
+ * The heaviest hour of rain of a day at the place (the mm of that hour, so mm/h); undefined when none
+ * of its hours in the forecast brings at least 0,1 mm.
+ */
+export function peakRain(forecast: DayHoursSource, date: DayKey): number | undefined {
+  let peak: number | undefined
+  for (const hour of forecast.hours) {
+    if (hour.rainMm === undefined || hour.rainMm < NO_RAIN_MM) continue
+    if (localDay(hour.time, forecast.utcOffsetSec ?? 0) !== date) continue
+    if (peak === undefined || hour.rainMm > peak) peak = hour.rainMm
+  }
+  return peak
+}
+
+/** Whether an hour brings rain worth a number (0,1 mm or more). */
+export const rains = (mm: number | undefined): mm is number => mm !== undefined && mm >= NO_RAIN_MM
+
+/** "0,8 mm/h": the intensity of the rain in an hour; undefined with no rain to speak of. */
+export const rainRate = (mm: number | undefined): string | undefined => (rains(mm) ? `${formatNumber(mm, 1)} mm/h` : undefined)
+
 /** The weather of a scheduled workout: always its day's, and its hour's when it has a time. */
 export interface WorkoutWeather {
   day: DayForecast
   hour?: HourForecast
+  /** Without an hour, the day's heaviest hour of rain (mm/h), when it rains at all. */
+  peakMm?: number
 }
 
 /**
  * The forecast for a workout still ahead (from today on, not rest days): at its hour when it has a
- * time, else the day's high and low. Undefined beyond the forecast's days.
+ * time, else the day's high and low and its heaviest rain. Undefined beyond the forecast's days.
  */
 export function workoutWeather(
   item: Pick<AgendaItem, 'date' | 'time' | 'status' | 'kind'>,
-  forecast: Pick<Forecast, 'hours' | 'days'> | undefined,
+  forecast: (Pick<Forecast, 'days'> & DayHoursSource) | undefined,
   today: DayKey,
 ): WorkoutWeather | undefined {
   if (!forecast || item.status !== 'planned' || item.kind === 'rest' || item.date < today) return undefined
   const day = dayOf(forecast, item.date)
   if (!day) return undefined
   const hour = item.time === undefined ? undefined : hourAt(forecast, item.time)
-  return hour ? { day, hour } : { day }
+  if (hour) return { day, hour }
+  const peakMm = peakRain(forecast, item.date)
+  return peakMm === undefined ? { day } : { day, peakMm }
 }
 
 /** The hours around a moment: `before` hours before its own and `after` after it. */

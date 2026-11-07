@@ -5,6 +5,7 @@ import {
   CalendarRange,
   ChartSpline,
   CircleGauge,
+  CloudSun,
   Dumbbell,
   Flame,
   Footprints,
@@ -40,6 +41,7 @@ export interface HomeElement {
 /** Every element the Hoje screen offers; each one has a big card and a small one. */
 export const HOME_ELEMENTS: HomeElement[] = [
   { id: 'workout', label: 'Próximos treinos', detail: 'Os de hoje e os próximos, com o dia de cada um, e a próxima ficha da sequência', icon: Dumbbell, tone: 'training' },
+  { id: 'weather', label: 'Clima', detail: 'O tempo agora, a máxima e a mínima, e a chance e os mm/h de chuva das próximas horas', icon: CloudSun, tone: 'water' },
   { id: 'sleep', label: 'Sono', detail: 'Nota, horários e as fases da última noite', icon: Moon, tone: 'sleep' },
   { id: 'readiness', label: 'Prontidão', detail: 'Nota de 0 a 100 para treinar hoje: sono, HRV, FC de repouso, carga e dores', icon: CircleGauge, tone: 'recovery' },
   { id: 'food', label: 'Alimentação', detail: 'Calorias e macros do dia', icon: Utensils, tone: 'food' },
@@ -68,15 +70,23 @@ export const elementInfo = (id: HomeCardId): HomeElement | undefined => HOME_ELE
 const KNOWN = new Set(HOME_ELEMENTS.map((element) => element.id))
 
 export const DEFAULT_AREAS: HomeAreas = {
-  focus: ['workout', 'sleep', 'readiness', 'food', 'runVolume', 'habits'],
-  quick: ['water', 'race', 'body', 'restingHr', 'hrv', 'battery', 'steps', 'burn', 'records', 'streak'],
+  focus: ['workout', 'weather', 'sleep', 'readiness', 'food', 'runVolume', 'habits'],
+  quick: ['water', 'weather', 'race', 'body', 'restingHr', 'hrv', 'battery', 'steps', 'burn', 'records', 'streak'],
 }
 
 /**
  * Elements that came after people had saved their areas: each goes into them once, after a neighbour
- * (or at the end), and `seen` keeps it from coming back once the user takes it out.
+ * (or at the end), and `seen` keeps it from coming back once the user takes it out. One element can
+ * come into both areas.
  */
-const ADDED: { id: HomeCardId; area: HomeArea; after: HomeCardId }[] = [{ id: 'readiness', area: 'focus', after: 'sleep' }]
+const ADDED: { id: HomeCardId; area: HomeArea; after: HomeCardId }[] = [
+  { id: 'readiness', area: 'focus', after: 'sleep' },
+  { id: 'weather', area: 'focus', after: 'workout' },
+  { id: 'weather', area: 'quick', after: 'water' },
+]
+
+/** The ids of the newer elements, once each. */
+const ADDED_IDS = [...new Set(ADDED.map((added) => added.id))]
 
 const clean = (ids: HomeCardId[]) => [...new Set(ids.filter((id) => KNOWN.has(id)))]
 
@@ -88,7 +98,7 @@ function addNew(areas: Record<HomeArea, HomeCardId[]>, seen: HomeCardId[]): Home
     const at = list.indexOf(after)
     list.splice(at < 0 ? list.length : at + 1, 0, id)
   }
-  return [...new Set([...seen, ...ADDED.map((added) => added.id)])]
+  return [...new Set([...seen, ...ADDED_IDS])]
 }
 
 /** The areas as saved (with the newer elements put in once); or else the default, leaving out what the older layout had hidden. */
@@ -112,7 +122,7 @@ export function homeAreas(settings: Pick<Settings, 'homeAreas' | 'home'>): Requi
     week: true,
     smartOrder: true,
     now: true,
-    seen: ADDED.map((added) => added.id),
+    seen: ADDED_IDS,
   }
 }
 
@@ -129,9 +139,9 @@ export function toggleElement(areas: HomeAreas, area: HomeArea, id: HomeCardId, 
  */
 const MOMENTS: { from: number; ids: HomeCardId[] }[] = [
   { from: 0, ids: ['habits', 'journal', 'food', 'steps', 'burn'] },
-  { from: 4, ids: ['sleep', 'readiness', 'body', 'hrv', 'restingHr', 'battery', 'insights', 'workout'] },
+  { from: 4, ids: ['sleep', 'readiness', 'body', 'hrv', 'restingHr', 'battery', 'insights', 'workout', 'weather'] },
   { from: 11, ids: ['food', 'water', 'workout'] },
-  { from: 15, ids: ['workout', 'runVolume', 'trainingLoad', 'water', 'steps', 'food'] },
+  { from: 15, ids: ['workout', 'weather', 'runVolume', 'trainingLoad', 'water', 'steps', 'food'] },
   { from: 19, ids: ['habits', 'journal', 'food', 'insights', 'steps', 'burn'] },
 ]
 

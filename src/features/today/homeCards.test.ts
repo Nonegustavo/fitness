@@ -4,7 +4,7 @@ import { DEFAULT_AREAS, HOME_ELEMENTS, homeAreas, orderForTime, toggleElement } 
 
 describe('homeAreas', () => {
   it('uses the default areas, with the week on top, when nothing is saved', () => {
-    expect(homeAreas({})).toEqual({ ...DEFAULT_AREAS, week: true, smartOrder: true, now: true, seen: ['readiness'] })
+    expect(homeAreas({})).toEqual({ ...DEFAULT_AREAS, week: true, smartOrder: true, now: true, seen: ['readiness', 'weather'] })
   })
 
   it('leaves out of the default what the older layout had hidden', () => {
@@ -20,12 +20,12 @@ describe('homeAreas', () => {
       home: { order: [], hidden: ['sleep'] },
     })
     expect(areas).toEqual({
-      focus: ['records', 'sleep', 'readiness'],
-      quick: ['sleep', 'water'],
+      focus: ['records', 'sleep', 'readiness', 'weather'],
+      quick: ['sleep', 'water', 'weather'],
       week: true,
       smartOrder: true,
       now: true,
-      seen: ['readiness'],
+      seen: ['readiness', 'weather'],
     })
     expect(homeAreas({ homeAreas: { focus: [], quick: [], week: false } }).week).toBe(false)
     expect(homeAreas({ homeAreas: { focus: [], quick: [], smartOrder: false } }).smartOrder).toBe(false)
@@ -34,11 +34,23 @@ describe('homeAreas', () => {
 
   it('puts a newer element into the saved areas once, after its neighbour, and leaves it out once taken out', () => {
     const saved = homeAreas({ homeAreas: { focus: ['workout', 'sleep', 'food'], quick: ['water'] } })
-    expect(saved.focus).toEqual(['workout', 'sleep', 'readiness', 'food'])
-    expect(homeAreas({ homeAreas: { focus: ['food'], quick: [] } }).focus).toEqual(['food', 'readiness'])
+    expect(saved.focus).toEqual(['workout', 'weather', 'sleep', 'readiness', 'food'])
+    expect(homeAreas({ homeAreas: { focus: ['food'], quick: [] } }).focus).toEqual(['food', 'readiness', 'weather'])
     // Taking it out saves the areas with what was seen: it doesn't come back.
     const removed = toggleElement(saved, 'focus', 'readiness', false)
-    expect(homeAreas({ homeAreas: removed }).focus).toEqual(['workout', 'sleep', 'food'])
+    expect(homeAreas({ homeAreas: removed }).focus).toEqual(['workout', 'weather', 'sleep', 'food'])
+  })
+
+  it('puts the weather into both areas once, and leaves each out once taken out of it', () => {
+    // Readiness was seen (and taken out) before: only the weather comes in.
+    const saved = homeAreas({ homeAreas: { focus: ['workout', 'food'], quick: ['body', 'water', 'steps'], seen: ['readiness'] } })
+    expect(saved.focus).toEqual(['workout', 'weather', 'food'])
+    expect(saved.quick).toEqual(['body', 'water', 'weather', 'steps'])
+    expect(saved.seen).toEqual(['readiness', 'weather'])
+    // Out of "Visualização rápida" only: it stays in "Em foco" and doesn't come back to the other.
+    const smallOut = homeAreas({ homeAreas: toggleElement(saved, 'quick', 'weather', false) })
+    expect(smallOut.quick).toEqual(['body', 'water', 'steps'])
+    expect(smallOut.focus).toContain('weather')
   })
 
   it('adds an element at the end of an area or takes it out', () => {

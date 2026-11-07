@@ -16,6 +16,7 @@ import { TodayWorkoutsCard } from '../calendar/cards'
 import { StreaksBig, StreaksSmall } from '../streaks/StreakCards'
 import { sumMl, useWaterLogs } from '../water/water'
 import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
+import { WeatherBig, WeatherSmall } from '../weather/HomeCards'
 import { BatteryBig, BurnBig, FoodBig, HrvBig, RaceBig, RestingHrBig, StepsBig, WeightBig } from './bigCards'
 import {
   FoodSmall,
@@ -101,6 +102,7 @@ export const ELEMENT_VIEWS: Record<HomeCardId, { big: ElementView; small: Elemen
   battery: { big: BatteryBig, small: BatterySmall },
   steps: { big: StepsBig, small: StepsSmall },
   burn: { big: BurnBig, small: BurnSmall },
+  weather: { big: WeatherBig, small: WeatherSmall },
   // The containers of the older layout, no longer elements.
   focus: undefined,
   quick: undefined,

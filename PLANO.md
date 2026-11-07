@@ -190,6 +190,7 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Em foco: os cartões trocam com animação em vez de rolar até eles, sem rolagem dentro deles; o cartão da análise aparece mesmo antes da análise
 - [x] As telas entram prontas, sem cartões surgindo um a um, hábitos trocando de lugar ou checks animando sozinhos; bordas esmaecidas onde ainda há o que rolar e nenhuma barra de rolagem
 - [x] Diário: trocar de dia não mistura mais os textos de dois dias
+- [x] Clima no Hoje: cartão no Em foco (agora, máxima e mínima, as próximas 6 horas e os próximos dias) e na Visualização rápida, que entram uma vez nas duas áreas; a intensidade da chuva (mm/h) junto de cada chance de chuva, a da hora, ou a da hora mais forte do dia ("até 3,8 mm/h")
 
 ## Observações
 

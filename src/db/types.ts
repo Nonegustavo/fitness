@@ -196,6 +196,7 @@ export type HomeCardId =
   | 'records'
   | 'streak'
   | 'goalStreaks'
+  | 'weather'
 
 /** What the Hoje screen shows: big cards in "Em foco" (a carousel) and small ones in "Visualização rápida". */
 export interface HomeAreas {
