@@ -283,18 +283,19 @@
 /* In the components layer, so a utility can still change it (the size: [--scroll-fade-size:2rem]). */
 @layer components {
   @supports (animation-timeline: scroll()) {
+    /* The gradient is written out (not kept in a custom property of its own), so a scroll changes the
+       mask of the area alone and nothing inside it has its style worked out again. The build adds the
+       -webkit- prefix older WebViews need. */
     .scroll-fade-x,
     .scroll-fade-y {
       --scroll-fade-size: 1.5rem;
-      --scroll-fade-mask: linear-gradient(
+      mask-image: linear-gradient(
         var(--scroll-fade-to),
         transparent,
         #000 var(--scroll-fade-start),
         #000 calc(100% - var(--scroll-fade-end)),
         transparent
       );
-      -webkit-mask-image: var(--scroll-fade-mask);
-      mask-image: var(--scroll-fade-mask);
       animation: scroll-fade-start linear both, scroll-fade-end linear both;
       animation-range: 0 var(--scroll-fade-size), calc(100% - var(--scroll-fade-size)) 100%;
     }
