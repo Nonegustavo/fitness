@@ -127,9 +127,9 @@ function Dot({ item, onAccent }: { item: AgendaItem; onAccent: boolean }) {
 const NEXT_WORKOUTS = 5
 
 /**
- * "Em foco": today's workouts, gym and runs, with their actions (start, time, open what was done),
- * then the next ones whatever the day, each with its day ("Amanhã", "Sexta, 7/11"). Without a gym
- * workout today, the rotation's next template to start.
+ * "Em foco": today's workouts, gym and runs, with their actions (start, time, open what was done);
+ * without a gym workout today, the rotation's next template to start; then the next ones whatever
+ * the day, each with its day ("Amanhã", "Sexta, 7/11").
  */
 export function TodayWorkoutsCard({ today }: { today: DayKey }) {
   const agenda = useAgenda(today, shiftDay(today, 13), today)
@@ -137,21 +137,20 @@ export function TodayWorkoutsCard({ today }: { today: DayKey }) {
   const sessions = useSessions()
   const start = useStartWorkout()
   const [viewing, setViewing] = useState(false)
-  if (!agenda || !sessions) return <SkeletonCard lines={3} />
+  if (!agenda || !sessions || todays === undefined) return <SkeletonCard lines={3} />
   const workouts = agenda.filter((item) => item.kind !== 'rest')
   const todayItems = workouts.filter((item) => item.date === today)
-  const ahead = workouts.filter((item) => item.date > today && item.status === 'planned')
-  const shown = [...todayItems, ...ahead].slice(0, Math.max(NEXT_WORKOUTS, todayItems.length))
+  const ahead = workouts
+    .filter((item) => item.date > today && item.status === 'planned')
+    .slice(0, Math.max(0, NEXT_WORKOUTS - todayItems.length))
   const gymToday = todayItems.some((item) => item.kind === 'gym')
+  // Right after today's workouts: the card cuts what doesn't fit, and that's better the later ones.
+  const startNext = !findActive(sessions) && !gymToday && todays
   return (
     <Card icon={Dumbbell} tone="training" title="Próximos treinos" action={calendarLink}>
-      {shown.length > 0 ? (
-        <AgendaItems items={shown} today={today} showDay />
-      ) : (
-        <p className="py-1 text-sm text-ink-2">Nada programado nas próximas duas semanas.</p>
-      )}
-      {!findActive(sessions) && !gymToday && todays && (
-        <div className="mt-2 flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2">
+      {todayItems.length > 0 && <AgendaItems items={todayItems} today={today} showDay />}
+      {startNext && (
+        <div className={cx('flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2', todayItems.length > 0 && 'mt-2')}>
           <AgendaIcon kind="gym" status="planned" />
           <button
             type="button"
@@ -161,15 +160,24 @@ export function TodayWorkoutsCard({ today }: { today: DayKey }) {
           >
             <span className="block text-xs text-ink-2">Próxima ficha da sequência</span>
             <span className="flex min-w-0 items-center gap-0.5 text-sm font-medium">
-              <span className="truncate">{todays.template.name}</span>
+              <span className="truncate">{startNext.template.name}</span>
               <ChevronRight size={15} aria-hidden className="shrink-0 text-muted" />
             </span>
             <span className="sr-only">Ver a ficha</span>
           </button>
-          <Button size="sm" variant="primary" onClick={() => void start(todays.template)}>
+          <Button size="sm" variant="primary" onClick={() => void start(startNext.template)}>
             <Play size={14} /> Iniciar
           </Button>
         </div>
+      )}
+      {ahead.length > 0 ? (
+        <div className={cx((todayItems.length > 0 || startNext) && 'mt-2')}>
+          <AgendaItems items={ahead} today={today} showDay />
+        </div>
+      ) : (
+        todayItems.length === 0 && (
+          <p className={cx('py-1 text-sm text-ink-2', startNext && 'mt-2')}>Nada programado nas próximas duas semanas.</p>
+        )
       )}
       {viewing && todays && (
         <TemplateSheet
