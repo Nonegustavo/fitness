@@ -1,11 +1,13 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { House, Settings, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Carousel } from '../../components/Carousel'
 import { PullToRefresh } from '../../components/PullToRefresh'
 import { useToast } from '../../components/Toast'
-import { IconButton, Page } from '../../components/ui'
+import { IconButton, Page, Pending } from '../../components/ui'
 import { useNow, useSettings, useToday } from '../../db/hooks'
+import { db, SETTINGS_ID } from '../../db/schema'
 import { formatDay } from '../../lib/dates'
 import { getSyncState, syncNow } from '../../sync/controller'
 import { syncGarmin } from '../garmin/sync'
@@ -24,6 +26,8 @@ import { QuickGrid } from './tiles'
 export default function TodayPage() {
   const today = useToday()
   const settings = useSettings()
+  // The areas the user saved, not the default ones meanwhile: the screen waits for them.
+  const settingsRead = useLiveQuery(async () => (await db.settings.get(SETTINGS_ID)) !== undefined) !== undefined
   const [customizing, setCustomizing] = useState(false)
   const toast = useToast()
   const areas = homeAreas(settings)
@@ -60,6 +64,7 @@ export default function TodayPage() {
         </>
       }
     >
+      {!settingsRead && <Pending />}
       <RecapBanner today={today} />
       {areas.now && <NowCard today={today} />}
       {areas.week && <WeekCard today={today} />}

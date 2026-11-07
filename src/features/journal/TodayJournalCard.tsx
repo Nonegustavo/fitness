@@ -12,9 +12,10 @@ import { painsOn, scoreOn, usePains } from './pains'
 export function TodayJournalCard({ today }: { today: DayKey }) {
   const entry = useJournalEntry(today)
   const pains = usePains()
-  if (entry === undefined) return <SkeletonCard lines={3} />
+  // The pains too, or their line would come in after the card.
+  if (entry === undefined || !pains) return <SkeletonCard lines={3} />
   const text = entry?.text?.trim()
-  const hurting = painsOn(pains ?? [], today)
+  const hurting = painsOn(pains, today)
   return (
     <Card
       icon={NotebookPen}

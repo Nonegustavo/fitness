@@ -145,15 +145,19 @@ export function WeightSmall({ today }: { today: DayKey }) {
   )
 }
 
-/** The next race in the Garmin calendar, counting down (like SisRUN's "Próximo objetivo"). */
+/**
+ * The next race in the Garmin calendar, counting down (like SisRUN's "Próximo objetivo"); undefined
+ * while loading, null with none.
+ */
 export function useNextRace(today: DayKey) {
   const events = usePlannedEvents()
-  return events ? nextRace(events, today) : undefined
+  return events === undefined ? undefined : ((events && nextRace(events, today)) ?? null)
 }
 
 export function RaceSmall({ today }: { today: DayKey }) {
   const race = useNextRace(today)
-  const prediction = useRacePrediction(race, today)
+  const prediction = useRacePrediction(race ?? undefined, today)
+  if (race === undefined) return <TileSkeleton />
   if (!race) return null
   const days = daysBetween(today, race.date)
   const km = eventKm(race.title)

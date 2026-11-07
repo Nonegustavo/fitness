@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router'
 import { IconTile, type Tone } from '../../components/tone'
-import { Button } from '../../components/ui'
+import { Button, Pending } from '../../components/ui'
 import { useNow, useSettings } from '../../db/hooks'
 import { alive } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -80,8 +80,22 @@ export function NowCard({ today }: { today: DayKey }) {
   const start = useStartWorkout()
   const addWater = useAddWater()
 
-  if (!sessions || !agenda || !weights || !foodLogs || !waterLogs || !habits || !habitLogs || journal === undefined || !todaysActivities) {
-    return null
+  // Nothing shows while loading, but the screen waits for it: the card would push everything down.
+  if (
+    !sessions ||
+    !agenda ||
+    todays === undefined ||
+    !weights ||
+    !foodLogs ||
+    !waterLogs ||
+    !containers ||
+    !habits ||
+    !habitLogs ||
+    journal === undefined ||
+    !todaysActivities ||
+    (now.getDay() <= 1 && checkIn === undefined)
+  ) {
+    return <Pending />
   }
 
   const lastWeek = shiftDay(today, -7)

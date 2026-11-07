@@ -34,16 +34,20 @@ const RUN = toneColor('today')
 const percent = (now: number, before: number) => (before > 0 ? Math.round(((now - before) / before) * 100) : undefined)
 const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : '±'}${Math.abs(value)}`
 
-/** The running of the last `weeks` weeks, and the km planned for this one (from the SisRUN names). */
+/**
+ * The running of the last `weeks` weeks, and the km planned for this one (from the SisRUN names);
+ * undefined until both are read, so the plan doesn't come in after the card.
+ */
 function useVolume(today: DayKey, weeks: number) {
   const activities = useActivities()
   const from = weekStart(today)
   const agenda = useAgenda(from, shiftDay(from, 6), today)
   return useMemo(
     () =>
-      activities && {
+      activities &&
+      agenda && {
         weeks: weeklyVolume(activities, today, weeks),
-        planned: agenda ? weekSummary(agenda).plannedRunKm : undefined,
+        planned: weekSummary(agenda).plannedRunKm,
       },
     [activities, agenda, today, weeks],
   )

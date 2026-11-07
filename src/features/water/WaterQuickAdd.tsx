@@ -4,7 +4,7 @@ import { celebrate } from '../../components/celebrate'
 import { Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { toneColor } from '../../components/tone'
-import { Button, DecimalInput, Field, Meter } from '../../components/ui'
+import { Button, DecimalInput, Field, Meter, Pending } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { alive, remove } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -65,7 +65,9 @@ export function WaterQuickAdd({ simple = false }: { simple?: boolean }) {
   const containers = useContainers()
   const add = useAddWater()
   const [customOpen, setCustomOpen] = useState(false)
-  const favorites = (containers ?? []).filter((container) => container.favorite === 1)
+  // The screen waits for the buttons, instead of showing them a moment after the rest.
+  if (!containers) return <Pending />
+  const favorites = containers.filter((container) => container.favorite === 1)
 
   return (
     <>

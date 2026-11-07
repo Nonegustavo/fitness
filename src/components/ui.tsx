@@ -11,6 +11,7 @@ import {
   type SelectHTMLAttributes,
 } from 'react'
 import { Link } from 'react-router'
+import { useReveal } from './reveal'
 import type { PagerDrag } from './SwipePager'
 import { IconTile, toneColor, ToneContext, type Tone } from './tone'
 
@@ -37,10 +38,17 @@ export function Page({
   tone?: Tone
   children: ReactNode
 }) {
+  const ref = useRef<HTMLDivElement>(null)
+  // The screen eases in whole, once its data is there, instead of card by card.
+  const shown = useReveal(ref)
   const page = (
     <div
+      ref={ref}
       data-tone={tone}
-      className="mx-auto w-full max-w-3xl animate-enter px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-36 lg:px-8 lg:pt-8 lg:pb-12"
+      className={cx(
+        'mx-auto w-full max-w-3xl px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-36 lg:px-8 lg:pt-8 lg:pb-12',
+        shown ? 'animate-enter' : 'opacity-0',
+      )}
     >
       {back && (
         <Link to={back.to} className="mb-1 inline-flex items-center gap-0.5 text-sm text-ink-2 hover:text-ink">
@@ -65,8 +73,8 @@ export function Page({
 }
 
 /**
- * Set by the "Em foco" carousel: a card fills its page's fixed height, and a body longer than that
- * scrolls inside the card.
+ * Set by the "Em foco" carousel: a card fills its page's fixed height, and a body longer than that is
+ * cut, fading out at the bottom (no scrolling inside the card).
  */
 export const CardFill = createContext(false)
 
@@ -103,7 +111,7 @@ export function Card({
           {action}
         </div>
       )}
-      {fill ? <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">{children}</div> : children}
+      {fill ? <div className="scroll-fade-y -mx-1 min-h-0 flex-1 overflow-hidden px-1">{children}</div> : children}
     </section>
   )
   // A card of another section (the food card on Hoje) colors its controls, and the sheets they open, its way.
@@ -387,10 +395,16 @@ export function Stat({ label, value, note }: { label: string; value: ReactNode; 
   )
 }
 
-/** A gray shape where content is still loading, so the screen neither flashes empty nor jumps. */
+/**
+ * A gray shape where content is still loading, so the screen neither flashes empty nor jumps. It also
+ * holds the screen back until its data is there (`data-loading`, see reveal.ts).
+ */
 export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={cx('animate-pulse rounded-lg bg-surface-2', className)} />
+  return <div aria-hidden data-loading className={cx('animate-pulse rounded-lg bg-surface-2', className)} />
 }
+
+/** Holds the screen back while a part that shows nothing meanwhile (a banner, a hint) is loading. */
+export const Pending = () => <span hidden data-loading />
 
 /** A card-sized placeholder: a title line and a few lines of content. */
 export function SkeletonCard({ lines = 3, className }: { lines?: number; className?: string }) {
@@ -431,7 +445,7 @@ export function TableView({ summary = 'Ver tabela', children }: { summary?: stri
   return (
     <details className="group mt-3 text-sm">
       <summary className="cursor-pointer text-ink-2 select-none hover:text-ink">{summary}</summary>
-      <div className="mt-2 max-h-72 overflow-y-auto">{children}</div>
+      <div className="scroll-fade-y mt-2 max-h-72 overflow-y-auto">{children}</div>
     </details>
   )
 }

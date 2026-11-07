@@ -66,12 +66,13 @@ function perDay<T>(rows: DailyHealth[], days: DayKey[], pick: (row: DailyHealth)
 export function FoodBig({ today }: { today: DayKey }) {
   const settings = useSettings()
   const logs = useFoodLogs(today, today)
-  const trainingDay = useTrainingDays(today, today)?.has(today) ?? false
-  if (!logs) return <SkeletonCard lines={5} />
+  // The training day too: its goals are other, and the bars would move once it came.
+  const trainingDays = useTrainingDays(today, today)
+  if (!logs || !trainingDays) return <SkeletonCard lines={5} />
   const totals = sumNutrients(logs.map((log) => log.nutrients))
   return (
     <Card icon={Utensils} tone="food" title="Alimentação" action={detailsLink('/alimentacao', 'Refeições')}>
-      <DayProgress totals={totals} goals={goalsFor(settings, trainingDay)} date={today} today={today} />
+      <DayProgress totals={totals} goals={goalsFor(settings, trainingDays.has(today))} date={today} today={today} />
     </Card>
   )
 }
@@ -117,6 +118,7 @@ export function WeightBig({ today }: { today: DayKey }) {
 export function RaceBig({ today, inRunning = false }: { today: DayKey; inRunning?: boolean }) {
   const race = useNextRace(today)
   const activities = useActivities()
+  if (race === undefined) return <SkeletonCard lines={4} />
   if (!race) return null
   const days = daysBetween(today, race.date)
   const km = eventKm(race.title)

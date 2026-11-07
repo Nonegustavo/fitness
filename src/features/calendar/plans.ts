@@ -172,11 +172,11 @@ export function plannedToday(
 
 /**
  * The template to start today: the one scheduled for today, or else the next in the rotation.
- * `planned` tells which, for the label. undefined while loading or with no template at all.
+ * `planned` tells which, for the label. undefined while loading, null with no template at all.
  */
 export function useTodayTemplate(
   today: DayKey,
-): { template: WorkoutTemplate; plan?: WorkoutPlan } | undefined {
+): { template: WorkoutTemplate; plan?: WorkoutPlan } | null | undefined {
   const plans = usePlans(today, today)
   const templates = useTemplates()
   const sessions = useSessions()
@@ -185,6 +185,6 @@ export function useTodayTemplate(
     const planned = plannedToday(plans, templates, sessions, today)
     if (planned) return planned
     const next = nextTemplate(templates, sessions.filter((session) => session.endedAt))
-    return next && { template: next }
+    return next ? { template: next } : null
   }, [plans, templates, sessions, today])
 }

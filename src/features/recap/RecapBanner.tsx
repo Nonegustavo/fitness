@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronRight, PartyPopper, X } from 'lucide-react'
 import { Link } from 'react-router'
 import { IconTile, toneColor } from '../../components/tone'
-import { IconButton } from '../../components/ui'
+import { IconButton, Pending } from '../../components/ui'
 import { db } from '../../db/schema'
 import type { DayKey } from '../../lib/dates'
 import { recapBannerYear } from './recap'
@@ -17,7 +17,10 @@ export function RecapBanner({ today }: { today: DayKey }) {
     async () => (year === undefined ? null : (((await db.meta.get(DISMISSED_KEY))?.value as number | undefined) ?? null)),
     [year],
   )
-  if (year === undefined || dismissed === undefined || dismissed === year) return null
+  if (year === undefined || dismissed === year) return null
+  // The screen waits for it, so the banner doesn't push everything down once it comes.
+  if (dismissed === undefined) return <Pending />
+
   return (
     <section
       aria-label={`Retrospectiva de ${year}`}
