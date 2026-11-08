@@ -4,7 +4,7 @@ import { useMemo, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { DayNav, DayPager } from '../../components/DayNav'
 import { PeriodBars } from '../../components/PeriodBars'
-import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
+import { PeriodControl, useFirstDay, usePeriod, type Period } from '../../components/PeriodControl'
 import { PeriodLine } from '../../components/TimeCharts'
 import { Button, Card, cx, Empty, Page, SkeletonCard, SkeletonLines, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
@@ -49,6 +49,7 @@ export default function SleepPage() {
   const date = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) && asked <= today ? asked : today
   const setDate = (next: DayKey) => setParams(next === today ? {} : { data: next }, { replace: true })
   const latest = useLatestNight()
+  const trends = useTrends()
 
   if (latest === undefined) {
     return (
@@ -60,7 +61,7 @@ export default function SleepPage() {
   }
 
   return (
-    <Page title="Sono e recuperação" icon={Moon} tone="sleep" subtitle={latest ? nightLabel(date) : 'Do relógio Garmin'}>
+    <Page title="Sono e recuperação" icon={Moon} tone="sleep" subtitle="Do relógio Garmin">
       {!latest ? (
         <Card>
           <Empty>Nenhum dado de sono ainda.</Empty>
@@ -72,13 +73,15 @@ export default function SleepPage() {
           </p>
         </Card>
       ) : (
-        <>
-          {/* The chosen night's cards move with the finger; the one before or after slides in. */}
-          <DayPager date={date} today={today} onChange={setDate}>
-            {(day) => <SleepDay date={day} today={today} latest={latest} onDate={setDate} />}
-          </DayPager>
-          <TrendsCard />
-        </>
+        // All of the screen is the night's page: dragged sideways, everything moves with the finger.
+        <DayPager date={date} today={today} onChange={setDate} className="space-y-4">
+          {(day) => (
+            <>
+              <SleepDay date={day} today={today} latest={latest} onDate={setDate} />
+              <TrendsCard trends={trends} />
+            </>
+          )}
+        </DayPager>
       )}
     </Page>
   )
@@ -124,7 +127,7 @@ function NightCards({
       {day?.sleep ? (
         <NightCard day={day} />
       ) : (
-        <Card title="Noite">
+        <Card title={nightLabel(date)}>
           <Empty>
             {date === today
               ? 'A noite de hoje ainda não chegou do Garmin.'
@@ -150,7 +153,7 @@ function NightCard({ day }: { day: DailyHealth }) {
   const stages = sleepStages(sleep)
   const total = stages.reduce((sum, part) => sum + part.seconds, 0)
   return (
-    <Card title="Noite">
+    <Card title={nightLabel(day.id)}>
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Dormiu" value={formatDuration(sleep.totalSec * 1000)} note={sleep.napSec ? `+ cochilo de ${formatDuration(sleep.napSec * 1000)}` : undefined} />
         <Stat label="Nota" value={sleep.score ?? '—'} note={sleep.score !== undefined ? 'de 100' : undefined} />
@@ -240,18 +243,36 @@ function RecoveryCard({ stats, hrv }: { stats: RecoveryStat[]; hrv?: DailyHealth
   )
 }
 
-/** Sleep, HRV and resting heart rate over the period picked: each night, or the average of a week, month or year. */
-function TrendsCard() {
+interface Trends {
+  period: Period
+  /** False while the days load. */
+  loaded: boolean
+  hours: DayValue[]
+  hrv: DayValue[]
+  resting: DayValue[]
+}
+
+/**
+ * The history's period and readings, read once for the screen: each night's page draws the same
+ * charts, so the one coming in during a drag shows them at once, with the period picked.
+ */
+function useTrends(): Trends {
   const earliest = useFirstDay(db.dailyHealth, 'id', hasNight)
   const period = usePeriod('sono', { earliest })
   const days = useDailyHealth(period.window.from, period.window.to)
   const hours = useMemo(() => readings(days ?? [], (day) => (day.sleep ? day.sleep.totalSec / 3600 : undefined)), [days])
   const hrv = useMemo(() => readings(days ?? [], (day) => day.hrv?.lastNight), [days])
   const resting = useMemo(() => readings(days ?? [], (day) => day.restingHr), [days])
+  return { period, loaded: days !== undefined, hours, hrv, resting }
+}
+
+/** Sleep, HRV and resting heart rate over the period picked: each night, or the average of a week, month or year. */
+function TrendsCard({ trends }: { trends: Trends }) {
+  const { period, loaded, hours, hrv, resting } = trends
   return (
     <Card title="Histórico">
       <PeriodControl period={period} />
-      {!days ? (
+      {!loaded ? (
         <SkeletonLines lines={5} />
       ) : (
         <>

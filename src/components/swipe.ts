@@ -37,6 +37,35 @@ export function releaseTarget(offset: number, velocity: number, width: number, c
   return Math.abs(offset) >= width * COMMIT_SHARE ? toward : 0
 }
 
+/** A page a pager draws: the one shown (side 0), or one off to a side. */
+export interface PageSlot<K> {
+  key: K
+  side: Side | 0
+  /** Kept ready, out of sight, for a drag to come: drawn ahead, it doesn't hold the finger back then. */
+  ready?: boolean
+}
+
+/**
+ * The pages to draw: the one shown, the other one on screen (the neighbor a drag pulls in, or the
+ * page a slide takes away), and the neighbors kept ready that are still next to the one shown. In
+ * their order, so a page taking another role (ready, pulled in, shown) stays where it is in the DOM.
+ */
+export function pageSlots<K>(
+  shown: K,
+  other: { key: K; side: Side } | undefined,
+  ready: readonly K[],
+  neighbor: (key: K, side: Side) => K | undefined,
+  compare: (a: K, b: K) => number,
+): PageSlot<K>[] {
+  const slots: PageSlot<K>[] = [{ key: shown, side: 0 }]
+  if (other && other.key !== shown) slots.push({ key: other.key, side: other.side })
+  for (const side of [-1, 1] as const) {
+    const key = neighbor(shown, side)
+    if (key !== undefined && ready.includes(key) && !slots.some((slot) => slot.key === key)) slots.push({ key, side, ready: true })
+  }
+  return slots.sort((a, b) => compare(a.key, b.key))
+}
+
 export interface Sample {
   t: number
   x: number

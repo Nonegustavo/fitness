@@ -21,7 +21,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { useToday } from '../db/hooks'
 import { patch } from '../db/repo'
 import { db, SETTINGS_ID } from '../db/schema'
-import { dayKey, type DayKey } from '../lib/dates'
+import { dayKey, relativeDay, type DayKey } from '../lib/dates'
 import { dayTitle, KIND_ICONS, KIND_TONES, PlanModal } from '../features/calendar/components'
 import { useTodayTemplate } from '../features/calendar/plans'
 import { WalkModal } from '../features/calendar/WalkModal'
@@ -51,7 +51,7 @@ const LOOKS: Record<QuickLogId, { label: string; detail: string; icon: LucideIco
 }
 
 /** The sheet or form the "+" has open. */
-type Opened = { kind: 'sheet' } | { kind: 'water' } | { kind: 'plan'; date: DayKey } | { kind: 'walk'; date: DayKey }
+type Opened = { kind: 'sheet' } | { kind: 'water'; date?: DayKey } | { kind: 'plan'; date: DayKey } | { kind: 'walk'; date: DayKey }
 
 /**
  * The "+" over the bottom bar adds what the screen is about: a food on Alimentação, a weigh-in (or a
@@ -78,7 +78,9 @@ export function QuickLogButton({ variant }: { variant: 'floating' | 'sidebar' })
     if (!now) return
     if (now.kind === 'go') navigate(now.to, { replace: now.replace })
     else if (now.kind === 'workout') workout.current?.()
-    else setOpened(now.kind === 'plan' ? { kind: 'plan', date: now.date } : { kind: now.kind })
+    else if (now.kind === 'plan') setOpened({ kind: 'plan', date: now.date })
+    else if (now.kind === 'water') setOpened({ kind: 'water', date: now.date })
+    else setOpened({ kind: now.kind })
   }
 
   return (
@@ -98,8 +100,8 @@ export function QuickLogButton({ variant }: { variant: 'floating' | 'sidebar' })
       {action?.kind === 'workout' && <WorkoutRunner runner={workout} fallback="/treinos/ficha/nova" />}
       {opened?.kind === 'sheet' && <QuickLogSheet onClose={close} onWalk={() => setOpened({ kind: 'walk', date: dayKey() })} />}
       {opened?.kind === 'water' && (
-        <Modal open title="Água" onClose={close}>
-          <WaterQuickAdd />
+        <Modal open title={opened.date ? `Água de ${relativeDay(opened.date, today)}` : 'Água'} onClose={close}>
+          <WaterQuickAdd date={opened.date} />
         </Modal>
       )}
       {opened?.kind === 'plan' && <PlanSheet date={opened.date} today={today} onClose={close} />}

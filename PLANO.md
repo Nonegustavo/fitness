@@ -117,7 +117,7 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Copiar o resumo dos dados (com ou sem as instruções) para colar numa conversa ou Projeto do Claude, sem usar a chave da API
 - [x] Tela Hoje personalizável: escolher os cartões e arrastar para mudar a ordem; vale para todos os aparelhos
 - [x] Arrastar e soltar (mouse, dedo ou teclado) para ordenar exercícios da ficha, fichas (a ordem é a rotação), hábitos e recipientes de água
-- [x] Deslizar para a esquerda apaga registros de água, alimentos, pesagens, medidas e refeições salvas, com "Desfazer"
+- [x] Deslizar para a esquerda apaga refeições salvas, com "Desfazer". Nas telas em que arrastar troca o dia ou a aba (Água, Alimentação, Corpo), apagar fica na janela de cada registro
 - [x] Lembretes dos hábitos (horário e dias da semana) e o fim do descanso como notificações no app Android
 - [x] Alimentação: foto do prato guardada com a refeição, nome e valores de cada registro editáveis, sua versão de um alimento da TACO, e "descrever o que comi" em texto para a IA separar os alimentos
 - [x] Cores por seção, ícones em pastilhas coloridas, animações leves e comemoração ao bater a meta de água, completar os hábitos e terminar o treino
@@ -185,12 +185,13 @@ O que acontece num dia é comparado com a noite seguinte (o Garmin data o sono p
 - [x] Corrida com ícone de tênis; caminhada com as pegadas e em azul, também como bolinha no "Minha semana" e no widget
 - [x] Calendário com linhas entre as semanas
 - [x] Correlações com os dados novos: carga e forma, prontidão, corridas (ritmo, FC, esforço, etapas no alvo, temperatura e umidade), musculação (volume, RIR, desconforto), despertares, hora de acordar, saldo calórico e dias com dor, sempre com a causa antes do efeito; os destaques agrupados pelo que explicam, com "Mostrar mais"
-- [x] Arrastar para o lado troca o dia (Alimentação, Hábitos, Diário e Sono) e as abas (Corpo, Adicionar alimento) acompanhando o dedo, com animação; as abas ficam no centro
+- [x] Arrastar para o lado troca o dia (Água, Alimentação, Hábitos, Diário e Sono) e as abas (Corpo, Adicionar alimento) acompanhando o dedo, com animação; as abas ficam no centro. Na troca de dia, a tela inteira vai junto (o histórico e os outros cartões também), e o dia anterior e o seguinte ficam prontos de antemão, para o arraste não engasgar
 - [x] O "+" faz o que a tela pede (no Hoje, a janela geral) e some, com animação, onde não há o que adicionar
 - [x] Em foco: os cartões trocam com animação em vez de rolar até eles, sem rolagem dentro deles; o cartão da análise aparece mesmo antes da análise
 - [x] As telas entram prontas, sem cartões surgindo um a um, hábitos trocando de lugar ou checks animando sozinhos; bordas esmaecidas onde ainda há o que rolar e nenhuma barra de rolagem
 - [x] Diário: trocar de dia não mistura mais os textos de dois dias
 - [x] Clima no Hoje: cartão no Em foco (agora, máxima e mínima, as próximas 6 horas e os próximos dias) e na Visualização rápida, que entram uma vez nas duas áreas; a intensidade da chuva (mm/h) junto de cada chance de chuva, a da hora, ou a da hora mais forte do dia ("até 3,8 mm/h")
+- [x] Água por dia, como na Alimentação: as setas ou o arraste levam aos dias anteriores, onde os copos e o "+" registram naquele dia (com a hora de agora, ou a escolhida em "Outro valor"); a lista do dia mostra a hora de cada registro, e tocar num registro muda a hora e a quantidade, ou o remove
 
 ## Observações
 

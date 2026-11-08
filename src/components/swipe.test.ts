@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FLICK, lockOf, releaseTarget, rubberBand, settleMs, SLOP_PX, velocityOf } from './swipe'
+import { FLICK, lockOf, pageSlots, releaseTarget, rubberBand, settleMs, SLOP_PX, velocityOf } from './swipe'
 
 const BOTH = { [-1]: true, [1]: true } as const
 const WIDTH = 358
@@ -65,5 +65,46 @@ describe('letting go', () => {
     expect(fast).toBeGreaterThanOrEqual(160)
     expect(slow).toBeLessThanOrEqual(320)
     expect(settleMs(5, 0)).toBe(181)
+  })
+})
+
+describe('the pages a pager draws', () => {
+  // Days as numbers in text, up to today ("5").
+  const neighbor = (key: string, side: -1 | 1) => (side === 1 && key === '5' ? undefined : String(Number(key) + side))
+  const compare = (a: string, b: string) => Number(a) - Number(b)
+  const slots = (shown: string, other: { key: string; side: -1 | 1 } | undefined, ready: string[]) =>
+    pageSlots(shown, other, ready, neighbor, compare)
+
+  it('is the page shown alone until its neighbors are ready', () => {
+    expect(slots('5', undefined, [])).toEqual([{ key: '5', side: 0 }])
+  })
+
+  it('keeps the ready neighbors next to the page shown, in their order, and none past the end', () => {
+    expect(slots('3', undefined, ['2', '4'])).toEqual([
+      { key: '2', side: -1, ready: true },
+      { key: '3', side: 0 },
+      { key: '4', side: 1, ready: true },
+    ])
+    expect(slots('5', undefined, ['4', '6'])).toEqual([
+      { key: '4', side: -1, ready: true },
+      { key: '5', side: 0 },
+    ])
+  })
+
+  it('draws a neighbor pulled in by a drag once, as the one on screen', () => {
+    expect(slots('3', { key: '2', side: -1 }, ['2', '4'])).toEqual([
+      { key: '2', side: -1 },
+      { key: '3', side: 0 },
+      { key: '4', side: 1, ready: true },
+    ])
+  })
+
+  it('drops the ready pages no longer next to the one shown, but not a page sliding away', () => {
+    // From day 1 straight to day 5: day 1 slides out on the left, day 4 is ready on the same side.
+    expect(slots('5', { key: '1', side: -1 }, ['0', '2', '4'])).toEqual([
+      { key: '1', side: -1 },
+      { key: '4', side: -1, ready: true },
+      { key: '5', side: 0 },
+    ])
   })
 })

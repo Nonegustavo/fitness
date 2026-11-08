@@ -2,7 +2,7 @@ import { Bookmark, ChevronRight, Copy, Dumbbell, Flame, Pencil, Plus, Target, Tr
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { PeriodBars } from '../../components/PeriodBars'
-import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
+import { PeriodControl, useFirstDay, usePeriod, type Period } from '../../components/PeriodControl'
 import { DayNav, DayPager } from '../../components/DayNav'
 import { Modal } from '../../components/Modal'
 import { useRemoveWithUndo } from '../../components/SwipeToDelete'
@@ -14,6 +14,7 @@ import { db } from '../../db/schema'
 import type { FoodLog, MacroGoals, MealKey, Nutrients } from '../../db/types'
 import { dayRange, dayTime, formatDay, formatTime, type DayKey } from '../../lib/dates'
 import { formatNumber, parseDecimal } from '../../lib/format'
+import type { DayValue } from '../../lib/stats'
 import { useDailyHealth } from '../garmin/recovery'
 import { logFood, useFoodCatalog, useFoodPrefs } from './foods'
 import { closeTheDay, remainingOf, type Suggestion } from './closeDay'
@@ -27,6 +28,8 @@ import { FoodAvatar, useFoodLooks, type FoodLook } from './FoodAvatar'
 import { PhotoThumb } from './PhotoThumb'
 
 const kcal = (value: number) => `${formatNumber(value, 0)} kcal`
+/** Defined once: a new function each time would redraw the history chart on every render. */
+const kcalAxis = (value: number) => formatNumber(value, 0)
 
 export default function FoodPage() {
   const today = useToday()
@@ -35,6 +38,7 @@ export default function FoodPage() {
   const looks = useFoodLooks()
   const [goalsOpen, setGoalsOpen] = useState(false)
   const setDate = (next: DayKey) => setParams(next === today ? {} : { data: next }, { replace: true })
+  const history = useFoodHistory(today)
 
   return (
     <Page
@@ -47,13 +51,17 @@ export default function FoodPage() {
         </Button>
       }
     >
+      {/* All of the screen is the day's page: dragged sideways, everything moves with the finger. */}
       <DayPager date={date} today={today} onChange={setDate} className="space-y-4">
-        {(day) => <FoodDay date={day} today={today} looks={looks} onDate={setDate} />}
+        {(day) => (
+          <>
+            <FoodDay date={day} today={today} looks={looks} onDate={setDate} />
+            <Card title="Histórico">
+              <FoodHistory history={history} />
+            </Card>
+          </>
+        )}
       </DayPager>
-
-      <Card title="Histórico">
-        <FoodHistory today={today} />
-      </Card>
 
       {goalsOpen && <GoalsModal onClose={() => setGoalsOpen(false)} />}
     </Page>
@@ -699,8 +707,22 @@ function SaveMealModal({ meal, date, entries, onClose }: { meal: MealKey; date: 
   )
 }
 
-/** Calories against the goals over the period picked: each day, or the average per day of a week, month or year. */
-function FoodHistory({ today }: { today: DayKey }) {
+interface FoodHistoryData {
+  period: Period
+  today: DayKey
+  /** Undefined while the logs load. */
+  values?: DayValue[]
+  goals?: DayValue[]
+  /** The totals of the days with logs (today excluded), over `n` days. */
+  average?: Nutrients
+  n: number
+}
+
+/**
+ * The history's period and data, read once for the screen: each day's page draws the same chart, so
+ * the one coming in during a drag shows it at once, with the period picked.
+ */
+function useFoodHistory(today: DayKey): FoodHistoryData {
   const settings = useSettings()
   const earliest = useFirstDay(db.foodLogs, 'date')
   const period = usePeriod('alimentacao', { earliest })
@@ -708,7 +730,7 @@ function FoodHistory({ today }: { today: DayKey }) {
   const logs = useFoodLogs(from, to)
   const trainingDays = useTrainingDays(from, to)
 
-  const values = useMemo(() => (logs ?? []).map((log) => ({ date: log.date, value: log.nutrients.kcal })), [logs])
+  const values = useMemo(() => logs?.map((log) => ({ date: log.date, value: log.nutrients.kcal })), [logs])
   // Each day's goal follows whether it had a workout; a longer period's is their average over its days with logs.
   const goals = useMemo(
     () =>
@@ -728,10 +750,16 @@ function FoodHistory({ today }: { today: DayKey }) {
     return { average: days > 0 ? sumNutrients(counted.map((log) => log.nutrients)) : undefined, n: days }
   }, [logs, today])
 
+  return { period, today, values, goals, average, n }
+}
+
+/** Calories against the goals over the period picked: each day, or the average per day of a week, month or year. */
+function FoodHistory({ history }: { history: FoodHistoryData }) {
+  const { period, today, values, goals, average, n } = history
   return (
     <>
       <PeriodControl period={period} />
-      {logs ? (
+      {values ? (
         <PeriodBars
           periods={period.window}
           values={values}
@@ -739,7 +767,7 @@ function FoodHistory({ today }: { today: DayKey }) {
           unfinished={today}
           goal={goals}
           format={kcal}
-          axisFormat={(value) => formatNumber(value, 0)}
+          axisFormat={kcalAxis}
           valueLabel="consumidas"
           legend="Consumido"
           label="Calorias consumidas por dia"

@@ -118,6 +118,8 @@ function SortableItem({
           {...attributes}
           {...listeners}
           aria-label="Arrastar para mudar a ordem"
+          // The handle's drag is the list's, not a sideways swipe to another day or tab.
+          data-no-swipe=""
           className="flex size-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink active:cursor-grabbing"
         >
           <GripVertical size={18} />

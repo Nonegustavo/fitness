@@ -53,6 +53,10 @@ export default function HabitsPage() {
   const archived = habits?.filter((habit) => habit.archived === 1) ?? []
   const nextOrder = habits?.length ? Math.max(...habits.map((habit) => habit.order)) + 1 : 0
   const badges = showsBadges(habits ?? [])
+  // Read once for the screen: each day's page draws the same history, so the one coming in during a
+  // drag shows it at once. A year back, more than the weeks shown: the strength reads that far, and
+  // so can a streak.
+  const historyLogs = useHabitLogs(shiftDay(today, -STRENGTH_DAYS), today)
 
   async function addSuggestion(template: HabitTemplate) {
     await save(db.habits, { ...template, startDate: today, archived: 0, order: nextOrder })
@@ -70,64 +74,67 @@ export default function HabitsPage() {
         </Button>
       }
     >
-      <DayPager date={date} today={today} onChange={setDate}>
+      {/* All of the screen is the day's page: dragged sideways, everything moves with the finger. */}
+      <DayPager date={date} today={today} onChange={setDate} className="space-y-4">
         {(day) => (
-          <Card>
-            <DayNav date={day} today={today} onChange={setDate} />
-            <HabitCheckList date={day} />
-            {active.some((habit) => habit.polarity === 'good') && (
-              <p className="mt-2 text-xs text-muted">Toque e segure um hábito a fazer para pular o dia (chuva, viagem…).</p>
+          <>
+            <Card>
+              <DayNav date={day} today={today} onChange={setDate} />
+              <HabitCheckList date={day} />
+              {active.some((habit) => habit.polarity === 'good') && (
+                <p className="mt-2 text-xs text-muted">Toque e segure um hábito a fazer para pular o dia (chuva, viagem…).</p>
+              )}
+            </Card>
+
+            {habits && active.length < 3 && (
+              <Card title="Sugestões">
+                <div className="flex flex-wrap gap-2">
+                  {HABIT_SUGGESTIONS.filter((s) => !habits.some((h) => h.name === s.name)).map((suggestion) => (
+                    <Button key={suggestion.name} size="sm" onClick={() => void addSuggestion(suggestion)}>
+                      <Plus size={14} /> {suggestion.name}
+                      <span className="text-xs text-muted">{suggestion.polarity === 'bad' ? 'evitar' : 'fazer'}</span>
+                    </Button>
+                  ))}
+                </div>
+              </Card>
             )}
-          </Card>
+
+            {active.length > 0 && (
+              <Card title={`Últimas ${HISTORY_WEEKS} semanas`}>
+                <HabitHistory habits={active} today={today} badges={badges} logs={historyLogs} />
+              </Card>
+            )}
+
+            {habits && habits.length > 0 && (
+              <Card title="Gerenciar">
+                <SortableList
+                  className="divide-y divide-line"
+                  itemClassName="flex items-center gap-2 bg-surface py-1.5"
+                  items={active}
+                  getId={(habit) => habit.id}
+                  onReorder={(list) => void saveOrder(db.habits, [...list, ...archived])}
+                >
+                  {(habit, handle) => (
+                    <>
+                      <span className="-ml-2 flex">{handle}</span>
+                      <HabitRow habit={habit} badge={badges} onEdit={() => setEditing(habit)} />
+                    </>
+                  )}
+                </SortableList>
+                {archived.length > 0 && (
+                  <ul className="divide-y divide-line border-t border-line">
+                    {archived.map((habit) => (
+                      <li key={habit.id} className="flex items-center gap-2 py-1.5">
+                        <HabitRow habit={habit} badge={badges} onEdit={() => setEditing(habit)} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            )}
+          </>
         )}
       </DayPager>
-
-      {habits && active.length < 3 && (
-        <Card title="Sugestões">
-          <div className="flex flex-wrap gap-2">
-            {HABIT_SUGGESTIONS.filter((s) => !habits.some((h) => h.name === s.name)).map((suggestion) => (
-              <Button key={suggestion.name} size="sm" onClick={() => void addSuggestion(suggestion)}>
-                <Plus size={14} /> {suggestion.name}
-                <span className="text-xs text-muted">{suggestion.polarity === 'bad' ? 'evitar' : 'fazer'}</span>
-              </Button>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {active.length > 0 && (
-        <Card title={`Últimas ${HISTORY_WEEKS} semanas`}>
-          <HabitHistory habits={active} today={today} badges={badges} />
-        </Card>
-      )}
-
-      {habits && habits.length > 0 && (
-        <Card title="Gerenciar">
-          <SortableList
-            className="divide-y divide-line"
-            itemClassName="flex items-center gap-2 bg-surface py-1.5"
-            items={active}
-            getId={(habit) => habit.id}
-            onReorder={(list) => void saveOrder(db.habits, [...list, ...archived])}
-          >
-            {(habit, handle) => (
-              <>
-                <span className="-ml-2 flex">{handle}</span>
-                <HabitRow habit={habit} badge={badges} onEdit={() => setEditing(habit)} />
-              </>
-            )}
-          </SortableList>
-          {archived.length > 0 && (
-            <ul className="divide-y divide-line border-t border-line">
-              {archived.map((habit) => (
-                <li key={habit.id} className="flex items-center gap-2 py-1.5">
-                  <HabitRow habit={habit} badge={badges} onEdit={() => setEditing(habit)} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      )}
 
       {editing && (
         <HabitModal
@@ -184,13 +191,22 @@ interface HabitNumbers {
   strength: number
 }
 
-function HabitHistory({ habits, today, badges }: { habits: Habit[]; today: DayKey; badges: boolean }) {
+function HabitHistory({
+  habits,
+  today,
+  badges,
+  logs,
+}: {
+  habits: Habit[]
+  today: DayKey
+  badges: boolean
+  /** The last year of logs; undefined while they load. */
+  logs: HabitLog[] | undefined
+}) {
   // Week columns from Sunday, ending with the current week.
   const firstDay = shiftDay(weekStart(today), -7 * (HISTORY_WEEKS - 1))
   const lastDay = shiftDay(firstDay, 7 * HISTORY_WEEKS - 1)
   const days = useMemo(() => dayRange(firstDay, lastDay), [firstDay, lastDay])
-  // A year back, more than the weeks shown: the strength reads that far, and so can a streak.
-  const logs = useHabitLogs(shiftDay(today, -STRENGTH_DAYS), today)
   const byHabit = useMemo(() => daysByHabit(logs ?? []), [logs])
   const notes = useMemo(() => new Map((logs ?? []).flatMap((log) => (log.note ? [[log.id, log.note] as const] : []))), [logs])
   const numbers = useMemo(() => {

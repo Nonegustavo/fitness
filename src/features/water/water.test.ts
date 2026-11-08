@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WaterLog } from '../../db/types'
-import { suggestedGoalMl, sumMl, totalsByDay } from './water'
+import { loggedAt, suggestedGoalMl, sumMl, totalsByDay } from './water'
 
 const log = (date: string, ml: number): WaterLog => ({
   id: `${date}-${ml}`,
@@ -16,6 +16,12 @@ describe('water', () => {
   it('suggests 35 ml per kg, rounded to 50 ml', () => {
     expect(suggestedGoalMl(82)).toBe(2850)
     expect(suggestedGoalMl(70)).toBe(2450)
+  })
+
+  it('logs now today, and at the same time of day on a past day', () => {
+    const now = new Date(2026, 10, 7, 15, 42, 10).getTime()
+    expect(loggedAt('2026-11-07', now)).toBe(now)
+    expect(loggedAt('2026-11-05', now)).toBe(new Date(2026, 10, 5, 15, 42).getTime())
   })
 
   it('sums logs per day', () => {

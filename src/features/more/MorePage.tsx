@@ -50,7 +50,7 @@ const LINKS: { to: string; label: string; detail: string; icon: typeof Moon; ton
     tone: 'insights',
   },
   { to: '/retrospectiva', label: 'Retrospectiva', detail: 'O seu ano em números, mês a mês', icon: PartyPopper, tone: 'analysis' },
-  { to: '/agua', label: 'Água', detail: 'Meta, recipientes e histórico', icon: GlassWater, tone: 'water' },
+  { to: '/agua', label: 'Água', detail: 'Registros por dia, meta e recipientes', icon: GlassWater, tone: 'water' },
   { to: '/clima', label: 'Clima', detail: 'Previsão e o tempo nos treinos', icon: CloudSun, tone: 'water' },
   { to: '/habitos', label: 'Hábitos', detail: 'Check do dia, sequências, lembretes e histórico', icon: ListChecks, tone: 'habits' },
   { to: '/diario', label: 'Diário', detail: 'Como foi o dia, humor e energia', icon: NotebookPen, tone: 'journal' },

@@ -4,18 +4,19 @@ import { celebrate } from '../../components/celebrate'
 import { Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { toneColor } from '../../components/tone'
-import { Button, DecimalInput, Field, Meter, Pending } from '../../components/ui'
+import { Button, DecimalInput, Field, Meter, Pending, TextInput } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { alive, remove } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { WaterContainer } from '../../db/types'
-import { dayKey } from '../../lib/dates'
+import { dayKey, formatTime, relativeDay, type DayKey } from '../../lib/dates'
 import { formatMl, parseDecimal } from '../../lib/format'
 import { CONTAINER_ICONS } from './containerIcons'
-import { addWater, sumMl, useContainers } from './water'
+import { addWater, CLOCK, sumMl, useContainers } from './water'
 import { tapFeedback } from '../../lib/haptics'
 
-export function WaterSummary({ totalMl, goalMl }: { totalMl: number; goalMl: number }) {
+/** The day's water against the goal; `past` for a day that's over ("faltaram"). */
+export function WaterSummary({ totalMl, goalMl, past = false }: { totalMl: number; goalMl: number; past?: boolean }) {
   const remaining = goalMl - totalMl
   return (
     <div>
@@ -25,33 +26,43 @@ export function WaterSummary({ totalMl, goalMl }: { totalMl: number; goalMl: num
           <span className="text-ink-2">de {formatMl(goalMl)}</span>
         </p>
         {remaining > 0 ? (
-          <p className="text-sm text-ink-2">Faltam {formatMl(remaining)}</p>
+          <p className="text-sm text-ink-2">
+            {past ? 'Faltaram' : 'Faltam'} {formatMl(remaining)}
+          </p>
         ) : (
           <p className="flex items-center gap-1 text-sm font-medium text-good">
             <CircleCheck size={16} /> Meta batida
           </p>
         )}
       </div>
-      <Meter value={totalMl} max={goalMl} label="Água bebida hoje" tone="water" />
+      <Meter value={totalMl} max={goalMl} label={past ? 'Água bebida no dia' : 'Água bebida hoje'} tone="water" />
     </div>
   )
 }
 
-/** Adds water with the usual feedback: a tap, a toast to undo it, and a small party on reaching the goal. */
-export function useAddWater(): (ml: number, container?: WaterContainer) => Promise<void> {
+/**
+ * Adds water with the usual feedback: a tap, a toast to undo it, and a small party on reaching the goal.
+ * With `date`, on that day (at this time of day, or at the `clock` given); the party is today's only.
+ */
+export function useAddWater(date?: DayKey): (ml: number, container?: WaterContainer, clock?: string) => Promise<void> {
   const settings = useSettings()
   const toast = useToast()
-  return async (ml, container) => {
+  return async (ml, container, clock) => {
     tapFeedback()
-    const before = sumMl(alive(await db.waterLogs.where('date').equals(dayKey()).toArray()))
-    const log = await addWater(ml, container?.id)
+    const today = dayKey()
+    const day = date ?? today
+    const before = sumMl(alive(await db.waterLogs.where('date').equals(day).toArray()))
+    const log = await addWater(ml, container?.id, day, clock)
+    const added = `+${formatMl(ml)} de água${container ? ` (${container.name.toLowerCase()})` : ''}`
     // The glass that crosses the goal gets a small party.
-    const reached = before < settings.waterGoalMl && before + ml >= settings.waterGoalMl
+    const reached = day === today && before < settings.waterGoalMl && before + ml >= settings.waterGoalMl
     if (reached) celebrate()
     toast({
       message: reached
         ? `Meta de água batida! 💧 +${formatMl(ml)}`
-        : `+${formatMl(ml)} de água${container ? ` (${container.name.toLowerCase()})` : ''}`,
+        : day === today
+          ? added
+          : `${added} · ${relativeDay(day, today)} às ${formatTime(log.time)}`,
       action: { label: 'Desfazer', onClick: () => void remove(db.waterLogs, log.id) },
     })
   }
@@ -59,11 +70,12 @@ export function useAddWater(): (ml: number, container?: WaterContainer) => Promi
 
 /**
  * One-tap buttons for the favorite containers, plus a custom amount. `simple` (the Hoje card)
- * leaves out the "+" marks and the custom amount, which stays on the water screen.
+ * leaves out the "+" marks and the custom amount, which stays on the water screen. With `date`, the
+ * water goes on that day.
  */
-export function WaterQuickAdd({ simple = false }: { simple?: boolean }) {
+export function WaterQuickAdd({ simple = false, date }: { simple?: boolean; date?: DayKey }) {
   const containers = useContainers()
-  const add = useAddWater()
+  const add = useAddWater(date)
   const [customOpen, setCustomOpen] = useState(false)
   // The screen waits for the buttons, instead of showing them a moment after the rest.
   if (!containers) return <Pending />
@@ -103,30 +115,49 @@ export function WaterQuickAdd({ simple = false }: { simple?: boolean }) {
         )}
       </div>
       {customOpen && (
-        <CustomAmountModal onClose={() => setCustomOpen(false)} onAdd={(ml) => void add(ml)} />
+        <CustomAmountModal
+          date={date}
+          onClose={() => setCustomOpen(false)}
+          onAdd={(ml, clock) => void add(ml, undefined, clock)}
+        />
       )}
     </>
   )
 }
 
-function CustomAmountModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ml: number) => void }) {
+function CustomAmountModal({
+  date,
+  onClose,
+  onAdd,
+}: {
+  date?: DayKey
+  onClose: () => void
+  onAdd: (ml: number, clock: string) => void
+}) {
   const [text, setText] = useState('')
+  const [clock, setClock] = useState(() => formatTime(Date.now()))
   const ml = parseDecimal(text)
-  const valid = ml !== undefined && ml > 0 && ml <= 5000
+  const valid = ml !== undefined && ml > 0 && ml <= 5000 && (clock === '' || CLOCK.test(clock))
+  const today = dayKey()
 
   function submit(event: FormEvent) {
     event.preventDefault()
     if (!valid) return
-    onAdd(Math.round(ml))
+    onAdd(Math.round(ml), clock)
     onClose()
   }
 
   return (
-    <Modal open title="Registrar água" onClose={onClose}>
+    <Modal open title={date && date !== today ? `Água de ${relativeDay(date, today)}` : 'Registrar água'} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Quantidade (ml)">
-          <DecimalInput autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Ex.: 400" />
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Quantidade (ml)">
+            <DecimalInput autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Ex.: 400" />
+          </Field>
+          <Field label="Hora">
+            <TextInput type="time" value={clock} onChange={(e) => setClock(e.target.value)} />
+          </Field>
+        </div>
         <div className="flex flex-wrap gap-2">
           {[150, 200, 300, 400, 750, 1000].map((preset) => (
             <Button key={preset} size="sm" onClick={() => setText(String(preset))}>

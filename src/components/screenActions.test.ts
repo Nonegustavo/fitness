@@ -27,8 +27,15 @@ describe('the "+" of each screen', () => {
     expect(on('/treinos/exercicios')).toMatchObject({ to: '/treinos/exercicios?novo=exercicio' })
     expect(on('/treinos/atividades')).toMatchObject({ to: '/treinos/atividades?novo=fit' })
     expect(on('/corrida/tenis')).toMatchObject({ to: '/corrida/tenis?novo=tenis' })
-    expect(on('/agua')).toMatchObject({ kind: 'water' })
+    expect(on('/agua')).toEqual({ kind: 'water', label: 'Registrar água' })
     expect(on('/treinos')).toMatchObject({ kind: 'workout' })
+  })
+
+  it('adds water on the past day shown, else today', () => {
+    expect(on('/agua', '?data=2026-11-04')).toEqual({ kind: 'water', label: 'Registrar água', date: '2026-11-04' })
+    expect(on('/agua', '?data=2026-11-06')).toEqual({ kind: 'water', label: 'Registrar água' })
+    expect(on('/agua', '?data=2026-11-09')).toEqual({ kind: 'water', label: 'Registrar água' })
+    expect(on('/agua', '?data=ontem')).toEqual({ kind: 'water', label: 'Registrar água' })
   })
 
   it('schedules on the chosen day of the calendar, or today when that one is past', () => {

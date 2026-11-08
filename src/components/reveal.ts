@@ -3,8 +3,11 @@ import { useLayoutEffect, useState, type RefObject } from 'react'
 /** The longest a screen waits, hidden, for its data before it comes in with what it has. */
 const REVEAL_WAIT_MS = 600
 
-/** What marks a part of a screen still loading: the skeletons, and `Pending` where nothing shows meanwhile. */
-const LOADING = '[data-loading]'
+/**
+ * What marks a part of a screen still loading: the skeletons, and `Pending` where nothing shows
+ * meanwhile. Not in the pages out of sight (inert), like the days a pager draws ahead.
+ */
+const LOADING = '[data-loading]:not([inert] *)'
 
 /**
  * Whether a screen may come in: as soon as nothing in it is loading, or after REVEAL_WAIT_MS with

@@ -5,13 +5,14 @@ import type { DayKey } from '../lib/dates'
  * What the "+" does on a screen: the sheet to log anything (Hoje); the screen's own way to add, by its
  * address (`go`: a form the screen opens from a flag, or another screen; `replace` on the same screen,
  * so going back doesn't pass through it again); the workout (back to the one going on, or start
- * today's); the water buttons; or scheduling a workout or a walk on a day.
+ * today's); the water buttons (on a past day when the screen shows one); or scheduling a workout or
+ * a walk on a day.
  */
 export type ScreenAction = { label: string } & (
   | { kind: 'sheet' }
   | { kind: 'go'; to: string; replace: boolean }
   | { kind: 'workout' }
-  | { kind: 'water' }
+  | { kind: 'water'; date?: DayKey }
   | { kind: 'plan'; date: DayKey }
 )
 
@@ -20,6 +21,8 @@ export interface ScreenContext {
   /** The meal of this hour, for food. */
   meal: MealKey
 }
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/
 
 /** Screens where the "+" would be in the way or repeat what's already there. */
 export const HIDDEN_ON = ['/alimentacao/adicionar', '/treinos/sessao/', '/treinos/ficha/']
@@ -54,7 +57,11 @@ const SCREENS: Record<string, (params: URLSearchParams, context: ScreenContext) 
     const { novo, label } = tab === 'medidas' || tab === 'fotos' ? BODY_NEW[tab] : BODY_NEW.peso
     return sameScreen('/corpo', params, { novo }, label)
   },
-  '/agua': () => ({ kind: 'water', label: 'Registrar água' }),
+  // The water buttons, on the day shown when that one is past.
+  '/agua': (params, { today }) => {
+    const day = params.get('data')
+    return { kind: 'water', label: 'Registrar água', ...(day && DAY.test(day) && day < today ? { date: day } : {}) }
+  },
   '/treinos': () => ({ kind: 'workout', label: 'Treino' }),
   '/treinos/exercicios': (params) => sameScreen('/treinos/exercicios', params, { novo: 'exercicio' }, 'Novo exercício'),
   '/treinos/atividades': (params) => sameScreen('/treinos/atividades', params, { novo: 'fit' }, 'Importar atividade'),
@@ -65,7 +72,7 @@ const SCREENS: Record<string, (params: URLSearchParams, context: ScreenContext) 
   // On the chosen day, or today when that one is past (nothing is scheduled in the past).
   '/calendario': (params, { today }) => {
     const day = params.get('dia')
-    return { kind: 'plan', date: day && /^\d{4}-\d{2}-\d{2}$/.test(day) && day >= today ? day : today, label: 'Programar treino' }
+    return { kind: 'plan', date: day && DAY.test(day) && day >= today ? day : today, label: 'Programar treino' }
   },
 }
 

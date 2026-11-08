@@ -84,7 +84,8 @@ export function DayNav({ date, today, onChange }: { date: DayKey; today: DayKey;
  * The part of a screen that belongs to one day, as pages: dragged sideways, the day follows the
  * finger and the one before or after comes in (never past today); the arrows of a DayNav inside, and
  * any other change of `date`, slide the same way. `children` draws one day from the key it gets,
- * not from `date`: it also runs for the day coming in.
+ * not from `date`: it also runs for the day coming in, and for the days before and after, drawn
+ * ahead out of sight once the screen is quiet (so a drag doesn't wait for them).
  *
  *   <DayPager date={date} today={today} onChange={setDate} className="space-y-4">
  *     {(day) => <Card><DayNav date={day} today={today} onChange={setDate} />…</Card>}
@@ -111,6 +112,7 @@ export function DayPager({
       compare={(a, b) => a.localeCompare(b)}
       onChange={onChange}
       className={className}
+      ahead
     >
       {children}
     </SwipePager>
