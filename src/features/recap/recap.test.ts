@@ -229,6 +229,21 @@ describe('buildRecap', () => {
     ])
   })
 
+  it('names the runs of the app races after them, with their official time', () => {
+    const meta = { updatedAt: 1, deleted: 0, dirty: 0 } as const
+    const withRaces = {
+      ...sources(),
+      races: [
+        { id: 'a', name: 'Meia de Porto Alegre', date: '2026-05-01', officialSec: 3290, ...meta },
+        { id: 'b', name: 'Rústica (app)', date: '2026-10-12', activityId: 'race', ...meta },
+      ],
+    }
+    expect(buildRecap(2026, today, withRaces).running!.races.map(({ title, seconds, activityId }) => [title, seconds, activityId])).toEqual([
+      ['Meia de Porto Alegre', 3290, 'r2'],
+      ['Rústica (app)', 2100, 'race'],
+    ])
+  })
+
   it('does not count a best that an earlier year beat as a record', () => {
     const slow = sources()
     slow.activities = slow.activities.map((a) => (a.id === 'r2025' ? { ...a, timerSec: 1400 } : a))

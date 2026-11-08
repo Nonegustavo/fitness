@@ -10,6 +10,7 @@ import type {
   MeasurementEntry,
   MeasurementSite,
   PerformedSet,
+  Race,
   Settings,
   WalkRoutine,
   WaterLog,
@@ -20,13 +21,14 @@ import { dayKey, daysBetween, formatDay, formatTime, shiftDay, weekStart, type D
 import { formatClock, formatDuration, formatNumber, formatSigned } from '../../lib/format'
 import type { DayValue } from '../../lib/stats'
 import { activityLabel, matchSession } from '../activities/activities'
-import { activityKind, nextRace, weekSummary, type AgendaItem } from '../calendar/agenda'
+import { activityKind, weekSummary, type AgendaItem } from '../calendar/agenda'
 import { weekdaysText } from '../calendar/walks'
 import { metricSeries } from '../body/body'
 import { daysToTarget, estimateExpenditure, slopePerDay } from '../food/energy'
 import { amountLabel, goalsFor, MEAL_LABEL, MEALS, sumNutrients } from '../food/nutrition'
 import type { PlannedEvent } from '../garmin/calendar'
 import { hrvStatus } from '../garmin/recovery'
+import { distanceText, nextRaceView, raceDone, raceResult } from '../races/race'
 import { describeStep, workoutBlocks } from '../garmin/workout'
 import {
   daysByHabit,
@@ -425,10 +427,15 @@ export interface RunningInput {
   /** This week's calendar, for the km planned. */
   weekAgenda?: AgendaItem[]
   events?: PlannedEvent[] | null
+  /** The races of the app's list. */
+  races?: Race[]
 }
 
-/** Weekly km against the plan, the pace, the records and the next race. */
-export function runningLines({ activities, streams, weekAgenda, events }: RunningInput, today: DayKey): string[] {
+/** How far back the last race's result is told. */
+const LAST_RACE_DAYS = 30
+
+/** Weekly km against the plan, the pace, the records, the last race's result and the next race. */
+export function runningLines({ activities, streams, weekAgenda, events, races }: RunningInput, today: DayKey): string[] {
   const weeks = weeklyVolume(activities, today, 9)
   if (weeks.every((week) => week.runs === 0)) return []
   const lines: string[] = []
@@ -451,8 +458,29 @@ export function runningLines({ activities, streams, weekAgenda, events }: Runnin
     if (records.longest) parts.push(`mais longa ${formatNumber(records.longest.km, 1)} km (${formatDay(records.longest.date, 'd/MM/yy')})`)
     if (parts.length > 0) lines.push(`- Recordes (dos dados do relógio): ${parts.join(', ')}`)
   }
-  const race = nextRace(events ?? null, today)
-  if (race) lines.push(`- Próxima prova: ${race.title} em ${formatDay(race.date, "EEEE, d 'de' MMMM")} (daqui a ${daysBetween(today, race.date)} dias)`)
+  const last = (races ?? [])
+    .filter((race) => race.date >= shiftDay(today, -LAST_RACE_DAYS) && raceDone(race, activities, today))
+    .at(-1)
+  if (last) {
+    const result = raceResult(last, activities)
+    if (result.seconds !== undefined) {
+      const parts = [
+        `${formatClock(result.seconds)}${result.official ? ' (oficial)' : ''}`,
+        result.meters !== undefined && `${formatNumber(result.meters / 1000, 2)} km`,
+        result.pace !== undefined && `${formatPace(result.pace)}/km`,
+        last.goalSec !== undefined && result.vsGoal !== undefined &&
+          `meta ${formatClock(last.goalSec)}, ${formatClock(Math.abs(result.vsGoal))} ${result.vsGoal <= 0 ? 'abaixo' : 'acima'}`,
+      ].filter(Boolean)
+      lines.push(`- Última prova: ${last.name} em ${formatDay(last.date, 'd/MM')}: ${parts.join(' · ')}`)
+    }
+  }
+  const race = nextRaceView(races ?? [], events ?? null, today, activities)
+  if (race) {
+    const extras = [distanceText(race.distance), race.goalSec !== undefined && `meta ${formatClock(race.goalSec)}`].filter(Boolean)
+    lines.push(
+      `- Próxima prova: ${race.name} em ${formatDay(race.date, "EEEE, d 'de' MMMM")} (daqui a ${daysBetween(today, race.date)} dias)${extras.length > 0 ? `, ${extras.join(', ')}` : ''}`,
+    )
+  }
   return lines
 }
 

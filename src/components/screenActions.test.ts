@@ -27,6 +27,7 @@ describe('the "+" of each screen', () => {
     expect(on('/treinos/exercicios')).toMatchObject({ to: '/treinos/exercicios?novo=exercicio' })
     expect(on('/treinos/atividades')).toMatchObject({ to: '/treinos/atividades?novo=fit' })
     expect(on('/corrida/tenis')).toMatchObject({ to: '/corrida/tenis?novo=tenis' })
+    expect(on('/corrida/provas')).toMatchObject({ to: '/corrida/provas?novo=prova', label: 'Nova prova' })
     expect(on('/agua')).toEqual({ kind: 'water', label: 'Registrar água' })
     expect(on('/treinos')).toMatchObject({ kind: 'workout' })
   })

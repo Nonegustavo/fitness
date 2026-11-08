@@ -1,4 +1,4 @@
-import type { ActivityStream, DailyInsight, Exercise, Habit, MeasurementEntry, Settings } from '../../db/types'
+import type { ActivityStream, DailyInsight, Exercise, Habit, MeasurementEntry, Race, Settings } from '../../db/types'
 import { dayRange, formatDay, formatTime, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
@@ -43,6 +43,8 @@ export interface ContextInput {
   settings: Settings
   /** The coach's workouts from the Garmin calendar; `time` is the one the user planned, when set. */
   planned: PlannedEvent[] | null
+  /** The races of the app's list. */
+  races?: Race[]
   /** Templates scheduled in the app and not done yet. */
   gymPlans?: { date: DayKey; name: string; time?: string }[]
   /** Walks scheduled in the app (once or every week) and not done yet. */
@@ -158,6 +160,7 @@ export function buildContext(input: ContextInput): string {
         streams: input.streams,
         weekAgenda: input.agenda?.filter((item) => item.date >= week && item.date <= shiftDay(week, 6)),
         events: planned,
+        races: input.races,
       },
       today,
     ),

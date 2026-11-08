@@ -66,6 +66,7 @@ const SCREENS: Record<string, (params: URLSearchParams, context: ScreenContext) 
   '/treinos/exercicios': (params) => sameScreen('/treinos/exercicios', params, { novo: 'exercicio' }, 'Novo exercício'),
   '/treinos/atividades': (params) => sameScreen('/treinos/atividades', params, { novo: 'fit' }, 'Importar atividade'),
   '/corrida/tenis': (params) => sameScreen('/corrida/tenis', params, { novo: 'tenis' }, 'Adicionar tênis'),
+  '/corrida/provas': (params) => sameScreen('/corrida/provas', params, { novo: 'prova' }, 'Nova prova'),
   // A pain on the day shown (the text has its box always open).
   '/diario': (params) => sameScreen('/diario', params, { dor: 'nova' }, 'Adicionar dor'),
   '/habitos': (params) => sameScreen('/habitos', params, { novo: 'habito' }, 'Novo hábito'),

@@ -4,8 +4,7 @@ import { db } from '../../db/schema'
 import type { ActivityStream } from '../../db/types'
 import { formatDay, parseDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatClock, formatNumber } from '../../lib/format'
-import type { PlannedEvent } from '../garmin/calendar'
-import { distanceLabel, fitnessOf, predictRace, raceDistance, runEfforts, type RacePrediction, type RunFitness } from './predict'
+import { distanceLabel, fitnessOf, predictRace, runEfforts, type RaceDistance, type RacePrediction, type RunFitness } from './predict'
 import { isOutdoorRun } from './running'
 
 /** The samples of some activities, by id. */
@@ -14,18 +13,21 @@ export async function streamsOf(ids: string[]): Promise<Map<string, ActivityStre
   return new Map(streams.filter((stream): stream is ActivityStream => !!stream && !stream.deleted).map((stream) => [stream.id, stream]))
 }
 
-/** The running fitness from the outdoor runs of the last 90 days. */
+/** The running fitness from the outdoor runs of the 90 days up to `today`. */
 async function recentFitness(today: DayKey): Promise<RunFitness> {
   const from = parseDay(shiftDay(today, -89)).getTime()
   const runs = alive(await db.activities.where('startTime').aboveOrEqual(from).toArray()).filter(isOutdoorRun)
   return fitnessOf(runEfforts(runs, await streamsOf(runs.map((run) => run.id))), today)
 }
 
-/** The time predicted for a race of the calendar; undefined while loading, when its name has no distance or without recent runs. */
-export function useRacePrediction(race: PlannedEvent | undefined, today: DayKey): RacePrediction | undefined {
-  const distance = race ? raceDistance(race.title) : undefined
+/** The running fitness as of `day` (the day before a race, for what was predicted for it); undefined while loading. */
+export const useRecentFitness = (day: DayKey, enabled = true): RunFitness | null | undefined =>
+  useLiveQuery(async () => (enabled ? recentFitness(day) : null), [day, enabled])
+
+/** The time predicted for a race's distance; undefined while loading, without a distance or without recent runs. */
+export function useRacePrediction(distance: RaceDistance | undefined, today: DayKey): RacePrediction | undefined {
   // Nothing to read for a race without a distance (or no race).
-  const fitness = useLiveQuery(async () => (distance ? recentFitness(today) : null), [today, distance !== undefined])
+  const fitness = useRecentFitness(today, distance !== undefined)
   return fitness && distance ? predictRace(fitness, distance) : undefined
 }
 
@@ -33,8 +35,8 @@ export function useRacePrediction(race: PlannedEvent | undefined, today: DayKey)
 export const predicted = (seconds: number): string => `~${formatClock(seconds)}`
 
 /** The race card's lines: the time predicted, for what distance, and from which run. */
-export function RacePredictionLine({ race, today }: { race: PlannedEvent; today: DayKey }) {
-  const prediction = useRacePrediction(race, today)
+export function RacePredictionLine({ distance, today }: { distance: RaceDistance | undefined; today: DayKey }) {
+  const prediction = useRacePrediction(distance, today)
   if (!prediction) return null
   const { meters, seconds, ends, reference } = prediction
   return (

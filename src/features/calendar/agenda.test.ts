@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Activity, EventTime, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
+import type { Activity, EventTime, Race, WorkoutPlan, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import { dayTime } from '../../lib/dates'
 import {
   buildAgenda,
@@ -423,5 +423,46 @@ describe('suggestTemplate', () => {
     const plans = [plan('p1', '2026-11-04', 'pull')]
     expect(suggestTemplate(TODAY, TODAY, { templates, sessions: [session('s1', '2026-11-01', 'legs')], plans })?.id).toBe('pull')
     expect(suggestTemplate(TODAY, TODAY, { templates, sessions: [], plans: [] })?.id).toBe('legs')
+  })
+})
+
+describe('the races of the app in the calendar', () => {
+  const RACE_DAY = '2026-11-08'
+  const race = (changes: Partial<Race> = {}): Race => ({ id: 'r1', name: 'Rústica de Morungava', date: RACE_DAY, rangeM: [6000, 8000], ...meta, ...changes })
+  const run = (id: string, km: number, time: string): Activity => ({ ...activity(id, RACE_DAY, 'running'), startTime: dayTime(RACE_DAY, time), distanceM: km * 1000 })
+  const events = [
+    { date: RACE_DAY, title: 'Rústica de Morungava (6 a 8km)' },
+    { date: RACE_DAY, title: '08/11 Dom - Corrida 7 km' },
+    { date: RACE_DAY, title: 'Musculação' },
+  ]
+
+  it('stand for the Garmin runs of their day, done by the longest run', () => {
+    const items = buildAgenda(RACE_DAY, RACE_DAY, '2026-11-09', sources({ events, races: [race()], activities: [run('warmup', 1.5, '08:20'), run('race', 6.24, '09:04')] }))
+    // The race brought from the calendar and the coach's workout for it are the race; the gym stays.
+    expect(items.map((item) => [item.title, item.status, item.activity?.id])).toEqual([
+      ['Corrida', 'done', 'warmup'],
+      ['Rústica de Morungava', 'done', 'race'],
+      ['Musculação', 'missed', undefined],
+    ])
+    expect(items.find((item) => item.race)?.key).toBe('race-r1')
+  })
+
+  it('take the run linked to them, or none', () => {
+    const runs = [run('warmup', 1.5, '08:20'), run('race', 6.24, '09:04')]
+    const linked = buildAgenda(RACE_DAY, RACE_DAY, '2026-11-09', sources({ races: [race({ activityId: 'warmup' })], activities: runs }))
+    expect(linked.find((item) => item.race)?.activity?.id).toBe('warmup')
+    const none = buildAgenda(RACE_DAY, RACE_DAY, '2026-11-09', sources({ races: [race({ activityId: '-' })], activities: runs }))
+    expect(none.find((item) => item.race)?.status).toBe('missed')
+  })
+
+  it('count their distance in the week planned, ahead', () => {
+    const items = buildAgenda('2026-11-08', '2026-11-14', '2026-11-08', sources({ races: [race({ time: '08:00' })] }))
+    expect(items[0]).toMatchObject({ title: 'Rústica de Morungava', status: 'planned', time: dayTime(RACE_DAY, '08:00') })
+    expect(weekSummary(items).plannedRunKm).toBe(8)
+  })
+
+  it('leave the days without them alone', () => {
+    const items = buildAgenda(RACE_DAY, RACE_DAY, RACE_DAY, sources({ events, races: [race({ date: '2026-11-15' })] }))
+    expect(items.map((item) => item.title)).toEqual(['Corrida 7 km', 'Musculação', 'Rústica de Morungava (6 a 8km)'])
   })
 })

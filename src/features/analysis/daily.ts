@@ -61,7 +61,7 @@ const metaTime = async (key: string, field: string): Promise<number | undefined>
 export async function contextFor(day: DayKey = dayKey(), withPrevious = true): Promise<string> {
   const from = shiftDay(day, -14)
   const to = shiftDay(day, 7)
-  const [sources, settings, events, insights, plans, templates, eventTimes, exercises, measurements] = await Promise.all([
+  const [sources, settings, events, insights, plans, templates, eventTimes, exercises, measurements, raceRows] = await Promise.all([
     loadSources(),
     db.settings.get(SETTINGS_ID),
     plannedEvents(),
@@ -73,7 +73,9 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     db.eventTimes.toArray(),
     db.exercises.toArray(),
     db.measurements.toArray(),
+    db.races.toArray(),
   ])
+  const races = alive(raceRows)
   const runs = sources.activities.filter(isOutdoorRun)
   const [streams, garmin, healthConnect, calendar, coachPlan] = await Promise.all([
     db.activityStreams.bulkGet(runs.map((run) => run.id)),
@@ -92,6 +94,7 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     eventTimes: times,
     walkRoutine: settings?.walkRoutine,
     coach: planWorkouts(coachPlan),
+    races,
   })
   // The coach's workouts with the time the user planned them at, when there is one, and the
   // prescription read from SisRUN in place of the description; the hidden ones left out.
@@ -118,6 +121,7 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     sources,
     settings: settings ?? { id: SETTINGS_ID, ...DEFAULT_SETTINGS, updatedAt: 0, deleted: 0, dirty: 0 },
     planned,
+    races,
     gymPlans,
     walkPlans,
     previous: withPrevious ? previous : undefined,

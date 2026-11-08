@@ -693,6 +693,31 @@ export interface ActivityWeather {
   code?: number
 }
 
+/**
+ * A race: put in the app, or brought from the Garmin calendar. Its run is the one linked to it
+ * ("É uma prova" on the run), else the longest run of its day.
+ */
+export interface Race extends Synced {
+  name: string
+  date: DayKey
+  /** "08:00". */
+  time?: string
+  /** Meters. */
+  distanceM?: number
+  /** A race given as a range ("6 a 8 km"): its ends, in meters, in place of `distanceM`. */
+  rangeM?: [number, number]
+  /** The time aimed for, in seconds. */
+  goalSec?: number
+  /** The run that was the race. */
+  activityId?: string
+  /** The official (chip) time, in seconds, when it differs from the watch's. */
+  officialSec?: number
+  /** The Garmin calendar event it was brought from (its key), so the two show as one. */
+  eventKey?: string
+  /** The rest: placing, category, bib, how it went. */
+  notes?: string
+}
+
 /** A pair of shoes (or other gear) whose distance adds up from the activities that used it. */
 export interface Gear extends Synced {
   name: string

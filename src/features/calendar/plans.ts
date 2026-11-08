@@ -8,6 +8,7 @@ import type { DayKey } from '../../lib/dates'
 import { useActivities } from '../activities/activities'
 import type { PlannedEvent } from '../garmin/calendar'
 import { usePlannedEvents } from '../garmin/sync'
+import { useRaces } from '../races/races'
 import { useCoachWorkouts } from '../sisrun/coachPlan'
 import { nextTemplate } from '../training/stats'
 import { useSessions, useTemplates } from '../training/training'
@@ -134,8 +135,9 @@ export function useAgenda(from: DayKey, to: DayKey, today: DayKey): AgendaItem[]
   const activities = useActivities()
   const templates = useTemplates()
   const coach = useCoachWorkouts()
+  const races = useRaces()
   return useMemo(() => {
-    if (!plans || !eventTimes || walkRoutine === undefined || events === undefined || !sessions || !activities || !templates || !coach) {
+    if (!plans || !eventTimes || walkRoutine === undefined || events === undefined || !sessions || !activities || !templates || !coach || !races) {
       return undefined
     }
     return buildAgenda(from, to, today, {
@@ -147,8 +149,9 @@ export function useAgenda(from: DayKey, to: DayKey, today: DayKey): AgendaItem[]
       eventTimes,
       walkRoutine: walkRoutine ?? undefined,
       coach,
+      races,
     })
-  }, [from, to, today, plans, eventTimes, walkRoutine, events, sessions, activities, templates, coach])
+  }, [from, to, today, plans, eventTimes, walkRoutine, events, sessions, activities, templates, coach, races])
 }
 
 /** Today's scheduled template not done yet (the first, when there are two). */

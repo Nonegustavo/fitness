@@ -9,6 +9,8 @@ import { formatDay, formatTime } from '../../lib/dates'
 import { formatClock, formatFixed } from '../../lib/format'
 import { PlannedWorkoutCard } from '../garmin/PlannedWorkoutCard'
 import { refreshFromGarmin, type GarminRefresh } from '../garmin/sync'
+import { RaceLinkButton, RaceOfRun } from '../races/ActivityRace'
+import { isRun } from '../running/running'
 import { GearPicker } from '../gear/GearPicker'
 import { useSessions } from '../training/training'
 import {
@@ -113,6 +115,8 @@ export default function ActivityPage() {
         {activity.device && <p className="mt-4 text-xs text-muted">Gravado com {deviceName(activity.device)}</p>}
       </Card>
 
+      {isRun(activity) && <RaceOfRun activity={activity} />}
+
       <GearPicker activity={activity} />
 
       {/* A gym workout has its own "Como foi o treino?" in the session. */}
@@ -161,6 +165,7 @@ export default function ActivityPage() {
         </Card>
       )}
 
+      {isRun(activity) && <RaceLinkButton activity={activity} />}
       {activity.garminId !== undefined && <RefreshFromGarmin activity={activity} />}
 
       <Button variant="ghost" className="w-full text-critical" onClick={() => setConfirmDelete(true)}>

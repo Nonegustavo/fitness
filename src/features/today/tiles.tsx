@@ -10,9 +10,9 @@ import { formatFixed, formatNumber, formatSigned } from '../../lib/format'
 import { changeOver } from '../../lib/stats'
 import { metricSeries, useWeights } from '../body/body'
 import { WeightModal } from '../body/WeightModal'
-import { eventKm, eventTitle, nextRace } from '../calendar/agenda'
 import { hrvStatus, useDailyHealth } from '../garmin/recovery'
-import { usePlannedEvents } from '../garmin/sync'
+import { distanceText } from '../races/race'
+import { useNextRace } from '../races/races'
 import { predicted, useRacePrediction } from '../running/RacePrediction'
 
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
@@ -145,26 +145,18 @@ export function WeightSmall({ today }: { today: DayKey }) {
   )
 }
 
-/**
- * The next race in the Garmin calendar, counting down (like SisRUN's "Próximo objetivo"); undefined
- * while loading, null with none.
- */
-export function useNextRace(today: DayKey) {
-  const events = usePlannedEvents()
-  return events === undefined ? undefined : ((events && nextRace(events, today)) ?? null)
-}
-
+/** The next race (the app's list, or the Garmin calendar), counting down like SisRUN's "Próximo objetivo". */
 export function RaceSmall({ today }: { today: DayKey }) {
   const race = useNextRace(today)
-  const prediction = useRacePrediction(race ?? undefined, today)
+  const prediction = useRacePrediction(race?.distance, today)
   if (race === undefined) return <TileSkeleton />
   if (!race) return null
   const days = daysBetween(today, race.date)
-  const km = eventKm(race.title)
+  const distance = distanceText(race.distance)
   return (
-    <SmallCard icon={Target} tone="analysis" label="Prova" to="/corrida">
+    <SmallCard icon={Target} tone="analysis" label="Prova" to="/corrida/provas">
       <Value value={days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `${days} dias`} />
-      <span className="mt-0.5 block truncate text-xs text-ink-2">{eventTitle(race.title)}</span>
+      <span className="mt-0.5 block truncate text-xs text-ink-2">{race.name}</span>
       {prediction ? (
         // No room for one more line: the prediction takes the date's place, which the countdown already tells.
         <Note>
@@ -175,7 +167,7 @@ export function RaceSmall({ today }: { today: DayKey }) {
         <Note>
           {shortDate(race.date)}
           {race.time !== undefined && ` · ${formatTime(race.time)}`}
-          {km !== undefined && ` · ${formatNumber(km, 1)} km`}
+          {distance && ` · ${distance}`}
         </Note>
       )}
     </SmallCard>

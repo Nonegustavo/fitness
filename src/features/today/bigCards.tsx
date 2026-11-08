@@ -7,17 +7,18 @@ import { Card, SkeletonCard } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import type { DailyHealth } from '../../db/types'
 import { dayRange, daysBetween, formatDay, formatTime, parseDay, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
-import { formatFixed, formatNumber, formatSigned } from '../../lib/format'
+import { formatClock, formatFixed, formatNumber, formatSigned } from '../../lib/format'
 import { changeOver } from '../../lib/stats'
 import { useActivities } from '../activities/activities'
 import { metricSeries, useWeights } from '../body/body'
-import { eventKm, eventTitle } from '../calendar/agenda'
 import { DayProgress } from '../food/DayProgress'
 import { goalsFor, sumNutrients, useFoodLogs, useTrainingDays } from '../food/nutrition'
 import { hrvStatus } from '../garmin/recovery'
+import { distanceText } from '../races/race'
+import { useNextRace } from '../races/races'
 import { RacePredictionLine } from '../running/RacePrediction'
 import { weeklyVolume } from '../running/running'
-import { ActiveRestBar, average, useNextRace, useRecentHealth } from './tiles'
+import { ActiveRestBar, average, useRecentHealth } from './tiles'
 
 const LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
@@ -114,30 +115,36 @@ export function WeightBig({ today }: { today: DayKey }) {
   )
 }
 
-/** `inRunning`: on the running screen itself, the link goes to the race's day in the calendar. */
+/**
+ * The next race (the app's list, or the Garmin calendar). `inRunning`: on the running screen, where it
+ * is also the way to the races, it shows with none ahead too.
+ */
 export function RaceBig({ today, inRunning = false }: { today: DayKey; inRunning?: boolean }) {
   const race = useNextRace(today)
   const activities = useActivities()
   if (race === undefined) return <SkeletonCard lines={4} />
-  if (!race) return null
+  if (!race) {
+    if (!inRunning) return null
+    return (
+      <Card icon={Target} tone="analysis" title="Provas" action={detailsLink('/corrida/provas', 'Provas')}>
+        <p className="text-sm text-ink-2">Nenhuma prova à frente. Cadastre a próxima em Provas, ou ponha no calendário do Garmin.</p>
+      </Card>
+    )
+  }
   const days = daysBetween(today, race.date)
-  const km = eventKm(race.title)
+  const distance = distanceText(race.distance)
   const weeks = activities ? weeklyVolume(activities, today, 4) : undefined
   return (
-    <Card
-      icon={Target}
-      tone="analysis"
-      title="Próxima prova"
-      action={inRunning ? detailsLink(`/calendario?dia=${race.date}`, 'Calendário') : detailsLink('/corrida', 'Corrida')}
-    >
+    <Card icon={Target} tone="analysis" title="Próxima prova" action={detailsLink('/corrida/provas', 'Provas')}>
       <Headline value={days === 0 ? 'Hoje!' : days === 1 ? 'Amanhã' : days} unit={days > 1 ? 'dias' : undefined} />
-      <p className="mt-3 font-medium">{eventTitle(race.title)}</p>
+      <p className="mt-3 font-medium">{race.name}</p>
       <p className="text-sm text-ink-2 first-letter:uppercase">
         {formatDay(race.date)}
         {race.time !== undefined && ` às ${formatTime(race.time)}`}
-        {km !== undefined && ` · ${formatNumber(km, 1)} km`}
+        {distance && ` · ${distance}`}
+        {race.goalSec !== undefined && ` · meta ${formatClock(race.goalSec)}`}
       </p>
-      <RacePredictionLine race={race} today={today} />
+      <RacePredictionLine distance={race.distance} today={today} />
       {weeks && (
         <p className="mt-3 text-xs text-muted">
           Corrida nas últimas 4 semanas: {weeks.map((week) => formatNumber(week.km, 1)).join(' · ')} km

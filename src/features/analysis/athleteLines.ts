@@ -1,11 +1,11 @@
-import type { Activity, ActivityStream, DailyHealth, Pain } from '../../db/types'
+import type { Activity, ActivityStream, DailyHealth, Pain, Race } from '../../db/types'
 import { formatDay, type DayKey } from '../../lib/dates'
 import { formatClock, formatFixed, formatNumber, formatSigned } from '../../lib/format'
 import { shiftPeriod } from '../../lib/periods'
-import { nextRace } from '../calendar/agenda'
 import type { PlannedEvent } from '../garmin/calendar'
+import { nextRaceView } from '../races/race'
 import { ACWR_FLAGS, dailyLoads, FORM_ZONES, loadSeries, loadStatus, type LoadDay, type LoadStatus } from '../running/load'
-import { distanceLabel, fitnessOf, monthlyVdot, predictRace, raceDistance, runEfforts, type Effort, type RunFitness } from '../running/predict'
+import { distanceLabel, fitnessOf, monthlyVdot, predictRace, runEfforts, type Effort, type RunFitness } from '../running/predict'
 import { BANDS, readiness, readinessDay, type Readiness } from '../running/readiness'
 import { formatPace } from '../running/running'
 
@@ -15,6 +15,8 @@ export interface AthleteInput {
   /** The runs' samples: the distance for the best stretches, and the heart rate when there is one. */
   streams?: ReadonlyMap<string, Pick<ActivityStream, 'step' | 'distance'> & { hr?: ActivityStream['hr'] }>
   planned: PlannedEvent[] | null
+  /** The races of the app's list. */
+  races?: Race[]
   today: DayKey
 }
 
@@ -86,7 +88,7 @@ function vdotLine(best: Effort, efforts: Effort[], today: DayKey): string {
  * The training load (ATL, CTL, TSB, ACWR), today's readiness with its factors, the race predictions, the VDOT
  * and the next race's predicted time, as computed by the app, for the daily analysis.
  */
-export function athleteLines({ sources, streams, planned, today }: AthleteInput): string[] {
+export function athleteLines({ sources, streams, planned, races, today }: AthleteInput): string[] {
   const lines: string[] = []
   const series = loadSeries(dailyLoads(sources.activities, streams), today)
   const status = loadStatus(series)
@@ -108,14 +110,14 @@ export function athleteLines({ sources, streams, planned, today }: AthleteInput)
   if (predictions) lines.push(predictions)
   if (fitness.best) lines.push(vdotLine(fitness.best, efforts, today))
 
-  const race = nextRace(planned, today)
-  const distance = race && raceDistance(race.title)
-  const prediction = distance && predictRace(fitness, distance)
+  const race = nextRaceView(races ?? [], planned, today, sources.activities)
+  const prediction = race?.distance && predictRace(fitness, race.distance)
   if (race && prediction) {
     const ends = prediction.ends
       ? ` (${clock(prediction.ends[0].seconds)} para ${distanceLabel(prediction.ends[0].meters)}, ${clock(prediction.ends[1].seconds)} para ${distanceLabel(prediction.ends[1].meters)})`
       : ''
-    lines.push(`- Previsão para a próxima prova, ${race.title}: ${clock(prediction.seconds)} para ${distanceLabel(prediction.meters)}${ends}.`)
+    const goal = race.goalSec !== undefined ? `; a meta do atleta é ${formatClock(race.goalSec)}` : ''
+    lines.push(`- Previsão para a próxima prova, ${race.name}: ${clock(prediction.seconds)} para ${distanceLabel(prediction.meters)}${ends}${goal}.`)
   }
   return lines
 }

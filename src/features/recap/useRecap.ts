@@ -35,7 +35,7 @@ export function useFirstRecordDay(): DayKey | null | undefined {
 /** A year in numbers, read from every table: that year's rows, and the earlier runs and weigh-ins it compares with. */
 export async function loadRecap(year: number, today: DayKey): Promise<Recap> {
   const { from, to } = yearBounds(year, today)
-  const [activities, sessions, exercises, health, weights, measurements, habits, habitLogs, foodLogs, water, journal, pains, settings, events, eventTimes] =
+  const [activities, sessions, exercises, health, weights, measurements, habits, habitLogs, foodLogs, water, journal, pains, settings, events, eventTimes, races] =
     await Promise.all([
       db.activities.toArray(),
       db.workoutSessions.where('date').between(from, to, true, true).toArray(),
@@ -52,6 +52,7 @@ export async function loadRecap(year: number, today: DayKey): Promise<Recap> {
       db.settings.get(SETTINGS_ID),
       plannedEvents(),
       db.eventTimes.toArray(),
+      db.races.where('date').between(from, to, true, true).toArray(),
     ])
   const done = alive(activities).filter((activity) => activity.date <= to)
   // Only the runs' distance samples matter: the best times of the year and of the years before.
@@ -80,6 +81,7 @@ export async function loadRecap(year: number, today: DayKey): Promise<Recap> {
         time.id.startsWith('t:') ? [{ title: capitalized(time.id.slice(2, time.id.lastIndexOf('|'))), date: time.date }] : [],
       ),
     ],
+    races: alive(races),
   })
 }
 

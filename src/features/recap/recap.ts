@@ -11,6 +11,7 @@ import type {
   MeasurementEntry,
   MuscleGroup,
   Pain,
+  Race,
   Settings,
   WaterLog,
   WeightEntry,
@@ -19,7 +20,7 @@ import type {
 import { dayRange, daysBetween, parseDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatClock, formatDuration, formatNumber, formatSigned } from '../../lib/format'
 import { metricSeries } from '../body/body'
-import { activityKind, isRace } from '../calendar/agenda'
+import { activityKind, isRace, raceRun } from '../calendar/agenda'
 import { goalsFor } from '../food/nutrition'
 import { daysByHabit, isSuccess, NO_DAYS, type HabitDays } from '../habits/habits'
 import { effortsByDistance, formatPace, isOutdoorRun, isRun, trainingDays } from '../running/running'
@@ -47,6 +48,8 @@ export interface RecapSources {
   settings: Pick<Settings, 'nutrition' | 'waterGoalMl' | 'measurementSites'>
   /** Races the Garmin calendar knew of (title and day), past ones included when still known. */
   raceEvents?: { title: string; date: DayKey }[]
+  /** The races of the app's list: their run is a race, under their name and with their official time. */
+  races?: Race[]
 }
 
 export interface RunBest {
@@ -207,7 +210,14 @@ function runningRecap(s: RecapSources, inYear: (date: DayKey) => boolean, from: 
     return [{ label, short, meters, seconds: best.seconds, date: best.date, activityId: best.activityId, record: !before || best.seconds < before.seconds }]
   })
 
-  // Races: a run named like one, or the longest run of a day the calendar had a race on.
+  // Races: the runs of the app's list of races (with their official time); then a run named like one,
+  // or the longest run of a day the calendar had a race on.
+  const listed = new Map<string, Race>()
+  for (const race of s.races ?? []) {
+    if (race.deleted || !inYear(race.date)) continue
+    const run = raceRun(race, runs)
+    if (run) listed.set(run.id, race)
+  }
   const raceDays = new Set((s.raceEvents ?? []).filter((event) => isRace(event) && inYear(event.date)).map((event) => event.date))
   const longestOfDay = new Map<DayKey, Activity>()
   for (const run of runs) {
@@ -216,15 +226,18 @@ function runningRecap(s: RecapSources, inYear: (date: DayKey) => boolean, from: 
   }
   const raceTitle = (date: DayKey) => s.raceEvents?.find((event) => event.date === date && isRace(event))?.title
   const races = runs
-    .filter((run) => looksLikeRace(run.title) || (raceDays.has(run.date) && longestOfDay.get(run.date) === run))
+    .filter((run) => listed.has(run.id) || looksLikeRace(run.title) || (raceDays.has(run.date) && longestOfDay.get(run.date) === run))
     .sort((a, b) => a.startTime - b.startTime)
-    .map((run) => ({
-      title: (looksLikeRace(run.title) ? run.title : raceTitle(run.date)) ?? 'Prova',
-      date: run.date,
-      km: (run.distanceM ?? 0) / 1000,
-      seconds: run.timerSec,
-      activityId: run.id,
-    }))
+    .map((run) => {
+      const race = listed.get(run.id)
+      return {
+        title: race?.name ?? (looksLikeRace(run.title) ? run.title : raceTitle(run.date)) ?? 'Prova',
+        date: run.date,
+        km: (run.distanceM ?? 0) / 1000,
+        seconds: race?.officialSec ?? run.timerSec,
+        activityId: run.id,
+      }
+    })
 
   return {
     runs: runs.length,

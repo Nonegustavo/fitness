@@ -24,7 +24,7 @@ import { toneColor, type Tone } from '../../components/tone'
 import { Button, cx, Field, IconButton, SkeletonLines, TextInput } from '../../components/ui'
 import type { WorkoutPlan } from '../../db/types'
 import { formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
-import { formatClock, formatDuration } from '../../lib/format'
+import { formatClock, formatDuration, formatNumber } from '../../lib/format'
 import { formatDistance } from '../activities/activities'
 import { useStartWorkout } from '../training/components'
 import { summarize } from '../training/stats'
@@ -33,7 +33,7 @@ import { useSessions, useTemplates } from '../training/training'
 import { WorkoutWeatherDetails, WorkoutWeatherLine } from '../weather/components'
 import { workoutWeather, type WorkoutWeather } from '../weather/forecast'
 import { useForecast } from '../weather/store'
-import { suggestTemplate, type AgendaItem, type AgendaKind, type AgendaStatus } from './agenda'
+import { raceKm, suggestTemplate, type AgendaItem, type AgendaKind, type AgendaStatus } from './agenda'
 import { EventDetails } from './EventDetails'
 import { coachSummary, descriptionPreview } from './eventText'
 import {
@@ -147,9 +147,21 @@ export function AgendaLegend() {
 
 /** The second line of an item: when, how long, how far, or where it came from. */
 export function describeItem(item: AgendaItem): string {
-  // "Caminhada" is feminine: "feita", "programada".
-  const walk = item.kind === 'walk'
+  // "Caminhada" and "prova" are feminine: "feita", "programada".
+  const walk = item.kind === 'walk' || !!item.race
   if (item.status === 'active') return 'Em andamento'
+  if (item.race) {
+    const km = raceKm(item.race)
+    const what = item.status === 'done' ? `Prova feita${item.time !== undefined ? ` às ${formatTime(item.time)}` : ''}` : item.status === 'missed' ? 'Prova não feita' : `Prova${item.race.time ? ` às ${item.race.time}` : ''}`
+    const parts = [what]
+    if (item.activity) {
+      if (item.activity.distanceM) parts.push(formatDistance(item.activity.distanceM))
+      parts.push(formatClock(item.race.officialSec ?? item.activity.timerSec))
+    } else if (km !== undefined && item.status === 'planned') {
+      parts.push(`${formatNumber(km, Number.isInteger(km) ? 0 : 1)} km`)
+    }
+    return parts.join(' · ')
+  }
   if (item.status === 'done') {
     const done = walk ? 'Feita' : 'Feito'
     const parts = [item.time !== undefined ? `${done} às ${formatTime(item.time)}` : done]
@@ -221,7 +233,9 @@ function ItemRow({
     ? `/treinos/sessao/${item.session.id}`
     : item.activity
       ? `/treinos/atividades/${item.activity.id}`
-      : undefined
+      : item.race
+        ? `/corrida/provas?prova=${item.race.id}`
+        : undefined
   const plan = item.plan
   const pending = plan && (item.status === 'planned' || item.status === 'missed')
   // A Garmin workout still ahead can get the time it's planned for (and be hidden from that sheet);
