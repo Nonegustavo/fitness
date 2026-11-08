@@ -10,8 +10,10 @@ import { supabase } from '../../sync/supabase'
 import { runWeatherQueue } from '../activities/weatherQueue'
 import { importCoachPlan } from '../sisrun/coachPlan'
 import { syncWatch } from '../sisrun/watch'
+import type { ParsedFit } from '../activities/fit'
 import { garminCalendar, garminFile, garminGet, GarminError, orNull } from './api'
 import { parseCalendar, type PlannedEvent } from './calendar'
+import { editedInGarmin, garminWindow, withGarminTotals, type GarminActivitySummary } from './edits'
 import { keepPastEvents } from './calendarHistory'
 import { dayChunks, mergeHealth, saveHealth, type GarminDailySummary, type GarminHrv, type GarminSleep } from './health'
 import { toPlannedWorkout, type GarminWorkout } from './workout'
@@ -76,14 +78,47 @@ const writeMeta = (meta: GarminMeta) => db.meta.put({ key: META_KEY, value: meta
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-interface GarminActivitySummary {
-  activityId?: number
-  activityName?: string
-  beginTimestamp?: number
+/**
+ * An activity's file from Garmin, read; undefined when Garmin has no file for it (a manual entry). The
+ * file is always as the watch recorded it: when the activity was edited in Garmin Connect since (cut at
+ * the finish, say), only the part Garmin keeps is read, with the numbers Garmin worked out after the edit.
+ */
+async function readFromGarmin(id: number, summary: GarminActivitySummary): Promise<ParsedFit | undefined> {
+  let bytes: Uint8Array
+  try {
+    bytes = await garminFile(id)
+  } catch (error) {
+    if (error instanceof GarminError && error.status === 404) return undefined
+    throw error
+  }
+  // The FIT SDK is large; it only loads when there is something to read.
+  const [fit, parser] = await Promise.all([import('../activities/importFit'), import('../activities/fit')])
+  // Usually a zip with the .fit inside; a zip of a GPX upload has none.
+  const zipped = bytes[0] === 0x50 && bytes[1] === 0x4b
+  const entry = fit.fitEntries(zipped ? `${id}.zip` : `${id}.fit`, bytes)[0]
+  if (!entry) throw new Error('Sem .fit no arquivo.')
+  const parsed = parser.parseFit(entry.bytes, entry.name)
+  if (!editedInGarmin(parsed.activity, summary)) return parsed
+  const window = garminWindow(summary)
+  const kept = window ? parser.parseFit(entry.bytes, entry.name, window) : parsed
+  return { ...kept, activity: withGarminTotals(kept.activity, summary) }
 }
 
-/** Downloads the activities Garmin has in the range that the app doesn't, oldest first. */
-async function importActivities(from: DayKey, to: DayKey, meta: GarminMeta): Promise<number> {
+/** An activity read again from Garmin, over the one the app has: what the user said about it stays. */
+async function saveAgain(stored: Activity, parsed: ParsedFit, title: string | undefined): Promise<void> {
+  const { saveParsed } = await import('../activities/importFit')
+  // The same record, even when the app had it from a file that gave it another id.
+  await saveParsed(
+    { activity: { ...parsed.activity, id: stored.id }, stream: { ...parsed.stream, id: stored.id } },
+    { garminId: stored.garminId, title: title ?? stored.title, workout: stored.workout },
+  )
+}
+
+/**
+ * Downloads the activities Garmin has in the range that the app doesn't, oldest first, and reads
+ * again the ones edited in Garmin Connect since they came.
+ */
+async function importActivities(from: DayKey, to: DayKey, meta: GarminMeta): Promise<{ imported: number; updated: number }> {
   const listed: GarminActivitySummary[] = []
   for (let start = 0; ; start += PAGE) {
     const page =
@@ -101,20 +136,21 @@ async function importActivities(from: DayKey, to: DayKey, meta: GarminMeta): Pro
   const known = alive(await db.activities.toArray())
   const skipped = new Set(meta.skipped ?? [])
   let imported = 0
-  // The FIT SDK is large; it only loads when there is something to read.
-  let fit: typeof import('../activities/importFit') | undefined
-  let parser: typeof import('../activities/fit') | undefined
+  let updated = 0
 
   try {
     for (const [i, item] of listed.entries()) {
       const id = item.activityId
-      if (typeof id !== 'number' || skipped.has(id) || known.some((activity) => activity.garminId === id)) continue
-      setState({ progress: `Atividades: ${i + 1} de ${listed.length}` })
+      if (typeof id !== 'number' || skipped.has(id)) continue
       const title = item.activityName?.trim() || undefined
+      const stored = known.find((activity) => activity.garminId === id)
+      if (stored && !editedInGarmin(stored, item)) continue
+      setState({ progress: `Atividades: ${i + 1} de ${listed.length}` })
 
-      // Imported by hand before: link it to Garmin instead of downloading it again.
+      // Imported by hand before: link it to Garmin instead of downloading it again (an edit made in
+      // Garmin Connect comes with the next sync).
       const begin = item.beginTimestamp
-      const same = begin === undefined ? undefined : known.find((activity) => Math.abs(activity.startTime - begin) < 60_000)
+      const same = stored || begin === undefined ? undefined : known.find((activity) => Math.abs(activity.startTime - begin) < 60_000)
       if (same) {
         await patch(db.activities, same.id, {
           garminId: id,
@@ -124,29 +160,20 @@ async function importActivities(from: DayKey, to: DayKey, meta: GarminMeta): Pro
         continue
       }
 
-      let bytes: Uint8Array
       try {
-        bytes = await garminFile(id)
-      } catch (error) {
-        // No original file: a manual entry, for example.
-        if (error instanceof GarminError && error.status === 404) {
-          skipped.add(id)
-          continue
+        const parsed = await readFromGarmin(id, item)
+        if (!parsed) skipped.add(id)
+        else if (stored) {
+          await saveAgain(stored, parsed, title)
+          updated++
+        } else {
+          const { saveParsed } = await import('../activities/importFit')
+          await saveParsed(parsed, { garminId: id, title, workout: await plannedWorkout(id, parsed.activity.sport) })
+          imported++
         }
-        throw error
-      }
-      fit ??= await import('../activities/importFit')
-      parser ??= await import('../activities/fit')
-      try {
-        // Usually a zip with the .fit inside; a zip of a GPX upload has none.
-        const zipped = bytes[0] === 0x50 && bytes[1] === 0x4b
-        const entry = fit.fitEntries(zipped ? `${id}.zip` : `${id}.fit`, bytes)[0]
-        if (!entry) throw new Error('Sem .fit no arquivo.')
-        const parsed = parser.parseFit(entry.bytes, entry.name)
-        await fit.saveParsed(parsed, { garminId: id, title, workout: await plannedWorkout(id, parsed.activity.sport) })
-        imported++
       } catch (error) {
         if (error instanceof GarminError) throw error
+        // A file that can't be read isn't downloaded again.
         skipped.add(id)
       }
       // Be gentle with Garmin's limits.
@@ -154,9 +181,36 @@ async function importActivities(from: DayKey, to: DayKey, meta: GarminMeta): Pro
     }
   } finally {
     meta.skipped = [...skipped]
-    if (imported > 0) notifyLocalChange()
+    if (imported + updated > 0) notifyLocalChange()
   }
-  return imported
+  return { imported, updated }
+}
+
+export type GarminRefresh = 'updated' | 'same' | 'gone'
+
+/**
+ * Checks one activity against Garmin and reads it again if it was edited in Garmin Connect (cut, a new
+ * distance), also long after it came: the sync only looks at the last few days. 'gone' when Garmin
+ * doesn't list it (or has no file for it) anymore.
+ */
+export async function refreshFromGarmin(activity: Activity): Promise<GarminRefresh> {
+  const id = activity.garminId
+  if (id === undefined) return 'gone'
+  const listed =
+    (await garminGet<GarminActivitySummary[]>('/activitylist-service/activities/search/activities', {
+      start: 0,
+      limit: PAGE,
+      startDate: activity.date,
+      endDate: activity.date,
+    })) ?? []
+  const summary = listed.find((item) => item.activityId === id)
+  if (!summary) return 'gone'
+  if (!editedInGarmin(activity, summary)) return 'same'
+  const parsed = await readFromGarmin(id, summary)
+  if (!parsed) return 'gone'
+  await saveAgain(activity, parsed, summary.activityName?.trim() || undefined)
+  notifyLocalChange()
+  return 'updated'
 }
 
 /** The structured workout the watch followed, for sports where coaches send them. */
@@ -205,8 +259,10 @@ async function run(range: (meta: GarminMeta, today: DayKey) => [DayKey, DayKey],
     const days = await importHealth(from, to)
     await importCalendar()
     done(meta, from, today)
+    const { imported, updated } = activities
     const parts = [
-      activities === 1 ? '1 atividade nova' : `${activities} atividades novas`,
+      imported === 1 ? '1 atividade nova' : `${imported} atividades novas`,
+      ...(updated > 0 ? [updated === 1 ? '1 atividade editada no Garmin atualizada' : `${updated} atividades editadas no Garmin atualizadas`] : []),
       days === 1 ? '1 dia de sono e recuperação atualizado' : `${days} dias de sono e recuperação atualizados`,
     ]
     meta.lastRunAt = Date.now()

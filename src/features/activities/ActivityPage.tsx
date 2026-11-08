@@ -1,11 +1,14 @@
-import { ChevronRight, Dumbbell, Trash2 } from 'lucide-react'
+import { ChevronRight, Dumbbell, RefreshCw, Trash2 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Confirm } from '../../components/Modal'
-import { Button, Card, Empty, Page, Stat } from '../../components/ui'
+import { useToast } from '../../components/Toast'
+import { Button, Card, cx, Empty, Page, Stat } from '../../components/ui'
+import type { Activity } from '../../db/types'
 import { formatDay, formatTime } from '../../lib/dates'
 import { formatClock, formatFixed } from '../../lib/format'
 import { PlannedWorkoutCard } from '../garmin/PlannedWorkoutCard'
+import { refreshFromGarmin, type GarminRefresh } from '../garmin/sync'
 import { GearPicker } from '../gear/GearPicker'
 import { useSessions } from '../training/training'
 import {
@@ -158,6 +161,8 @@ export default function ActivityPage() {
         </Card>
       )}
 
+      {activity.garminId !== undefined && <RefreshFromGarmin activity={activity} />}
+
       <Button variant="ghost" className="w-full text-critical" onClick={() => setConfirmDelete(true)}>
         <Trash2 size={16} /> Excluir atividade
       </Button>
@@ -173,5 +178,37 @@ export default function ActivityPage() {
         />
       )}
     </Page>
+  )
+}
+
+const REFRESHED: Record<GarminRefresh, string> = {
+  updated: 'Atividade atualizada com a edição do Garmin',
+  same: 'Nada mudou no Garmin: a atividade já está igual',
+  gone: 'O Garmin não tem mais esta atividade',
+}
+
+/**
+ * Brings what changed in the activity in Garmin Connect (cut at the start or the end, a new distance).
+ * The sync does it on its own for the last few days; this does it for any activity, at once.
+ */
+function RefreshFromGarmin({ activity }: { activity: Activity }) {
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+
+  async function refresh() {
+    setBusy(true)
+    try {
+      toast({ message: REFRESHED[await refreshFromGarmin(activity)] })
+    } catch (error) {
+      toast({ message: error instanceof Error ? error.message : 'Não foi possível falar com o Garmin.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Button variant="ghost" className="w-full" disabled={busy} onClick={() => void refresh()}>
+      <RefreshCw size={16} className={cx(busy && 'animate-spin')} /> {busy ? 'Conferindo no Garmin…' : 'Atualizar com o Garmin'}
+    </Button>
   )
 }

@@ -107,6 +107,44 @@ describe('parseFit', () => {
     ])
   })
 
+  it('keeps only the part kept in Garmin Connect when the end was cut', () => {
+    // Cut at 7:30: the second lap loses its last 2:30.
+    const { activity, stream } = parseFit(encodeRun(), 'corrida.fit', { start: START, end: START + 450_000 })
+    expect(activity).toMatchObject({
+      id: `fit-3456789012-${START / 1000}`,
+      startTime: START,
+      elapsedSec: 450,
+      // 5 min, the pause, then 1:30 more.
+      timerSec: 389,
+      distanceM: 1170,
+      maxHr: 165,
+      // The watch's 120 kcal for 9 min, for the 6:29 kept.
+      calories: 86,
+    })
+    expect(activity.laps).toHaveLength(2)
+    expect(activity.laps[0]).toMatchObject({ startTime: START, elapsedSec: 300, distanceM: 900, avgHr: 134 })
+    expect(activity.laps[1]).toMatchObject({ startTime: START + 360_000, elapsedSec: 90, timerSec: 90, distanceM: 270, avgHr: 160, maxHr: 165 })
+    // Counted again from the samples kept, with the watch's own limits.
+    expect(activity.hrZones?.limits).toEqual([96, 115, 134, 153, 172, 192])
+    expect(activity.hrZones?.seconds.reduce((sum, s) => sum + s, 0)).toBe(399)
+    expect(stream.hr).toHaveLength(451)
+    expect(stream.distance?.[450]).toBe(1170)
+    expect(stream.track?.at(-1)).toEqual([-29.75 + 390 * 0.00003, -50.01].map((v) => Number(v.toFixed(5))))
+  })
+
+  it('starts the samples and the distance again where a cut start begins', () => {
+    const { activity, stream } = parseFit(encodeRun(), 'corrida.fit', { start: START + 120_000, end: START + 600_000 })
+    expect(activity).toMatchObject({ startTime: START + 120_000, elapsedSec: 480, distanceM: 1257 })
+    expect(stream.distance?.[0]).toBe(0)
+    expect(stream.distance?.[479]).toBe(1257)
+    expect(stream.hr?.[0]).toBe(132)
+    // The first lap keeps its last 3 min; the second, whole.
+    expect(activity.laps.map((lap) => [lap.startTime - START, lap.elapsedSec, lap.distanceM])).toEqual([
+      [120_000, 180, 537],
+      [360_000, 240, 720],
+    ])
+  })
+
   it('keeps the active strength sets', () => {
     const encoder = new Encoder()
     write(encoder, N.FILE_ID, { type: 'activity', manufacturer: 'garmin', serialNumber: 1, timeCreated: at(0) })
