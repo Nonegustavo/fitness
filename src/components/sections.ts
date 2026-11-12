@@ -1,14 +1,18 @@
 import {
   CalendarDays,
+  CalendarRange,
   ChartScatter,
   CloudSun,
   Dumbbell,
   Flame,
+  Footprints,
   GlassWater,
   House,
   ListChecks,
+  Medal,
   Moon,
   NotebookPen,
+  PartyPopper,
   Scale,
   Settings,
   Sparkles,
@@ -35,9 +39,9 @@ export const SECTIONS: Section[] = [
   { to: '/corrida', label: 'Corrida', icon: SportShoe, tone: 'today' },
   { to: '/alimentacao', label: 'Alimentação', icon: Utensils, tone: 'food' },
   { to: '/corpo', label: 'Corpo', icon: Scale, tone: 'body' },
-  { to: '/sono', label: 'Sono', icon: Moon, tone: 'sleep' },
+  { to: '/sono', label: 'Sono e recuperação', short: 'Sono', icon: Moon, tone: 'sleep' },
   { to: '/calorias', label: 'Calorias gastas', short: 'Calorias', icon: Flame, tone: 'training' },
-  { to: '/analise', label: 'Análise', icon: Sparkles, tone: 'analysis' },
+  { to: '/analise', label: 'Análise do dia', short: 'Análise', icon: Sparkles, tone: 'analysis' },
   { to: '/correlacoes', label: 'Correlações', icon: ChartScatter, tone: 'insights' },
   { to: '/agua', label: 'Água', icon: GlassWater, tone: 'water' },
   // Sky blue like Água: the rain is what matters most in it.
@@ -47,19 +51,39 @@ export const SECTIONS: Section[] = [
   { to: '/ajustes', label: 'Ajustes', icon: Settings, tone: 'settings' },
 ]
 
+/**
+ * Screens that aren't sections of their own: on the phone they are under "Mais", on the computer
+ * below the sections in the sidebar. They can't go on the bottom bar.
+ */
+export const SCREENS: Section[] = [
+  { to: '/corrida/provas', label: 'Provas', icon: Medal, tone: 'analysis' },
+  { to: '/passos', label: 'Passos', icon: Footprints, tone: 'today' },
+  { to: '/semana', label: 'Resumo da semana', icon: CalendarRange, tone: 'insights' },
+  { to: '/retrospectiva', label: 'Retrospectiva', icon: PartyPopper, tone: 'analysis' },
+]
+
 /** Screens reached from "Mais" that aren't sections, with the color their page uses. */
 const SCREEN_TONES: Record<string, Tone> = { '/passos': 'today', '/semana': 'insights', '/retrospectiva': 'analysis' }
 
+const under = (pathname: string, path: string) => (path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(`${path}/`))
+
+/**
+ * Which entry of a menu the screen at `pathname` belongs to: the longest of the menu's paths it falls
+ * under (on /corrida/provas, "Provas" rather than "Corrida").
+ */
+export function currentEntry(pathname: string, paths: string[]): string | undefined {
+  return paths.filter((path) => under(pathname, path)).sort((a, b) => b.length - a.length)[0]
+}
+
 /** The section color of a route: the screen's own, else the longest section path it falls under. */
 export function toneForPath(pathname: string): Tone | undefined {
-  const under = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
-  const screen = Object.keys(SCREEN_TONES).find(under)
+  const screen = Object.keys(SCREEN_TONES).find((path) => under(pathname, path))
   if (screen) return SCREEN_TONES[screen]
-  let best: Section | undefined
-  for (const section of SECTIONS) {
-    if (section.to !== '/' && under(section.to) && (!best || section.to.length > best.to.length)) best = section
-  }
-  return best?.tone ?? (pathname === '/' ? 'today' : undefined)
+  const section = currentEntry(
+    pathname,
+    SECTIONS.filter((item) => item.to !== '/').map((item) => item.to),
+  )
+  return SECTIONS.find((item) => item.to === section)?.tone ?? (pathname === '/' ? 'today' : undefined)
 }
 
 /** The phone's bottom bar fits five: four sections, then "Mais" for the rest. */

@@ -1,4 +1,3 @@
-import { FunctionsHttpError } from '@supabase/supabase-js'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo } from 'react'
 import type { CoachWeek, CoachWorkout } from '../../../supabase/functions/sisrun/planilha'
@@ -7,6 +6,7 @@ import { db } from '../../db/schema'
 import type { EventTime } from '../../db/types'
 import { dayKey, parseDay, shiftDay, type DayKey } from '../../lib/dates'
 import { getSyncState } from '../../sync/controller'
+import { FunctionError, invokeFunction, LONG_TIMEOUT_MS } from '../../sync/functions'
 import { supabase } from '../../sync/supabase'
 import { eventKind, fromCoach, hiddenKeys, keyedEvents } from '../calendar/agenda'
 import type { PlannedEvent } from '../garmin/calendar'
@@ -161,13 +161,14 @@ export async function importCoachPlan({ force = false } = {}): Promise<void> {
       ahead = needed
     }
     try {
-      const { data, error } = await supabase.functions.invoke('sisrun', { body: { weeksAhead: ahead } })
-      if (error instanceof FunctionsHttpError) {
-        const payload = (await error.context.json().catch(() => null)) as { error?: string; missing?: string } | null
-        throw new PlanError(payload?.error ?? 'O SisRUN não respondeu.', payload?.missing === 'credentials')
-      }
-      if (error) throw new PlanError('Não foi possível falar com o servidor. Confira a internet.')
-      const weeks = (data as { weeks?: CoachWeek[] } | null)?.weeks ?? []
+      const data = await invokeFunction<{ weeks?: CoachWeek[] } | null>(
+        'sisrun',
+        { weeksAhead: ahead },
+        { unconfigured: 'Configure a sincronização para ler o SisRUN.', fallback: 'O SisRUN não respondeu.', timeoutMs: LONG_TIMEOUT_MS },
+      ).catch((error: unknown) => {
+        throw error instanceof FunctionError ? new PlanError(error.message, error.payload.missing === 'credentials') : error
+      })
+      const weeks = data?.weeks ?? []
       const latest = await readPlan()
       await db.meta.put({
         key: META_KEY,

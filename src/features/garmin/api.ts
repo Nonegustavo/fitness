@@ -1,5 +1,4 @@
-import { FunctionsHttpError } from '@supabase/supabase-js'
-import { supabase } from '../../sync/supabase'
+import { FunctionError, invokeFunction } from '../../sync/functions'
 
 /** A failed Garmin call. The message reads well as is; `missing` names the secret to add. */
 export class GarminError extends Error {
@@ -12,16 +11,22 @@ export class GarminError extends Error {
   }
 }
 
+/** A whole activity file can take a while on a phone's connection; past this, the sync gives up for now. */
+const TIMEOUT_MS = 60_000
+
 /** Calls the `garmin` function (supabase/functions), which holds the personal API key. */
 async function call<T>(body: object): Promise<T> {
-  if (!supabase) throw new GarminError('Configure a sincronização para usar o Garmin.')
-  const { data, error } = await supabase.functions.invoke('garmin', { body })
-  if (error instanceof FunctionsHttpError) {
-    const payload = (await error.context.json().catch(() => null)) as { error?: string; missing?: 'key' | 'calendar' } | null
-    throw new GarminError(payload?.error ?? 'O Garmin não respondeu.', error.context.status, payload?.missing)
+  try {
+    return await invokeFunction<T>('garmin', body, {
+      unconfigured: 'Configure a sincronização para usar o Garmin.',
+      fallback: 'O Garmin não respondeu.',
+      timeoutMs: TIMEOUT_MS,
+    })
+  } catch (error) {
+    if (!(error instanceof FunctionError)) throw error
+    const missing = error.payload.missing
+    throw new GarminError(error.message, error.status, missing === 'key' || missing === 'calendar' ? missing : undefined)
   }
-  if (error) throw new GarminError('Não foi possível falar com o servidor. Confira a internet.')
-  return data as T
 }
 
 export const garminGet = <T>(path: string, query?: Record<string, string | number>) => call<T | null>({ path, query })

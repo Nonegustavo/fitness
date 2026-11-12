@@ -1,8 +1,7 @@
-import { FunctionsHttpError } from '@supabase/supabase-js'
 import { patch, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Food, Nutrients } from '../../db/types'
-import { supabase } from '../../sync/supabase'
+import { AI_TIMEOUT_MS, invokeFunction } from '../../sync/functions'
 import { cleanEmoji } from './emoji'
 import { normalize, suggestEmoji } from './foods'
 import { kcalFromMacros } from './nutrition'
@@ -153,16 +152,12 @@ export async function preparePhoto(file: Blob, maxSide = MAX_SIDE): Promise<Prep
 export type MealSource = { kind: 'photo'; file: Blob } | { kind: 'text'; text: string }
 
 /** Calls one of the project's functions (supabase/functions); the error message comes from the function. */
-export async function callFunction(name: string, body: Record<string, unknown>): Promise<unknown> {
-  if (!supabase) throw new Error('Configure a sincronização para usar a análise.')
-  const { data, error } = await supabase.functions.invoke(name, { body })
-  if (error instanceof FunctionsHttpError) {
-    const answer = (await error.context.json().catch(() => null)) as { error?: string } | null
-    throw new Error(answer?.error ?? 'A análise falhou.')
-  }
-  if (error) throw new Error('Não foi possível falar com o servidor. Confira a internet.')
-  return data
-}
+export const callFunction = (name: string, body: Record<string, unknown>): Promise<unknown> =>
+  invokeFunction(name, body, {
+    unconfigured: 'Configure a sincronização para usar a análise.',
+    fallback: 'A análise falhou.',
+    timeoutMs: AI_TIMEOUT_MS,
+  })
 
 /** Step 1 of a photo: the foods on the plate and their weight (analyze-meal function, which asks Claude). */
 export const analyzePhoto = async (photo: PreparedPhoto): Promise<PhotoAnalysis> =>

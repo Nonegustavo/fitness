@@ -2,9 +2,8 @@ import { useMemo, useState } from 'react'
 import { Modal } from '../../components/Modal'
 import { cx, DecimalInput, Field, TextInput } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
-import { patch } from '../../db/repo'
-import { db, SETTINGS_ID } from '../../db/schema'
-import type { Exercise, WorkoutSession } from '../../db/types'
+import { updateSettings } from '../../db/settings'
+import type { Exercise, GymSetup, WorkoutSession } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
 import { EQUIPMENT, MUSCLES } from './catalog'
 import { DEFAULT_GYM, PLATE_OPTIONS, platesPerSide } from './stats'
@@ -32,11 +31,16 @@ export function PlatesModal({ initialKg, onClose }: { initialKg?: number; onClos
   const load = total !== undefined && total > 0 ? platesPerSide(total, bar, gym.plates) : undefined
   const reached = load && bar + 2 * load.perSide.reduce((sum, plate) => sum + plate, 0)
 
-  const saveGym = (change: Partial<typeof gym>) => void patch(db.settings, SETTINGS_ID, { gym: { ...gym, ...change } })
-  const togglePlate = (plate: number) =>
-    saveGym({
-      plates: gym.plates.includes(plate) ? gym.plates.filter((p) => p !== plate) : [...gym.plates, plate].sort((a, b) => b - a),
+  // From the gym as stored: two plates tapped one right after the other both stay.
+  const saveGym = (change: (stored: GymSetup) => Partial<GymSetup>) =>
+    void updateSettings((settings) => {
+      const stored = settings.gym ?? DEFAULT_GYM
+      return { gym: { ...stored, ...change(stored) } }
     })
+  const togglePlate = (plate: number) =>
+    saveGym(({ plates }) => ({
+      plates: plates.includes(plate) ? plates.filter((p) => p !== plate) : [...plates, plate].sort((a, b) => b - a),
+    }))
 
   return (
     <Modal open title="Anilhas" onClose={onClose}>
@@ -50,7 +54,7 @@ export function PlatesModal({ initialKg, onClose }: { initialKg?: number; onClos
             onChange={(e) => setBarText(e.target.value)}
             onBlur={() => {
               const value = parseDecimal(barText)
-              if (value !== undefined && value >= 0 && value !== gym.barKg) saveGym({ barKg: value })
+              if (value !== undefined && value >= 0 && value !== gym.barKg) saveGym(() => ({ barKg: value }))
             }}
           />
         </Field>

@@ -1,28 +1,11 @@
-import {
-  Bandage,
-  Camera,
-  CircleMinus,
-  CirclePlus,
-  Dumbbell,
-  GlassWater,
-  ListChecks,
-  NotebookPen,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Ruler,
-  Scale,
-  Utensils,
-  type LucideIcon,
-} from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { lazy, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useToday } from '../db/hooks'
-import { patch } from '../db/repo'
 import { db, SETTINGS_ID } from '../db/schema'
 import { dayKey, relativeDay, type DayKey } from '../lib/dates'
-import { dayTitle, KIND_ICONS, KIND_TONES, PlanModal } from '../features/calendar/components'
+import { dayTitle, KIND_ICONS, PlanModal } from '../features/calendar/components'
 import { useTodayTemplate } from '../features/calendar/plans'
 import { WalkModal } from '../features/calendar/WalkModal'
 import { mealAt } from '../features/food/nutrition'
@@ -31,24 +14,14 @@ import { findActive, useSessions } from '../features/training/training'
 import { useRestTimer } from '../features/training/restTimer'
 import { WaterQuickAdd } from '../features/water/WaterQuickAdd'
 import { Modal } from './Modal'
-import { missingItems, quickLogBlocks, quickLogItems, toggleQuickLog, type QuickLogId } from './quickLogItems'
+import { quickLogBlocks, quickLogItems, type QuickLogId } from './quickLogItems'
+import { LOOKS } from './quickLogLooks'
 import { screenAction, type ScreenAction } from './screenActions'
-import { SortableList } from './Sortable'
-import { IconTile, toneStyle, type Tone } from './tone'
-import { Button, cx, IconButton, SkeletonLines } from './ui'
+import { toneStyle } from './tone'
+import { Button, cx, SkeletonLines } from './ui'
 
-const LOOKS: Record<QuickLogId, { label: string; detail: string; icon: LucideIcon; tone: Tone }> = {
-  food: { label: 'Alimento', detail: 'Na refeição desta hora', icon: Utensils, tone: 'food' },
-  plate: { label: 'Foto do prato', detail: 'A câmera, para ler o prato', icon: Camera, tone: 'food' },
-  weight: { label: 'Pesagem', detail: 'Peso e composição', icon: Scale, tone: 'body' },
-  measure: { label: 'Medição', detail: 'As medidas do corpo', icon: Ruler, tone: 'body' },
-  workout: { label: 'Treino', detail: 'O de hoje, ou a próxima ficha', icon: Dumbbell, tone: 'training' },
-  walk: { label: 'Caminhada', detail: 'Programar uma, hoje ou toda semana', icon: KIND_ICONS.walk, tone: KIND_TONES.walk },
-  habits: { label: 'Hábitos', detail: 'O check do dia', icon: ListChecks, tone: 'habits' },
-  journal: { label: 'Diário', detail: 'Como foi o dia', icon: NotebookPen, tone: 'journal' },
-  pain: { label: 'Dor', detail: 'Uma dor ou desconforto, no diário', icon: Bandage, tone: 'journal' },
-  water: { label: 'Água', detail: 'Os botões dos copos favoritos', icon: GlassWater, tone: 'water' },
-}
+// The editor drags and drops: that code only loads when "Editar" is tapped, not with every screen.
+const QuickLogEditor = lazy(() => import('./QuickLogEditor'))
 
 /** The sheet or form the "+" has open. */
 type Opened = { kind: 'sheet' } | { kind: 'water'; date?: DayKey } | { kind: 'plan'; date: DayKey } | { kind: 'walk'; date: DayKey }
@@ -231,7 +204,9 @@ function QuickLogSheet({ onClose, onWalk }: { onClose: () => void; onWalk: () =>
       {!items ? (
         <SkeletonLines lines={3} />
       ) : editing ? (
-        <QuickLogEditor items={items} onDone={() => setEditing(false)} />
+        <Suspense fallback={<SkeletonLines lines={3} />}>
+          <QuickLogEditor items={items} onDone={() => setEditing(false)} />
+        </Suspense>
       ) : (
         <>
           {items.length === 0 && <p className="py-2 text-sm text-muted">Nada no + por enquanto. Escolha em Editar.</p>}
@@ -274,74 +249,5 @@ function QuickLogSheet({ onClose, onWalk }: { onClose: () => void; onWalk: () =>
         </>
       )}
     </Modal>
-  )
-}
-
-/** Which items the "+" has and in what order; every change saves at once and syncs. */
-function QuickLogEditor({ items, onDone }: { items: QuickLogId[]; onDone: () => void }) {
-  const store = (quickLog: QuickLogId[] | undefined) => void patch(db.settings, SETTINGS_ID, { quickLog })
-  const available = missingItems(items)
-  return (
-    <>
-      <h3 className="text-sm font-semibold">Aparecem, nesta ordem</h3>
-      {items.length === 0 ? (
-        <p className="py-3 text-sm text-muted">Nada por enquanto.</p>
-      ) : (
-        <SortableList
-          className="divide-y divide-line"
-          itemClassName="flex items-center gap-2 bg-surface py-1.5"
-          items={items}
-          getId={(id) => id}
-          onReorder={store}
-        >
-          {(id, handle) => (
-            <>
-              <span className="-ml-2 flex">{handle}</span>
-              <IconTile icon={LOOKS[id].icon} tone={LOOKS[id].tone} />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">{LOOKS[id].label}</span>
-                <span className="block truncate text-xs text-muted">{LOOKS[id].detail}</span>
-              </span>
-              <IconButton label={`Tirar ${LOOKS[id].label}`} onClick={() => store(toggleQuickLog(items, id, false))}>
-                <CircleMinus size={20} />
-              </IconButton>
-            </>
-          )}
-        </SortableList>
-      )}
-
-      {available.length > 0 && (
-        <>
-          <h3 className="mt-4 text-sm font-semibold">Mais opções</h3>
-          <ul className="divide-y divide-line">
-            {available.map((id) => (
-              <li key={id} className="flex items-center gap-2 py-1.5">
-                <IconTile icon={LOOKS[id].icon} tone={LOOKS[id].tone} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">{LOOKS[id].label}</span>
-                  <span className="block truncate text-xs text-muted">{LOOKS[id].detail}</span>
-                </span>
-                <IconButton
-                  label={`Adicionar ${LOOKS[id].label}`}
-                  className="text-accent-ink"
-                  onClick={() => store(toggleQuickLog(items, id, true))}
-                >
-                  <CirclePlus size={20} />
-                </IconButton>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <div className="mt-4 flex gap-2">
-        <Button variant="ghost" onClick={() => store(undefined)}>
-          <RotateCcw size={16} /> Voltar ao padrão
-        </Button>
-        <Button variant="primary" className="ml-auto" onClick={onDone}>
-          Pronto
-        </Button>
-      </div>
-    </>
   )
 }

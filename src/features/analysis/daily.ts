@@ -1,4 +1,3 @@
-import { FunctionsHttpError } from '@supabase/supabase-js'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSyncExternalStore } from 'react'
 import { alive, save } from '../../db/repo'
@@ -6,10 +5,11 @@ import { db, DEFAULT_SETTINGS, SETTINGS_ID } from '../../db/schema'
 import type { ActivityStream, DailyInsight, InsightSection } from '../../db/types'
 import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
 import { getSyncState, onSyncStateChange } from '../../sync/controller'
+import { invokeFunction, LONG_TIMEOUT_MS } from '../../sync/functions'
 import { supabase } from '../../sync/supabase'
 import { buildAgenda, visibleEvents } from '../calendar/agenda'
 import { coachSummary } from '../calendar/eventText'
-import { plannedEvents } from '../garmin/sync'
+import { garminSyncedAt, plannedEvents } from '../garmin/sync'
 import { planWorkouts, readPlan } from '../sisrun/coachPlan'
 import { loadSources } from '../insights/useDailyData'
 import { isOutdoorRun } from '../running/running'
@@ -79,7 +79,7 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
   const runs = sources.activities.filter(isOutdoorRun)
   const [streams, garmin, healthConnect, calendar, coachPlan] = await Promise.all([
     db.activityStreams.bulkGet(runs.map((run) => run.id)),
-    metaTime('garmin', 'lastRunAt'),
+    garminSyncedAt(),
     metaTime('healthConnect', 'lastImportAt'),
     metaTime('garminCalendar', 'fetchedAt'),
     readPlan(),
@@ -143,12 +143,11 @@ export async function generateInsight(day: DayKey = dayKey()): Promise<void> {
   setState({ generating: true })
   try {
     const context = await contextFor(day)
-    const { data, error } = await supabase.functions.invoke('daily-insights', { body: { context } })
-    if (error instanceof FunctionsHttpError) {
-      const answer = (await error.context.json().catch(() => null)) as { error?: string } | null
-      throw new Error(answer?.error ?? 'A análise falhou.')
-    }
-    if (error) throw new Error('Não foi possível falar com o servidor. Confira a internet.')
+    const data = await invokeFunction(
+      'daily-insights',
+      { context },
+      { unconfigured: 'Configure a sincronização para usar a análise do dia.', fallback: 'A análise falhou.', timeoutMs: LONG_TIMEOUT_MS },
+    )
     const insight = parseInsight(data)
     if (!insight) throw new Error('A resposta da análise veio incompleta.')
     await save(db.insights, { id: day, createdAt: Date.now(), ...insight })

@@ -1,65 +1,41 @@
-import {
-  CalendarDays,
-  ChartScatter,
-  ChevronRight,
-  CloudSun,
-  Dumbbell,
-  Flame,
-  Footprints,
-  GlassWater,
-  House,
-  ListChecks,
-  Medal,
-  Moon,
-  NotebookPen,
-  PartyPopper,
-  Scale,
-  Settings,
-  Sparkles,
-  SportShoe,
-  Utensils,
-} from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router'
-import { bottomSections } from '../../components/sections'
-import { IconTile, type Tone } from '../../components/tone'
+import { bottomSections, SCREENS, SECTIONS } from '../../components/sections'
+import { IconTile } from '../../components/tone'
 import { Card, Page } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 
-/** Every screen, in the order of the sidebar; the ones on the bottom bar are left out. */
-const LINKS: { to: string; label: string; detail: string; icon: typeof Moon; tone: Tone }[] = [
-  { to: '/', label: 'Hoje', detail: 'Em foco, visualização rápida e o próximo passo do dia', icon: House, tone: 'today' },
-  { to: '/treinos', label: 'Treinos', detail: 'Fichas, treino em andamento, histórico e exercícios', icon: Dumbbell, tone: 'training' },
-  {
-    to: '/calendario',
-    label: 'Calendário',
-    detail: 'Programar as fichas nos dias, com as corridas do Garmin',
-    icon: CalendarDays,
-    tone: 'training',
-  },
-  { to: '/corrida', label: 'Corrida', detail: 'Volume, ritmo, constância, recordes e a próxima prova', icon: SportShoe, tone: 'today' },
-  { to: '/corrida/provas', label: 'Provas', detail: 'As próximas, com meta e previsão, e o resultado das feitas', icon: Medal, tone: 'analysis' },
-  { to: '/alimentacao', label: 'Alimentação', detail: 'Refeições, calorias e macros do dia', icon: Utensils, tone: 'food' },
-  { to: '/corpo', label: 'Corpo', detail: 'Peso, medidas e a tendência', icon: Scale, tone: 'body' },
-  { to: '/calorias', label: 'Calorias gastas', detail: 'Ativas e em repouso, contra o que você comeu', icon: Flame, tone: 'training' },
-  { to: '/passos', label: 'Passos', detail: 'Dia a dia, com as médias', icon: Footprints, tone: 'today' },
-  { to: '/sono', label: 'Sono e recuperação', detail: 'Noite, HRV, FC de repouso e Body Battery do Garmin', icon: Moon, tone: 'sleep' },
-  { to: '/analise', label: 'Análise do dia', detail: 'O Claude lê seus dados e o diário', icon: Sparkles, tone: 'analysis' },
-  {
-    to: '/correlacoes',
-    label: 'Correlações',
-    detail: 'Hábitos, treino e alimentação × sono, recuperação e peso',
-    icon: ChartScatter,
-    tone: 'insights',
-  },
-  { to: '/retrospectiva', label: 'Retrospectiva', detail: 'O seu ano em números, mês a mês', icon: PartyPopper, tone: 'analysis' },
-  { to: '/agua', label: 'Água', detail: 'Registros por dia, meta e recipientes', icon: GlassWater, tone: 'water' },
-  { to: '/clima', label: 'Clima', detail: 'Previsão e o tempo nos treinos', icon: CloudSun, tone: 'water' },
-  { to: '/habitos', label: 'Hábitos', detail: 'Check do dia, sequências, lembretes e histórico', icon: ListChecks, tone: 'habits' },
-  { to: '/diario', label: 'Diário', detail: 'Como foi o dia, humor e energia', icon: NotebookPen, tone: 'journal' },
-  { to: '/ajustes', label: 'Ajustes', detail: 'Sincronização, Garmin, backup e locais de medida', icon: Settings, tone: 'settings' },
+/** Every screen in the order this list shows them, with what each is for. The names come from the menus. */
+const DETAILS: [to: string, detail: string][] = [
+  ['/', 'Em foco, visualização rápida e o próximo passo do dia'],
+  ['/treinos', 'Fichas, treino em andamento, histórico e exercícios'],
+  ['/calendario', 'Programar as fichas nos dias, com as corridas do Garmin'],
+  ['/corrida', 'Volume, ritmo, constância, recordes e a próxima prova'],
+  ['/corrida/provas', 'As próximas, com meta e previsão, e o resultado das feitas'],
+  ['/alimentacao', 'Refeições, calorias e macros do dia'],
+  ['/corpo', 'Peso, medidas e a tendência'],
+  ['/calorias', 'Ativas e em repouso, contra o que você comeu'],
+  ['/passos', 'Dia a dia, com as médias'],
+  ['/sono', 'Noite, HRV, FC de repouso e Body Battery do Garmin'],
+  ['/analise', 'O Claude lê seus dados e o diário'],
+  ['/correlacoes', 'Hábitos, treino e alimentação × sono, recuperação e peso'],
+  ['/semana', 'A semana que passou contra a anterior, área por área'],
+  ['/retrospectiva', 'O seu ano em números, mês a mês'],
+  ['/agua', 'Registros por dia, meta e recipientes'],
+  ['/clima', 'Previsão e o tempo nos treinos'],
+  ['/habitos', 'Check do dia, sequências, lembretes e histórico'],
+  ['/diario', 'Como foi o dia, humor e energia'],
+  ['/ajustes', 'Sincronização, Garmin, backup e locais de medida'],
 ]
 
-/** The sections that don't fit the phone's bottom bar. */
+const MENU = [...SECTIONS, ...SCREENS]
+
+const LINKS = DETAILS.flatMap(([to, detail]) => {
+  const entry = MENU.find((item) => item.to === to)
+  return entry ? [{ ...entry, detail }] : []
+})
+
+/** The sections that don't fit the phone's bottom bar, and the screens that aren't sections. */
 export default function MorePage() {
   const settings = useSettings()
   const onBar = new Set(bottomSections(settings.navBar).map((section) => section.to))

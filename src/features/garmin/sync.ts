@@ -76,6 +76,9 @@ export const usePlannedEvents = (): PlannedEvent[] | null | undefined => useLive
 const readMeta = async (): Promise<GarminMeta> => ((await db.meta.get(META_KEY))?.value as GarminMeta | undefined) ?? {}
 const writeMeta = (meta: GarminMeta) => db.meta.put({ key: META_KEY, value: meta })
 
+/** When this device last brought Garmin's data, for the daily analysis to say how fresh what it reads is. */
+export const garminSyncedAt = async (): Promise<number | undefined> => (await readMeta()).lastRunAt
+
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**

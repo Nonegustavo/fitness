@@ -5,8 +5,7 @@ import { SortableList } from '../../components/Sortable'
 import { IconTile } from '../../components/tone'
 import { Button, IconButton, Segmented, Switch } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
-import { patch } from '../../db/repo'
-import { db, SETTINGS_ID } from '../../db/schema'
+import { updateSettings } from '../../db/settings'
 import type { HomeAreas } from '../../db/types'
 import { HOME_ELEMENTS, homeAreas, toggleElement, type HomeArea } from './homeCards'
 
@@ -20,7 +19,9 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
   const settings = useSettings()
   const areas = homeAreas(settings)
   const [area, setArea] = useState<HomeArea>('focus')
-  const store = (next: HomeAreas) => void patch(db.settings, SETTINGS_ID, { homeAreas: next })
+  // Each change starts from the areas as stored, so two quick taps (two switches, two elements) both count.
+  const change = (next: (stored: Required<HomeAreas>) => HomeAreas) =>
+    void updateSettings((stored) => ({ homeAreas: next(homeAreas(stored)) }))
   const shown = areas[area].map((id) => HOME_ELEMENTS.find((element) => element.id === id)!)
   const available = HOME_ELEMENTS.filter((element) => !areas[area].includes(element.id))
 
@@ -33,14 +34,18 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
             No topo, o próximo passo do dia (o treino que vai começar, a pesagem, a refeição, a água), com um botão
           </span>
         </span>
-        <Switch checked={areas.now} label="Mostrar o Agora no topo" onChange={(now) => store({ ...areas, now })} />
+        <Switch checked={areas.now} label="Mostrar o Agora no topo" onChange={(now) => change((stored) => ({ ...stored, now }))} />
       </div>
       <div className="mb-4 flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">Minha semana no topo</span>
           <span className="block text-xs text-muted">Os dias de domingo a sábado, acima do "Em foco"</span>
         </span>
-        <Switch checked={areas.week} label="Mostrar Minha semana no topo" onChange={(week) => store({ ...areas, week })} />
+        <Switch
+          checked={areas.week}
+          label="Mostrar Minha semana no topo"
+          onChange={(week) => change((stored) => ({ ...stored, week }))}
+        />
       </div>
       <Segmented
         label="Área"
@@ -64,7 +69,7 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
           <Switch
             checked={areas.smartOrder}
             label="Ordenar o Em foco pelo horário do dia"
-            onChange={(smartOrder) => store({ ...areas, smartOrder })}
+            onChange={(smartOrder) => change((stored) => ({ ...stored, smartOrder }))}
           />
         </div>
       )}
@@ -78,7 +83,7 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
           itemClassName="flex items-center gap-2 bg-surface py-1.5"
           items={shown}
           getId={(element) => element.id}
-          onReorder={(list) => store({ ...areas, [area]: list.map((element) => element.id) })}
+          onReorder={(list) => change((stored) => ({ ...stored, [area]: list.map((element) => element.id) }))}
         >
           {(element, handle) => (
             <>
@@ -88,7 +93,10 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
                 <span className="block text-sm font-medium">{element.label}</span>
                 <span className="block truncate text-xs text-muted">{element.detail}</span>
               </span>
-              <IconButton label={`Tirar ${element.label}`} onClick={() => store(toggleElement(areas, area, element.id, false))}>
+              <IconButton
+                label={`Tirar ${element.label}`}
+                onClick={() => change((stored) => toggleElement(stored, area, element.id, false))}
+              >
                 <CircleMinus size={20} />
               </IconButton>
             </>
@@ -110,7 +118,7 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
                 <IconButton
                   label={`Adicionar ${element.label}`}
                   className="text-accent-ink"
-                  onClick={() => store(toggleElement(areas, area, element.id, true))}
+                  onClick={() => change((stored) => toggleElement(stored, area, element.id, true))}
                 >
                   <CirclePlus size={20} />
                 </IconButton>
@@ -121,7 +129,7 @@ export function CustomizeHome({ onClose }: { onClose: () => void }) {
       )}
 
       <div className="mt-4 flex gap-2">
-        <Button variant="ghost" onClick={() => void patch(db.settings, SETTINGS_ID, { homeAreas: undefined })}>
+        <Button variant="ghost" onClick={() => void updateSettings(() => ({ homeAreas: undefined }))}>
           <RotateCcw size={16} /> Voltar ao padrão
         </Button>
         <Button variant="primary" className="ml-auto" onClick={onClose}>

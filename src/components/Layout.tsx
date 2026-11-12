@@ -1,12 +1,13 @@
 import { Ellipsis } from 'lucide-react'
 import { Suspense, useEffect, useLayoutEffect, useRef } from 'react'
-import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
+import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { SyncStatus } from '../features/settings/SyncStatus'
+import { StatusDot } from '../features/status/StatusDot'
 import { Celebrations } from '../features/streaks/Celebrations'
 import { RestTimerBar } from '../features/training/RestTimerBar'
 import { useSettings } from '../db/hooks'
 import { QuickLogButton } from './QuickLog'
-import { bottomSections, SECTIONS, toneForPath } from './sections'
+import { bottomSections, currentEntry, SCREENS, SECTIONS, toneForPath, type Section } from './sections'
 import { toneColor, ToneContext, toneStyle } from './tone'
 import { cx } from './ui'
 
@@ -70,6 +71,26 @@ function useScrollPerScreen() {
   }, [location.key, location.pathname, navigation])
 }
 
+/** The computer's sidebar: the sections, then the screens the phone keeps under "Mais". */
+const SIDEBAR = [...SECTIONS, ...SCREENS]
+
+function SidebarLink({ entry: { to, label, icon: Icon, tone }, active }: { entry: Section; active: boolean }) {
+  return (
+    <Link
+      to={to}
+      aria-current={active ? 'page' : undefined}
+      className={cx(
+        'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition',
+        active ? 'text-ink' : 'text-ink-2 hover:bg-surface-2',
+      )}
+      style={active ? { background: toneStyle(tone, 12).background } : undefined}
+    >
+      <Icon size={18} style={{ color: toneColor(tone) }} />
+      {label}
+    </Link>
+  )
+}
+
 export function Layout() {
   const { pathname } = useLocation()
   const settings = useSettings()
@@ -80,6 +101,8 @@ export function Layout() {
   const inMore = underMore.some((path) => pathname === path || pathname.startsWith(`${path}/`))
   // The controls of a screen take its section's color, the "+" and the bars around it included.
   const sectionTone = toneForPath(pathname)
+  // On the computer every screen is in the sidebar; the one lit is the most specific the screen falls under.
+  const sidebarEntry = currentEntry(pathname, SIDEBAR.map((entry) => entry.to))
   useScrollPerScreen()
 
   return (
@@ -92,26 +115,20 @@ export function Layout() {
             Fitness
           </div>
           <QuickLogButton variant="sidebar" />
-          <nav className="space-y-1">
-            {SECTIONS.map(({ to, label, icon: Icon, tone }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === '/'}
-                className={({ isActive }) =>
-                  cx(
-                    'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition',
-                    isActive ? 'text-ink' : 'text-ink-2 hover:bg-surface-2',
-                  )
-                }
-                style={({ isActive }) => (isActive ? { background: toneStyle(tone, 12).background } : undefined)}
-              >
-                <Icon size={18} style={{ color: toneColor(tone) }} />
-                {label}
-              </NavLink>
-            ))}
+          {/* Scrolls on its own when the window is short: the sync line below stays in sight. */}
+          <nav className="scroll-fade-y -mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+            <div className="space-y-1">
+              {SECTIONS.map((section) => (
+                <SidebarLink key={section.to} entry={section} active={section.to === sidebarEntry} />
+              ))}
+            </div>
+            <div className="mt-3 space-y-1 border-t border-line pt-3">
+              {SCREENS.map((screen) => (
+                <SidebarLink key={screen.to} entry={screen} active={screen.to === sidebarEntry} />
+              ))}
+            </div>
           </nav>
-          <div className="mt-auto px-2 text-xs">
+          <div className="mt-3 px-2 text-xs">
             <SyncStatus />
           </div>
         </aside>
@@ -145,9 +162,11 @@ export function Layout() {
                 {short ?? label}
               </NavLink>
             ))}
-            <NavLink to="/mais" className={bottomClass(inMore)} aria-current={inMore ? 'page' : undefined}>
+            <NavLink to="/mais" className={cx(bottomClass(inMore), 'relative')} aria-current={inMore ? 'page' : undefined}>
               <Ellipsis size={22} />
               Mais
+              {/* Ajustes is under "Mais": something to look at there shows from every screen. */}
+              <StatusDot className="top-1.5 left-[calc(50%+0.5rem)]" />
             </NavLink>
           </div>
         </nav>

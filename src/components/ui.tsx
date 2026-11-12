@@ -11,6 +11,7 @@ import {
   type SelectHTMLAttributes,
 } from 'react'
 import { Link } from 'react-router'
+import { arrowTarget } from './keys'
 import { useReveal } from './reveal'
 import type { PagerDrag } from './SwipePager'
 import { IconTile, toneColor, ToneContext, type Tone } from './tone'
@@ -26,6 +27,7 @@ export function Page({
   actions,
   icon,
   tone,
+  wide,
   children,
 }: {
   title: string
@@ -36,6 +38,8 @@ export function Page({
   /** The section's icon, on a tile of its color, next to the title. */
   icon?: LucideIcon
   tone?: Tone
+  /** On a wide screen (the computer), room for two columns of cards: see Columns. The phone doesn't change. */
+  wide?: boolean
   children: ReactNode
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -47,6 +51,7 @@ export function Page({
       data-tone={tone}
       className={cx(
         'mx-auto w-full max-w-3xl px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-36 lg:px-8 lg:pt-8 lg:pb-12',
+        wide && 'xl:max-w-6xl',
         shown ? 'animate-enter' : 'opacity-0',
       )}
     >
@@ -70,6 +75,26 @@ export function Page({
     </div>
   )
   return tone ? <ToneContext value={tone}>{page}</ToneContext> : page
+}
+
+/**
+ * The classes of two columns side by side on a wide screen; below that, a plain run of cards. For a
+ * container that isn't a Columns itself: a pager's page takes them as its `className`.
+ */
+export const COLUMNS = 'space-y-4 xl:grid xl:grid-cols-2 xl:items-start xl:gap-4 xl:space-y-0'
+
+/**
+ * On a `wide` Page, two Stacks side by side from the `xl` width up. Below it they come one after the
+ * other, so the phone shows the cards in the order they are written, as if this weren't here.
+ */
+export function Columns({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cx(COLUMNS, className)}>{children}</div>
+}
+
+/** One column of a Columns: its cards, top to bottom. */
+export function Stack({ children, className }: { children: ReactNode; className?: string }) {
+  // min-w-0: a grid column grows to fit its content otherwise, and a chart inside would never shrink with the window.
+  return <div className={cx('min-w-0 space-y-4', className)}>{children}</div>
 }
 
 /**
@@ -307,13 +332,22 @@ export function Segmented<T extends string>({
   return (
     <div ref={group} role="radiogroup" aria-label={label} className="relative inline-flex max-w-full rounded-xl bg-surface-2 p-1">
       <span ref={pill} aria-hidden className="pointer-events-none absolute top-1 bottom-1 left-0 rounded-lg bg-pill opacity-0 shadow-sm" />
-      {options.map((option) => (
+      {options.map((option, index) => (
         <button
           key={option.value}
           type="button"
           role="radio"
           data-option={option.value}
           aria-checked={option.value === value}
+          // As a radio group on the keyboard: Tab comes to the chosen option, the arrows choose another.
+          tabIndex={option.value === value || (index === 0 && !options.some((other) => other.value === value)) ? 0 : -1}
+          onKeyDown={(event) => {
+            const to = arrowTarget(event.key, index, options.length)
+            if (to === undefined) return
+            event.preventDefault()
+            onChange(options[to].value)
+            group.current?.querySelectorAll<HTMLElement>('[data-option]')[to]?.focus()
+          }}
           onClick={() => onChange(option.value)}
           className={cx(
             'relative h-9 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-colors',
@@ -347,8 +381,9 @@ export function Switch({
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
+      // The track is small; what answers the finger is 40 px tall, reaching past it on every side.
       className={cx(
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50',
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] disabled:opacity-50",
         checked ? 'bg-accent' : 'bg-baseline',
       )}
     >

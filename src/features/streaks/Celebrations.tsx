@@ -15,8 +15,11 @@ import { milestoneMessage, recordNews, snapshotOf, type RecordSnapshot, type Str
 const RECORDS_KEY = 'runRecords'
 const CELEBRATED_KEY = 'streaksCelebrated'
 
-/** A streak is reached by logging something, which shows its own toast (with "Desfazer"): wait for it. */
-const AFTER_ACTION_MS = 4300
+/**
+ * A streak is reached by logging something, which shows its own toast (with "Desfazer"). The two can
+ * be on screen together, so this only lets the first one land before the party starts.
+ */
+const AFTER_ACTION_MS = 1200
 const BETWEEN_MS = 4500
 
 /**

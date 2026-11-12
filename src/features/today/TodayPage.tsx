@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { House, Settings, SlidersHorizontal } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Link } from 'react-router'
 import { Carousel } from '../../components/Carousel'
 import { PullToRefresh } from '../../components/PullToRefresh'
@@ -9,15 +9,17 @@ import { IconButton, Page, Pending } from '../../components/ui'
 import { useNow, useSettings, useToday } from '../../db/hooks'
 import { db, SETTINGS_ID } from '../../db/schema'
 import { formatDay } from '../../lib/dates'
-import { getSyncState, syncNow } from '../../sync/controller'
-import { syncGarmin } from '../garmin/sync'
 import { WeekCard } from '../calendar/cards'
 import { RecapBanner } from '../recap/RecapBanner'
-import { CustomizeHome } from './CustomizeHome'
+import { refreshAll } from '../status/refresh'
+import { StatusDot } from '../status/StatusDot'
 import { ELEMENT_VIEWS } from './elements'
 import { elementInfo, homeAreas, orderForTime } from './homeCards'
 import { NowCard } from './NowCard'
 import { QuickGrid } from './tiles'
+
+// The editor drags and drops: that code only loads when it opens, not with the first screen.
+const CustomizeHome = lazy(() => import('./CustomizeHome').then((module) => ({ default: module.CustomizeHome })))
 
 /**
  * The Hoje screen, like Garmin Connect's: "Em foco", big cards side by side to swipe through, and
@@ -35,11 +37,8 @@ export default function TodayPage() {
   const hour = useNow(600_000).getHours()
   const focus = areas.smartOrder ? orderForTime(areas.focus, hour) : areas.focus
 
-  // Pulling the page down brings what's new from the server and from Garmin right away.
-  const refresh = async () => {
-    await Promise.allSettled([syncNow(), syncGarmin()])
-    toast({ message: getSyncState().phase === 'error' ? 'Não deu para sincronizar agora.' : 'Atualizado.' })
-  }
+  // Pulling the page down brings what's new from the server and from Garmin right away, and says how it went.
+  const refresh = async () => toast({ message: await refreshAll() })
 
   return (
     <PullToRefresh onRefresh={refresh}>
@@ -57,9 +56,11 @@ export default function TodayPage() {
             to="/ajustes"
             aria-label="Ajustes"
             title="Ajustes"
-            className="inline-flex size-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-2 lg:hidden"
+            className="relative inline-flex size-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-2 lg:hidden"
           >
             <Settings size={20} />
+            {/* A source of data that needs a look (the sync, Garmin…) shows here; Ajustes says which. */}
+            <StatusDot className="top-1.5 right-1.5" />
           </Link>
         </>
       }
@@ -104,7 +105,11 @@ export default function TodayPage() {
         <SlidersHorizontal size={14} /> Escolher o que aparece aqui
       </button>
 
-      {customizing && <CustomizeHome onClose={() => setCustomizing(false)} />}
+      {customizing && (
+        <Suspense fallback={null}>
+          <CustomizeHome onClose={() => setCustomizing(false)} />
+        </Suspense>
+      )}
     </Page>
     </PullToRefresh>
   )
