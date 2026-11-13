@@ -1,9 +1,19 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { Card, Select, Switch, TextInput } from '../../../components/ui'
-import { useSettings } from '../../../db/hooks'
+import { useSettings, useToday } from '../../../db/hooks'
 import { updateSettings } from '../../../db/settings'
-import type { SmartReminders } from '../../../db/types'
-import { requestNotificationPermission } from '../../notifications/native'
-import { leadText, WORKOUT_LEADS } from '../../notifications/reminders'
+import type { BodyCheckReminder, SmartReminders } from '../../../db/types'
+import { formatDay } from '../../../lib/dates'
+import { lastBodyCheck, requestNotificationPermission } from '../../notifications/native'
+import {
+  BODY_CHECK_DEFAULT,
+  BODY_CHECK_WEEKS,
+  leadText,
+  nextBodyCheck,
+  WEEKDAY_NAMES,
+  WORKOUT_LEADS,
+  type BodyCheck,
+} from '../../notifications/reminders'
 
 const SMART_DEFAULTS = { weighIn: '08:30', lunch: '14:00', dinner: '21:30' } as const
 
@@ -127,7 +137,94 @@ export function SmartRemindersCard() {
             }
           />
         </li>
+        <BodyCheckRow kind="measurements" label="Medidas" what="medição" plan={smart.measurements} />
+        <BodyCheckRow kind="photos" label="Fotos de progresso" what="foto" plan={smart.photos} />
       </ul>
     </Card>
+  )
+}
+
+/** The last day a body check was recorded: null when never, undefined while it loads. */
+function useLastBodyCheck(kind: BodyCheck) {
+  return useLiveQuery(async () => (await lastBodyCheck(kind)) ?? null, [kind])
+}
+
+const capitalized = (text: string) => `${text.charAt(0).toUpperCase()}${text.slice(1)}`
+
+/** Measurements or progress photos: every few weeks on a weekday, while nothing was recorded since. */
+function BodyCheckRow({
+  kind,
+  label,
+  what,
+  plan,
+}: {
+  kind: BodyCheck
+  label: string
+  /** The record, as the detail names it ("medição", "foto"). */
+  what: string
+  plan: BodyCheckReminder | undefined
+}) {
+  const today = useToday()
+  const last = useLastBodyCheck(kind)
+  const set = (changes: Partial<BodyCheckReminder>) =>
+    change((stored) => ({ ...stored, [kind]: { ...BODY_CHECK_DEFAULT, ...stored[kind], ...changes } }))
+  const next = plan && last !== undefined ? nextBodyCheck(last ?? undefined, plan, today) : undefined
+  return (
+    <li className="py-2">
+      <div className="flex items-center gap-3">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm">{label}</span>
+          <span className="block text-xs text-muted">
+            {plan
+              ? `a cada ${plan.everyWeeks} semanas, se não houver ${what} desde então${next ? ` · próximo: ${next === today ? 'hoje' : formatDay(next, "EEE, d 'de' MMM")}` : ''}`
+              : `a cada algumas semanas, se não houver ${what} nova`}
+          </span>
+        </span>
+        <Switch
+          label={`Lembrete de ${label.toLowerCase()}`}
+          checked={!!plan}
+          onChange={(on) =>
+            on
+              ? turnOn((stored) => ({ ...stored, [kind]: stored[kind] ?? BODY_CHECK_DEFAULT }))
+              : change((stored) => ({ ...stored, [kind]: undefined }))
+          }
+        />
+      </div>
+      {plan && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <Select
+            aria-label={`Intervalo do lembrete de ${label.toLowerCase()}`}
+            value={String(plan.everyWeeks)}
+            onChange={(event) => set({ everyWeeks: Number(event.target.value) })}
+          >
+            {BODY_CHECK_WEEKS.map((weeks) => (
+              <option key={weeks} value={weeks}>
+                {weeks} semanas
+              </option>
+            ))}
+          </Select>
+          <Select
+            aria-label={`Dia do lembrete de ${label.toLowerCase()}`}
+            value={String(plan.weekday)}
+            onChange={(event) => set({ weekday: Number(event.target.value) })}
+          >
+            {WEEKDAY_NAMES.map((name, day) => (
+              <option key={day} value={day}>
+                {capitalized(name)}
+              </option>
+            ))}
+          </Select>
+          <TextInput
+            type="time"
+            aria-label={`Horário do lembrete de ${label.toLowerCase()}`}
+            value={plan.time}
+            onChange={(event) => {
+              const time = event.target.value
+              if (time) set({ time })
+            }}
+          />
+        </div>
+      )}
+    </li>
   )
 }

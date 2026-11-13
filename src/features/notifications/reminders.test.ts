@@ -145,6 +145,124 @@ describe('plannedSmartReminders', () => {
     expect(weighIns[0].route).toBe('/corpo?novo=peso')
     expect(plannedSmartReminders(undefined, empty, 3000, noon)).toEqual([])
   })
+
+  it('removes a water reminder once the day is back on the pace of its hour', async () => {
+    const { plannedSmartReminders, smartReminderSettled } = await import('./reminders')
+    const [eleven, fifteen] = plannedSmartReminders({ water: true }, empty, 3000, morning).filter((r) => r.date === '2026-11-03')
+    expect(eleven.hour).toBe(11)
+    const context = (waterMl: number) => ({
+      status: new Map([['2026-11-03', { weighed: false, meals: new Set<never>(), waterMl }]]),
+      waterGoalMl: 3000,
+      settings: { water: true },
+      lastBodyChecks: {},
+    })
+    const shown = (r: typeof eleven, hour?: number) => ({ id: r.id, reminder: r.kind, date: r.date, hour })
+    // 11h expects 800 ml, a glass of room: 550 ml settles it, 500 ml doesn't.
+    expect(smartReminderSettled(shown(eleven, 11), context(500))).toBe(false)
+    expect(smartReminderSettled(shown(eleven, 11), context(550))).toBe(true)
+    expect(smartReminderSettled(shown(fifteen, 15), context(550))).toBe(false)
+    // Older notifications have no hour: it is read back from the id.
+    expect(smartReminderSettled(shown(eleven), context(550))).toBe(true)
+    expect(smartReminderSettled(shown(fifteen), context(550))).toBe(false)
+    expect(smartReminderSettled({ id: 1, reminder: 'water', date: '2026-11-03' }, context(5000))).toBe(false)
+    // A day not in the status is left alone.
+    expect(smartReminderSettled({ ...shown(eleven, 11), date: '2026-11-02' }, context(5000))).toBe(false)
+  })
+
+  it('still removes a weigh-in or meal reminder once recorded', async () => {
+    const { smartReminderSettled } = await import('./reminders')
+    const context = {
+      status: new Map([['2026-11-03', { weighed: true, meals: new Set(['lunch' as const]), waterMl: 0 }]]),
+      waterGoalMl: 3000,
+      settings: {},
+      lastBodyChecks: {},
+    }
+    expect(smartReminderSettled({ id: 1, reminder: 'weighIn', date: '2026-11-03' }, context)).toBe(true)
+    expect(smartReminderSettled({ id: 1, reminder: 'lunch', date: '2026-11-03' }, context)).toBe(true)
+    expect(smartReminderSettled({ id: 1, reminder: 'dinner', date: '2026-11-03' }, context)).toBe(false)
+  })
+})
+
+describe('body check reminders', () => {
+  // Tuesday, 07:00.
+  const morning = new Date(2026, 10, 3, 7, 0)
+  const empty = new Map()
+  const plan = { everyWeeks: 4, weekday: 6, time: '09:00' }
+
+  it('falls on the chosen weekday at least the interval after the last record', async () => {
+    const { nextBodyCheck } = await import('./reminders')
+    // Last on Saturday 10/10: four weeks later is Saturday 7/11 itself.
+    expect(nextBodyCheck('2026-10-10', plan, '2026-11-03')).toBe('2026-11-07')
+    // Last on Monday 12/10: four weeks later is Monday 9/11, so the Saturday after.
+    expect(nextBodyCheck('2026-10-12', plan, '2026-11-03')).toBe('2026-11-14')
+    // None ever: the next Saturday; overdue: the next Saturday too.
+    expect(nextBodyCheck(undefined, plan, '2026-11-03')).toBe('2026-11-07')
+    expect(nextBodyCheck('2026-08-01', plan, '2026-11-03')).toBe('2026-11-07')
+    // On the weekday itself, that same day.
+    expect(nextBodyCheck(undefined, plan, '2026-11-07')).toBe('2026-11-07')
+  })
+
+  it('plans the measurements and photos with their own screens', async () => {
+    const { plannedSmartReminders } = await import('./reminders')
+    const planned = plannedSmartReminders({ measurements: plan, photos: { ...plan, weekday: 0, time: '10:30' } }, empty, 3000, morning, {
+      measurements: '2026-10-10',
+    })
+    expect(planned.map((r) => `${r.kind} ${r.date} ${r.at.getHours()}:${r.at.getMinutes()} ${r.route}`)).toEqual([
+      'measurements 2026-11-07 9:0 /corpo?novo=medida',
+      'photos 2026-11-08 10:30 /corpo?novo=foto',
+    ])
+    expect(planned[0].body).toContain('Faz 4 semanas')
+    expect(planned[1].body).toContain('primeiras fotos')
+  })
+
+  it('is not planned when recorded since, nor when due beyond the days covered', async () => {
+    const { plannedSmartReminders } = await import('./reminders')
+    // Measured last Saturday: due again in four weeks, far past the next seven days.
+    expect(plannedSmartReminders({ measurements: plan }, empty, 3000, morning, { measurements: '2026-10-31' })).toEqual([])
+    // Every eight weeks after 10/10: due 5/12.
+    expect(
+      plannedSmartReminders({ measurements: { ...plan, everyWeeks: 8 } }, empty, 3000, morning, { measurements: '2026-10-10' }),
+    ).toEqual([])
+  })
+
+  it('moves to the next week once the time of the due day has passed', async () => {
+    const { plannedSmartReminders } = await import('./reminders')
+    // Saturday past 09:00 with nothing recorded: next Saturday, a week away, beyond the days covered…
+    const saturdayNoon = new Date(2026, 10, 7, 12, 0)
+    expect(plannedSmartReminders({ measurements: plan }, empty, 3000, saturdayNoon)).toEqual([])
+    // …and planned from the next day on.
+    const sunday = new Date(2026, 10, 8, 12, 0)
+    expect(plannedSmartReminders({ measurements: plan }, empty, 3000, sunday)[0].date).toBe('2026-11-14')
+    const saturdayMorning = new Date(2026, 10, 7, 8, 0)
+    expect(plannedSmartReminders({ measurements: plan }, empty, 3000, saturdayMorning)[0].date).toBe('2026-11-07')
+  })
+
+  it('leaves the daily reminders as they were', async () => {
+    const { plannedSmartReminders } = await import('./reminders')
+    const daily = { weighIn: '08:30', lunch: '14:00', dinner: '21:30', water: true }
+    const without = plannedSmartReminders(daily, empty, 3000, morning)
+    const withBody = plannedSmartReminders({ ...daily, measurements: plan, photos: plan }, empty, 3000, morning)
+    expect(withBody.filter((r) => r.kind !== 'measurements' && r.kind !== 'photos')).toEqual(without)
+    expect(withBody).toHaveLength(without.length + 2)
+  })
+
+  it('removes a shown body reminder once recorded', async () => {
+    const { smartReminderSettled } = await import('./reminders')
+    const context = (measurements?: string, settings = { measurements: plan }) => ({
+      status: empty,
+      waterGoalMl: 3000,
+      settings,
+      lastBodyChecks: { measurements },
+    })
+    const shown = { id: 1, reminder: 'measurements' as const, date: '2026-11-07' }
+    // The record it rang about is still the last one: it stays.
+    expect(smartReminderSettled(shown, context('2026-10-10'))).toBe(false)
+    expect(smartReminderSettled(shown, context(undefined))).toBe(false)
+    expect(smartReminderSettled(shown, context('2026-11-07'))).toBe(true)
+    // Turned off since: any record on or after its day.
+    expect(smartReminderSettled(shown, context('2026-11-08', {} as never))).toBe(true)
+    expect(smartReminderSettled({ ...shown, reminder: 'photos' }, context('2026-11-07'))).toBe(false)
+  })
 })
 
 describe('plannedWorkoutReminders', () => {

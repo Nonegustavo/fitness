@@ -301,6 +301,17 @@ export interface SmartReminders {
   workouts?: number
   /** On Sunday at 20h, the week that ended in numbers. */
   weekly?: boolean
+  /** Body measurements, every few weeks on a weekday, while none was recorded since they became due. */
+  measurements?: BodyCheckReminder
+  /** Progress photos, the same way. */
+  photos?: BodyCheckReminder
+}
+
+/** A reminder every `everyWeeks` weeks after the last record, on `weekday` (0 = Sunday) at `time` ("09:00"). */
+export interface BodyCheckReminder {
+  everyWeeks: number
+  weekday: number
+  time: string
 }
 
 export interface GymSetup {

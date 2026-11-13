@@ -1,5 +1,15 @@
-import type { Activity, DailyHealth, Habit, HabitLog, MealKey, SmartReminders, WaterLog, WorkoutSession } from '../../db/types'
-import { dayKey, formatTime, shiftDay, weekStart, type DayKey } from '../../lib/dates'
+import type {
+  Activity,
+  BodyCheckReminder,
+  DailyHealth,
+  Habit,
+  HabitLog,
+  MealKey,
+  SmartReminders,
+  WaterLog,
+  WorkoutSession,
+} from '../../db/types'
+import { dayKey, dayTime, daysBetween, formatTime, parseDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatNumber, formatSigned } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
 import type { PendingGoals } from '../food/checkIn'
@@ -111,11 +121,56 @@ export interface SmartReminder {
   id: number
   at: Date
   date: DayKey
-  kind: 'weighIn' | 'lunch' | 'dinner' | 'water'
+  kind: 'weighIn' | 'lunch' | 'dinner' | 'water' | BodyCheck
+  /** A water check's hour, to tell later whether the day caught up with it. */
+  hour?: number
   title: string
   body: string
   /** The screen the notification opens. */
   route: string
+}
+
+/** The body checks that come every few weeks instead of every day. */
+export type BodyCheck = 'measurements' | 'photos'
+export const BODY_CHECKS: BodyCheck[] = ['measurements', 'photos']
+
+/** The last day each body check was recorded (none ever: undefined). */
+export type LastBodyChecks = Partial<Record<BodyCheck, DayKey>>
+
+/** The intervals offered in Ajustes, and what a reminder starts with. */
+export const BODY_CHECK_WEEKS = [2, 4, 6, 8]
+export const BODY_CHECK_DEFAULT: BodyCheckReminder = { everyWeeks: 4, weekday: 0, time: '09:00' }
+
+const BODY_CHECK_TEXT: Record<BodyCheck, { title: string; tap: string; first: string; route: string }> = {
+  measurements: {
+    title: 'Hora das medidas',
+    tap: 'Toque para registrar.',
+    first: 'Registre as primeiras medidas para acompanhar a recomposição.',
+    route: '/corpo?novo=medida',
+  },
+  photos: {
+    title: 'Fotos de progresso',
+    tap: 'Mesma luz e mesmo lugar, de manhã. Toque para tirar.',
+    first: 'Tire as primeiras fotos para comparar depois. Mesma luz e mesmo lugar, de manhã.',
+    route: '/corpo?novo=foto',
+  },
+}
+
+const everyWeeksOf = (plan: Pick<BodyCheckReminder, 'everyWeeks'>) => Math.max(1, Math.round(plan.everyWeeks) || 1)
+
+/**
+ * The day a body check is next due, from `from` on: the first chosen weekday at least `everyWeeks`
+ * weeks after the last record, or the next such weekday when none was ever recorded. Once due, it
+ * stays due (the same weekday each week after) until something is recorded.
+ */
+export function nextBodyCheck(
+  last: DayKey | undefined,
+  plan: Pick<BodyCheckReminder, 'everyWeeks' | 'weekday'>,
+  from: DayKey,
+): DayKey {
+  const due = last && shiftDay(last, 7 * everyWeeksOf(plan))
+  const start = due && due > from ? due : from
+  return shiftDay(start, (((plan.weekday - parseDay(start).getDay()) % 7) + 7) % 7)
 }
 
 /** The water the day should have by an hour, spread evenly over the waking hours. */
@@ -133,6 +188,7 @@ export function plannedSmartReminders(
   status: Map<DayKey, DayStatus>,
   waterGoalMl: number,
   now: Date,
+  lastBodyChecks: LastBodyChecks = {},
 ): SmartReminder[] {
   if (!settings) return []
   const planned: SmartReminder[] = []
@@ -177,6 +233,7 @@ export function plannedSmartReminders(
           at: at(offset, `${hour}:00`),
           date,
           kind: 'water',
+          hour,
           title: 'Água',
           body:
             offset === 0
@@ -187,7 +244,73 @@ export function plannedSmartReminders(
       }
     }
   }
+  const today = dayKey(now)
+  for (const kind of BODY_CHECKS) {
+    const plan = settings[kind]
+    if (!plan) continue
+    const last = lastBodyChecks[kind]
+    let date = nextBodyCheck(last, plan, today)
+    // Due today but its time has passed: the same weekday next week, as nothing was recorded.
+    if (date === today && at(0, plan.time) <= now) date = nextBodyCheck(last, plan, shiftDay(today, 1))
+    const offset = daysBetween(today, date)
+    if (offset >= SMART_DAYS) continue
+    const text = BODY_CHECK_TEXT[kind]
+    const weeks = last ? Math.floor(daysBetween(last, date) / 7) : 0
+    add({
+      at: at(offset, plan.time),
+      date,
+      kind,
+      title: text.title,
+      body: last ? `Faz ${weeks} ${weeks === 1 ? 'semana' : 'semanas'} desde as últimas. ${text.tap}` : text.first,
+      route: text.route,
+    })
+  }
   return planned
+}
+
+/** A smart notification already on the screen, as its `extra` describes it. */
+export interface ShownSmartReminder {
+  id: number
+  reminder: SmartReminder['kind']
+  date: DayKey
+  /** Water only; older notifications don't carry it. */
+  hour?: number
+}
+
+/** What a shown notification is checked against. */
+export interface SmartContext {
+  status: Map<DayKey, DayStatus>
+  waterGoalMl: number
+  settings: SmartReminders | undefined
+  lastBodyChecks: LastBodyChecks
+}
+
+/** The water check hour a notification was planned for, read back from its id (older ones carry no hour). */
+function waterHourOf(id: number, date: DayKey): number | undefined {
+  return WATER_CHECKS.find((hour) => notificationId(`smart:water:${dayTime(date, `${hour}:00`)}`) === id)
+}
+
+/**
+ * Whether a smart notification already showing has been taken care of and can go: a weigh-in or the
+ * meal recorded that day, the day's water back on the pace of the hour it was sent at, or a body
+ * check recorded since it became due.
+ */
+export function smartReminderSettled(shown: ShownSmartReminder, context: SmartContext): boolean {
+  const { reminder, date } = shown
+  if (reminder === 'measurements' || reminder === 'photos') {
+    const last = context.lastBodyChecks[reminder]
+    if (!last) return false
+    const plan = context.settings?.[reminder]
+    // The record moved the next due day past the one it rang on.
+    return plan ? shiftDay(last, 7 * everyWeeksOf(plan)) > date : last >= date
+  }
+  const day = context.status.get(date)
+  if (!day) return false
+  if (reminder === 'weighIn') return day.weighed
+  if (reminder === 'lunch' || reminder === 'dinner') return day.meals.has(reminder)
+  const hour = shown.hour ?? waterHourOf(shown.id, date)
+  if (hour === undefined) return false
+  return day.waterMl >= waterExpectedBy(hour, context.waterGoalMl) - WATER_SLACK_ML
 }
 
 /** How long before a planned workout its heads-up comes (the options in Ajustes). */
