@@ -48,7 +48,8 @@ export const mediaImage = (path: string): string => `${BASE}/exercises/${path.sp
 export const mediaLabel = (mediaId: string): string => mediaId.replace(/_/g, ' ')
 
 async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url)
+  // A connection that hangs fails after a while, so the next try can start over.
+  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return (await response.json()) as T
 }

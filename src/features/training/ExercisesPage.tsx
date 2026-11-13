@@ -40,7 +40,13 @@ export default function ExercisesPage() {
       }
     >
       <div className="space-y-2">
-        <TextInput type="search" placeholder="Buscar exercício" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <TextInput
+          type="search"
+          placeholder="Buscar exercício"
+          aria-label="Buscar exercício"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <MuscleChips exercises={exercises} value={muscle} onChange={setMuscle} />
       </div>
 

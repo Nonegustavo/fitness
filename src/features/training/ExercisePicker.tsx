@@ -77,6 +77,7 @@ export function ExercisePicker({ onClose, onPick }: { onClose: () => void; onPic
           type="search"
           autoFocus
           placeholder="Buscar exercício"
+          aria-label="Buscar exercício"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

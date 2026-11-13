@@ -160,6 +160,7 @@ export function SwapModal({
       <TextInput
         type="search"
         placeholder={`Outros de ${MUSCLES[current.muscle].toLowerCase()}, ou busque`}
+        aria-label="Buscar exercício para trocar"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />

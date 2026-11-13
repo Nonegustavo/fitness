@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Modal } from '../../components/Modal'
+import { Confirm, Modal } from '../../components/Modal'
+import { useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { Button, Field, Select, TextInput } from '../../components/ui'
 import { remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -8,6 +9,7 @@ import type { Equipment, Exercise, ExerciseType, MuscleGroup } from '../../db/ty
 import { EQUIPMENT, EXERCISE_TYPES, MUSCLES } from './catalog'
 import { exerciseThumb, mediaIdOf, mediaLabel, noMedia } from './exerciseMedia'
 import { MediaPicker, MediaThumb } from './HowTo'
+import { useSessions, useTemplates } from './training'
 
 export function ExerciseForm({
   exercise,
@@ -29,6 +31,14 @@ export function ExerciseForm({
   const [mediaId, setMediaId] = useState(exercise?.mediaId)
   const [picking, setPicking] = useState(false)
   const media = { id: exercise?.id ?? '', mediaId }
+  const templates = useTemplates()
+  const sessions = useSessions()
+  const removeWithUndo = useRemoveWithUndo()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const uses = (list: { exercises: { exerciseId: string }[] }[] | undefined) =>
+    list?.filter((item) => item.exercises.some((e) => e.exerciseId === exercise?.id)).length
+  const inTemplates = uses(templates)
+  const inSessions = uses(sessions)
   const linked = mediaIdOf(media)
 
   async function submit(event: FormEvent) {
@@ -47,12 +57,20 @@ export function ExerciseForm({
     onClose()
   }
 
-  async function onDelete() {
+  // One never used goes at once, with "Desfazer"; one in a template or a past workout asks first. Still
+  // loading counts as used.
+  function onDelete() {
     if (!exercise) return
-    // Past workouts keep showing the name: deleted exercises stay in the local table.
-    await remove(db.exercises, exercise.id)
-    onClose()
+    if (inTemplates === 0 && inSessions === 0) {
+      removeWithUndo(db.exercises, exercise.id, 'Exercício apagado')
+      onClose()
+    } else setConfirmDelete(true)
   }
+
+  const usedIn = [
+    inTemplates && (inTemplates === 1 ? '1 ficha' : `${inTemplates} fichas`),
+    inSessions && (inSessions === 1 ? '1 treino' : `${inSessions} treinos`),
+  ].filter(Boolean)
 
   return (
     <Modal open title={exercise ? 'Editar exercício' : 'Novo exercício'} onClose={onClose}>
@@ -105,8 +123,8 @@ export function ExerciseForm({
         </Field>
         <div className="flex gap-2">
           {exercise && (
-            <Button variant="danger" onClick={() => void onDelete()}>
-              <Trash2 size={16} /> Excluir
+            <Button variant="danger" onClick={onDelete}>
+              <Trash2 size={16} /> Apagar
             </Button>
           )}
           <Button type="submit" variant="primary" className="flex-1" disabled={!name.trim()}>
@@ -120,6 +138,17 @@ export function ExerciseForm({
           current={linked}
           onClose={() => setPicking(false)}
           onPick={(next) => setMediaId(next ?? noMedia(exercise?.id))}
+        />
+      )}
+      {/* Past workouts and templates keep showing the name: deleted exercises stay in the local table. */}
+      {confirmDelete && exercise && (
+        <Confirm
+          title="Apagar exercício?"
+          message={`${usedIn.length > 0 ? `${exercise.name} está em ${usedIn.join(' e ')}. ` : ''}Ele sai da lista de exercícios; os treinos já feitos e as fichas continuam mostrando o nome.`}
+          confirmLabel="Apagar"
+          danger
+          onClose={() => setConfirmDelete(false)}
+          onConfirm={() => void remove(db.exercises, exercise.id).then(onClose)}
         />
       )}
     </Modal>
