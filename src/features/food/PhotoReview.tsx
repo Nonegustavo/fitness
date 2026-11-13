@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { LoaderCircle, Pencil, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Modal } from '../../components/Modal'
+import { useToast } from '../../components/Toast'
 import { Button, Field, IconButton, Select, Switch, TextInput } from '../../components/ui'
 import { db } from '../../db/schema'
 import type { MealKey } from '../../db/types'
@@ -63,6 +64,7 @@ export function PhotoReview({
   onClose: () => void
   onDone: (count: number, meal: MealKey) => void
 }) {
+  const toast = useToast()
   const fromPhoto = source.kind === 'photo'
   const [step, setStep] = useState<Step>(fromPhoto ? 'reading' : 'calculating')
   const [preview, setPreview] = useState<string>()
@@ -139,8 +141,12 @@ export function PhotoReview({
 
   async function addAll() {
     setSaving(true)
-    // A photo that fails to keep shouldn't stop the meal from being logged.
-    const photoId = source.kind === 'photo' && keep ? await keepPhoto(source.file).catch(() => undefined) : undefined
+    // A photo that fails to keep shouldn't stop the meal from being logged, but the user is told.
+    let photoId: string | undefined
+    if (source.kind === 'photo' && keep) {
+      photoId = await keepPhoto(source.file).catch(() => undefined)
+      if (!photoId) toast({ message: 'A foto não pôde ser guardada; a refeição foi registrada sem ela.' })
+    }
     for (const row of ready) {
       const food = await saveAiFood(row.item)
       await logFood(fromCustom(food), row.grams, { meal, date, time, photoId })

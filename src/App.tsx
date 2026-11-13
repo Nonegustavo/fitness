@@ -23,6 +23,7 @@ const JournalPage = lazy(() => import('./features/journal/JournalPage'))
 const AnalysisPage = lazy(() => import('./features/analysis/AnalysisPage'))
 const FoodPage = lazy(() => import('./features/food/FoodPage'))
 const AddFoodPage = lazy(() => import('./features/food/AddFoodPage'))
+const ReviewFoodsPage = lazy(() => import('./features/food/ReviewFoodsPage'))
 const MorePage = lazy(() => import('./features/more/MorePage'))
 const CalendarPage = lazy(() => import('./features/calendar/CalendarPage'))
 const StepsPage = lazy(() => import('./features/garmin/StepsPage'))
@@ -61,6 +62,7 @@ const router = createHashRouter([
       { path: 'retrospectiva', element: <RecapPage /> },
       { path: 'alimentacao', element: <FoodPage /> },
       { path: 'alimentacao/adicionar', element: <AddFoodPage /> },
+      { path: 'alimentacao/revisar', element: <ReviewFoodsPage /> },
       { path: 'corpo', element: <BodyPage /> },
       { path: 'sono', element: <SleepPage /> },
       { path: 'correlacoes', element: <InsightsPage /> },

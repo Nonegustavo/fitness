@@ -1,4 +1,4 @@
-import { Camera, CookingPot, MessageSquareText, Plus, ScanBarcode, ScanText, Star, Trash2, Utensils, type LucideIcon } from 'lucide-react'
+import { Camera, CookingPot, MessageSquareText, Plus, ScanBarcode, ScanText, Star, Trash2, TriangleAlert, Utensils, Zap, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Modal } from '../../components/Modal'
@@ -20,11 +20,13 @@ import { FoodAvatar } from './FoodAvatar'
 import { FoodForm, type FoodDraft } from './FoodForm'
 import { buildIndex, fromCustom, logFood, recentForMeal, searchFoods, usualAmount, TACO_SOURCE, useFoodCatalog, useFoodPrefs, type FoodItem } from './foods'
 import { amountLabel, logItems, MEAL_LABEL, mealAt, MEALS, nutrientsFor, sumNutrients, useFoodLogs, useSavedMeals } from './nutrition'
-import { fetchProduct } from './openFoodFacts'
+import { fetchProduct, isTimeout } from './openFoodFacts'
 import type { MealSource } from './photo'
 import { PhotoReview } from './PhotoReview'
 import { PortionModal } from './PortionModal'
+import { QuickEntryModal } from './QuickEntryModal'
 import { RecipeForm } from './RecipeForm'
+import { useFoodReview } from './useFoodReview'
 
 type Tab = 'favorites' | 'meals' | 'recent'
 
@@ -56,6 +58,8 @@ export default function AddFoodPage() {
   const [review, setReview] = useState<MealSource | null>(null)
   const [describing, setDescribing] = useState(false)
   const [creatingRecipe, setCreatingRecipe] = useState(false)
+  // The quick entry's sheet, with the name it opens with (the search, when it came from there).
+  const [quick, setQuick] = useState<string | null>(null)
   const [labelPhoto, setLabelPhoto] = useState<Blob | null>(null)
   const sync = useSyncState()
   // The analysis runs in a Supabase function, so it needs the sync set up and a login.
@@ -85,6 +89,7 @@ export default function AddFoodPage() {
   const catalog = useFoodCatalog()
   const prefs = useFoodPrefs()
   const savedMeals = useSavedMeals()
+  const toReview = useFoodReview().items?.length ?? 0
   const lastMonth = useFoodLogs(shiftDay(today, -30), today)
   const index = useMemo(() => buildIndex(catalog), [catalog])
   const byId = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog])
@@ -107,6 +112,14 @@ export default function AddFoodPage() {
   const onLogged = (log: FoodLog) => {
     toast({
       message: `${log.name} · ${amountLabel(log.grams, log.unit, log.portion).split(' · ')[0]} · ${MEAL_LABEL[log.meal]}`,
+      action: { label: 'Desfazer', onClick: () => void remove(db.foodLogs, log.id) },
+    })
+    setQuery('')
+  }
+
+  const onQuickLogged = (log: FoodLog) => {
+    toast({
+      message: `${log.name} · ${formatNumber(log.nutrients.kcal, 0)} kcal · ${MEAL_LABEL[log.meal]}`,
       action: { label: 'Desfazer', onClick: () => void remove(db.foodLogs, log.id) },
     })
     setQuery('')
@@ -135,8 +148,12 @@ export default function AddFoodPage() {
           toast({ message: 'Produto não encontrado. Preencha com a tabela da embalagem.' })
           setDraft({ barcode: code })
         }
-      } catch {
-        toast({ message: 'Sem conexão com o Open Food Facts. Preencha com a tabela da embalagem.' })
+      } catch (error) {
+        toast({
+          message: isTimeout(error)
+            ? 'O Open Food Facts demorou demais para responder. Preencha com a tabela da embalagem.'
+            : 'Sem conexão com o Open Food Facts. Preencha com a tabela da embalagem.',
+        })
         setDraft({ barcode: code })
       }
     },
@@ -168,6 +185,7 @@ export default function AddFoodPage() {
         <div className="flex gap-2">
           <TextInput
             type="search"
+            aria-label="Buscar alimento"
             placeholder="Buscar: arroz, frango grelhado…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -206,9 +224,14 @@ export default function AddFoodPage() {
       {query.trim() ? (
         <Card title={`${results.length === 60 ? 'Primeiros 60' : results.length} resultados`}>
           {list(results, 'Nada encontrado.')}
-          <Button size="sm" variant="ghost" className="mt-2" onClick={() => setDraft({ name: query.trim() })}>
-            <Plus size={16} /> Criar “{query.trim()}”
-          </Button>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <Button size="sm" variant="ghost" onClick={() => setDraft({ name: query.trim() })}>
+              <Plus size={16} /> Criar “{query.trim()}”
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setQuick(query.trim())}>
+              <Zap size={16} /> Registro rápido
+            </Button>
+          </div>
         </Card>
       ) : (
         <Card>
@@ -259,6 +282,9 @@ export default function AddFoodPage() {
             )}
           </PageTabs>
           <div className="mt-2 flex flex-wrap gap-1">
+            <Button size="sm" variant="ghost" onClick={() => setQuick('')}>
+              <Zap size={16} /> Registro rápido
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => setDraft({})}>
               <Plus size={16} /> Criar alimento
             </Button>
@@ -266,6 +292,15 @@ export default function AddFoodPage() {
               <CookingPot size={16} /> Criar receita
             </Button>
           </div>
+          {toReview > 0 && (
+            <Link
+              to="/alimentacao/revisar"
+              className="mt-1 inline-flex items-center gap-1.5 px-3 py-1 text-xs text-muted hover:text-ink"
+            >
+              <TriangleAlert size={14} aria-hidden />
+              {toReview === 1 ? '1 alimento com valores para conferir' : `${toReview} alimentos com valores para conferir`}
+            </Link>
+          )}
         </Card>
       )}
 
@@ -284,6 +319,16 @@ export default function AddFoodPage() {
           onClose={() => setSelected(null)}
           onLogged={onLogged}
           onEdited={setSelected}
+        />
+      )}
+      {quick !== null && (
+        <QuickEntryModal
+          meal={meal}
+          date={date}
+          time={time ?? undefined}
+          initialName={quick}
+          onClose={() => setQuick(null)}
+          onLogged={onQuickLogged}
         />
       )}
       {creatingRecipe && (

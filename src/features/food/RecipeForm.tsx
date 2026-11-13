@@ -1,8 +1,9 @@
 import { Trash2, X } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
+import { useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { Button, DecimalInput, Empty, Field, IconButton, TextInput } from '../../components/ui'
-import { remove, save } from '../../db/repo'
+import { save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Food, Nutrients, RecipeIngredient } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
@@ -35,6 +36,7 @@ export function RecipeForm({
   onClose: () => void
   onSaved?: (food: Food) => void
 }) {
+  const removeWithUndo = useRemoveWithUndo()
   const catalog = useFoodCatalog()
   const prefs = useFoodPrefs()
   // A recipe can't go inside itself.
@@ -91,14 +93,17 @@ export function RecipeForm({
       source: 'recipe',
       ingredients,
       yieldGrams: ready,
+      // Still says which values the user confirmed: it only counts while they're the same.
+      checked: recipe?.checked,
     })
     onSaved?.(saved)
     onClose()
   }
 
-  async function onDelete() {
+  // Past logs keep their own copy of the name and values, so undoing is all a mistaken tap needs.
+  function onDelete() {
     if (!recipe) return
-    await remove(db.foods, recipe.id)
+    removeWithUndo(db.foods, recipe.id, 'Receita apagada')
     onClose()
   }
 
@@ -150,6 +155,7 @@ export function RecipeForm({
           <TextInput
             type="search"
             className="mt-2"
+            aria-label="Buscar ingrediente"
             placeholder="Adicionar ingrediente: arroz, frango…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -207,8 +213,8 @@ export function RecipeForm({
 
         <div className="flex gap-2">
           {recipe && (
-            <Button variant="danger" onClick={() => void onDelete()}>
-              <Trash2 size={16} /> Excluir
+            <Button variant="danger" onClick={onDelete}>
+              <Trash2 size={16} /> Apagar
             </Button>
           )}
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>

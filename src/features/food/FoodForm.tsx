@@ -1,8 +1,9 @@
-import { LoaderCircle, ScanText, Trash2 } from 'lucide-react'
+import { LoaderCircle, ScanText, Trash2, TriangleAlert } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
+import { useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { Button, DecimalInput, Field, Segmented, TextInput } from '../../components/ui'
-import { remove, save } from '../../db/repo'
+import { save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Food, FoodUnit, Nutrients, Portion } from '../../db/types'
 import { formatNumber, parseDecimal } from '../../lib/format'
@@ -13,6 +14,7 @@ import { LookButton, type Look } from './LookEditor'
 import { fillFromLabel, readLabel } from './label'
 import { MacroBalance } from './MacroViews'
 import { kcalFromMacros, multiply } from './nutrition'
+import { foodWarnings } from './sanity'
 
 /** What a scan or a search hands to the form before it becomes a saved food. */
 export interface FoodDraft {
@@ -98,6 +100,7 @@ export function FoodForm({
   const [portionGrams, setPortionGrams] = useState(asText(start.portion?.grams))
   // Saved with the food, in its prefs; the photo itself is kept as soon as it's taken.
   const [look, setLook] = useState<Look>({ photoId: startLook?.photoId, emoji: startLook?.emoji })
+  const removeWithUndo = useRemoveWithUndo()
   const sync = useSyncState()
   const canRead = sync.configured && !!sync.email && !inPortions
   const [camera, setCamera] = useState(false)
@@ -155,6 +158,14 @@ export function FoodForm({
     values.protein !== undefined && values.carbs !== undefined && values.fat !== undefined
       ? kcalFromMacros({ protein: values.protein, carbs: values.carbs, fat: values.fat })
       : undefined
+  // Checked per 100 g as they'll be saved; values per a portion of unknown weight only by their calories.
+  const warnings = !required
+    ? []
+    : perPortion
+      ? grams && grams > 0
+        ? foodWarnings(multiply(values as Nutrients, 100 / grams))
+        : foodWarnings(values as Nutrients, { unit: 'portion' })
+      : foodWarnings(values as Nutrients, { unit: inPortions ? 'portion' : undefined })
 
   /** Switching what the values refer to converts them, when the portion's weight is known. */
   function changeBasis(next: Basis) {
@@ -218,6 +229,8 @@ export function FoodForm({
       source: start.source ?? 'custom',
       basedOn: start.basedOn,
       imageUrl: start.imageUrl,
+      // Still says which values the user confirmed: it only counts while they're the same.
+      checked: food?.checked,
     })
     // A new version of a TACO food keeps its favorite star, last amount, photo and emoji.
     const base = !food && start.basedOn ? await db.foodPrefs.get(start.basedOn) : undefined
@@ -230,9 +243,10 @@ export function FoodForm({
     onClose()
   }
 
-  async function onDelete() {
+  // Past logs keep their own copy of the name and values, so undoing is all a mistaken tap needs.
+  function onDelete() {
     if (!food) return
-    await remove(db.foods, food.id)
+    removeWithUndo(db.foods, food.id, 'Alimento apagado')
     onClose()
   }
 
@@ -328,6 +342,16 @@ export function FoodForm({
           {fromMacros !== undefined && (
             <p className="mt-1 text-xs text-muted">Pelos macros: {formatNumber(fromMacros, 0)} kcal</p>
           )}
+          {warnings.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs text-(--tone-habits)">
+              {warnings.map((warning) => (
+                <li key={warning.code} className="flex gap-1.5">
+                  <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden />
+                  {warning.text}
+                </li>
+              ))}
+            </ul>
+          )}
         </fieldset>
 
         {required && (
@@ -343,8 +367,8 @@ export function FoodForm({
 
         <div className="flex gap-2">
           {food && (
-            <Button variant="danger" onClick={() => void onDelete()}>
-              <Trash2 size={16} /> Excluir
+            <Button variant="danger" onClick={onDelete}>
+              <Trash2 size={16} /> Apagar
             </Button>
           )}
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>

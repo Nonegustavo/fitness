@@ -363,6 +363,11 @@ export interface Food extends Synced {
   yieldGrams?: number
   /** The product's picture from Open Food Facts, for foods read by barcode. */
   imageUrl?: string
+  /**
+   * The values the user looked at and said are right ("Está certo" in "Revisar alimentos"), as their
+   * fingerprint: the food stays out of that list until one of them changes.
+   */
+  checked?: string
 }
 
 export interface RecipeIngredient {

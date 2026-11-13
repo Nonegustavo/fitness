@@ -56,8 +56,21 @@ export function parseProduct(product: Record<string, unknown>): ScannedProduct |
   }
 }
 
-/** Looks a barcode up in Open Food Facts. Null when the product isn't there or has no nutrition table. */
-export async function fetchProduct(barcode: string, signal?: AbortSignal): Promise<ScannedProduct | null> {
+/** How long a lookup may take: without a limit, a connection gone quiet left "Buscando o produto…" up forever. */
+export const LOOKUP_TIMEOUT_MS = 15_000
+
+/** Whether a lookup failed because it took too long (the time limit's abort), not for lack of a connection. */
+export const isTimeout = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'TimeoutError'
+
+/**
+ * Looks a barcode up in Open Food Facts. Null when the product isn't there or has no nutrition table.
+ * Gives up after LOOKUP_TIMEOUT_MS unless the caller passes its own signal.
+ */
+export async function fetchProduct(
+  barcode: string,
+  signal: AbortSignal = AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+): Promise<ScannedProduct | null> {
   const response = await fetch(
     `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${FIELDS}`,
     { signal },

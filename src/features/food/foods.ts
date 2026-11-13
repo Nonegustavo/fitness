@@ -5,6 +5,7 @@ import { db } from '../../db/schema'
 import type { Food, FoodLog, FoodPref, FoodUnit, MealKey, Nutrients, Portion, Synced } from '../../db/types'
 import { dayTime, formatTime, type DayKey } from '../../lib/dates'
 import { multiply, nutrientsFor } from './nutrition'
+import { QUICK_FOOD_ID } from './quick'
 import tacoData from './taco.json'
 
 export const TACO_SOURCE = 'TACO 4ª edição, NEPA/UNICAMP, 2011'
@@ -218,7 +219,7 @@ export async function suggestEmoji(foodId: string, emoji: string): Promise<void>
 
 /**
  * Foods for a meal: the ones eaten most often in that meal lately first (breakfast foods in the
- * morning), then the rest of the recent ones.
+ * morning), then the rest of the recent ones. Quick entries have no food behind them and stay out.
  */
 export function recentForMeal(
   logs: Pick<FoodLog, 'foodId' | 'meal' | 'time'>[],
@@ -227,7 +228,7 @@ export function recentForMeal(
 ): string[] {
   const counts = new Map<string, { n: number; last: number }>()
   for (const log of logs) {
-    if (log.meal !== meal) continue
+    if (log.meal !== meal || log.foodId === QUICK_FOOD_ID) continue
     const c = counts.get(log.foodId) ?? { n: 0, last: 0 }
     counts.set(log.foodId, { n: c.n + 1, last: Math.max(c.last, log.time) })
   }

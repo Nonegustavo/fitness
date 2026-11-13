@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { patch, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { FoodPref, Settings } from '../../db/types'
@@ -17,7 +17,7 @@ import {
   weighFood,
 } from './foods'
 import { amountLabel, goalsFor, kcalFromMacros, mealAt, nutrientsFor, scale, sumNutrients } from './nutrition'
-import { parseProduct } from './openFoodFacts'
+import { fetchProduct, isTimeout, parseProduct } from './openFoodFacts'
 
 const index = buildIndex(TACO_FOODS)
 const noPrefs = new Map<string, FoodPref>()
@@ -228,5 +228,29 @@ describe('parseProduct', () => {
         ?.per100.kcal,
     ).toBeCloseTo(100)
     expect(parseProduct({ nutriments: { 'energy-kcal_100g': 50 } })).toBeNull()
+  })
+})
+
+describe('fetchProduct', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  /** A server that never answers: the request only ends when its signal aborts. */
+  const silent = () =>
+    vi.fn((_url: string, init?: RequestInit) =>
+      new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal!.reason))),
+    )
+
+  it('always goes out with a time limit', async () => {
+    const fetch = vi.fn(async () => new Response('{}', { status: 404 }))
+    vi.stubGlobal('fetch', fetch)
+    expect(await fetchProduct('789')).toBeNull()
+    expect((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('gives up on a silent server, as a timeout and not as no connection', async () => {
+    vi.stubGlobal('fetch', silent())
+    const error = await fetchProduct('789', AbortSignal.timeout(5)).catch((cause: unknown) => cause)
+    expect(isTimeout(error)).toBe(true)
+    expect(isTimeout(new TypeError('Failed to fetch'))).toBe(false)
   })
 })

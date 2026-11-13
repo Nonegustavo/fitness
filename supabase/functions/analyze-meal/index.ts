@@ -1,6 +1,7 @@
 // Supabase Edge Function: identifies the foods in a plate photo, or in a description of the meal,
 // and estimates their weight with Claude; or, from the list of what was eaten (one item per line with
-// its amount), works out the grams and macros of each item; or picks an emoji for each food of a list.
+// its amount), works out the grams and macros of each item; or picks an emoji for each food of a list; or
+// reviews the values of the user's own foods and flags the ones that look wrong.
 // The Anthropic key lives in the project's secrets (ANTHROPIC_API_KEY), never in the app, and only the
 // logged-in owner of the project can call it.
 //
@@ -9,6 +10,8 @@
 // - {text}: a description of the meal → the same answer
 // - {text, mode: 'macros'}: the list of what was eaten → {items: [{name, grams, carbs, protein, fat, emoji}], notes}
 // - {names, mode: 'emoji'}: up to 300 food names → {emojis: [...]}, one per name in the same order ('' when unsure)
+// - {foods, mode: 'review'}: up to 150 foods, [{n, name, per: '100 g' | '1 porção', kcal, carbs, protein, fat}]
+//   → {flags: [{n, problem, likely}]}, only for the foods that look wrong (n is the food's place in the list, from 1)
 import Anthropic from 'npm:@anthropic-ai/sdk@1.3.0'
 
 const CORS = {
@@ -117,6 +120,52 @@ const EMOJI_SCHEMA = {
   additionalProperties: false,
 }
 
+const REVIEW_SYSTEM = `Você revisa os valores nutricionais que uma pessoa cadastrou num app pessoal de nutrição no Brasil. Ela manda uma lista numerada com os alimentos dela: o nome (às vezes com a marca), se os valores são por 100 g ou por 1 porção, as calorias e os gramas de carboidratos, proteína e gorduras.
+
+- Os erros comuns são: os valores de uma porção salvos como se fossem de 100 g (um pão de forma com 122 kcal em 100 g, quando uma fatia tem uns 60), carboidratos e proteína trocados, calorias que não batem com os macros, os valores do produto cru ou seco num alimento cozido (arroz cozido com os valores do arroz cru).
+- Compare cada alimento com o que ele costuma ter. Sinalize só o que estiver claramente errado; diferenças pequenas, de marca ou de receita, não são erro. Fique em silêncio sobre os alimentos que parecem certos.
+- Valores por 1 porção podem ser de qualquer tamanho de porção: neles, confira só se as calorias batem com os macros e se a proporção entre os macros faz sentido para o alimento.
+- Para cada alimento errado, devolva em "flags" o número dele na lista ("n"), "problem": o que está errado, numa frase curta ("As calorias parecem de uma fatia, não de 100 g."), e "likely": o que provavelmente aconteceu e quanto os valores por 100 g deveriam ter, mais ou menos ("Uns 245 kcal, 44 g de carboidratos, 10 g de proteína e 3 g de gorduras em 100 g."). "likely" fica vazio quando não der para dizer.
+- Se todos parecerem certos, devolva "flags" vazio.`
+
+// Numbered, so a food the model skips doesn't shift the flags onto the wrong foods.
+const REVIEW_SCHEMA = {
+  type: 'object',
+  properties: {
+    flags: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { n: { type: 'integer' }, problem: { type: 'string' }, likely: { type: 'string' } },
+        required: ['n', 'problem', 'likely'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['flags'],
+  additionalProperties: false,
+}
+
+/** A review asks about at most this many foods. */
+const MAX_REVIEW_FOODS = 150
+
+/** A number as the review shows it: one decimal, or a dash when it isn't one. */
+const reviewNumber = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) ? String(Math.round(value * 10) / 10).replace('.', ',') : '—'
+
+/** The flags that point at a food of the list and say what is wrong; the rest is dropped. */
+function flagsInRange(answer: unknown, count: number): { flags: { n: number; problem: string; likely: string }[] } {
+  const items = (answer as { flags?: unknown } | null)?.flags
+  const flags: { n: number; problem: string; likely: string }[] = []
+  for (const item of Array.isArray(items) ? items : []) {
+    const { n, problem, likely } = (item ?? {}) as { n?: unknown; problem?: unknown; likely?: unknown }
+    if (Number.isInteger(n) && (n as number) >= 1 && (n as number) <= count && typeof problem === 'string' && problem.trim()) {
+      flags.push({ n: n as number, problem: problem.trim(), likely: typeof likely === 'string' ? likely.trim() : '' })
+    }
+  }
+  return { flags }
+}
+
 /** A request for emojis asks for at most this many names, each cut to this length. */
 const MAX_NAMES = 300
 const MAX_NAME_LENGTH = 80
@@ -148,7 +197,27 @@ interface Analysis {
 
 /** The analysis a request body asks for (see the top of the file), or why it can't be done. */
 function analysisFor(body: Record<string, unknown>): Analysis | string {
-  const { image, mediaType, hint, text, mode, names } = body
+  const { image, mediaType, hint, text, mode, names, foods } = body
+  if (mode === 'review') {
+    // Numbered by their place in the list, as the app reads the answer.
+    const list = Array.isArray(foods) ? foods.slice(0, MAX_REVIEW_FOODS) : []
+    if (list.length === 0) return 'Envie os alimentos para revisar.'
+    const numbered = list
+      .map((item, i) => {
+        const { name, per, kcal, carbs, protein, fat } = (item ?? {}) as Record<string, unknown>
+        const label = typeof name === 'string' ? name.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH) : ''
+        const basis = per === '1 porção' ? '1 porção' : '100 g'
+        return `${i + 1}. ${label || '(sem nome)'}, por ${basis}: ${reviewNumber(kcal)} kcal, carboidratos ${reviewNumber(carbs)} g, proteína ${reviewNumber(protein)} g, gorduras ${reviewNumber(fat)} g`
+      })
+      .join('\n')
+    return {
+      system: REVIEW_SYSTEM,
+      schema: REVIEW_SCHEMA,
+      effort: 'medium',
+      text: `Os ${list.length} alimentos:\n${numbered}`,
+      finish: (answer) => flagsInRange(answer, list.length),
+    }
+  }
   if (mode === 'emoji') {
     // Every name keeps its place, even an empty one, so the answer lines up with the list sent.
     const list = Array.isArray(names)

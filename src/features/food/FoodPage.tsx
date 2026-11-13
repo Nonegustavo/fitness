@@ -520,6 +520,9 @@ type ValueKey = (typeof VALUE_FIELDS)[number]['key']
 
 const asText = (value: number) => String(Math.round(value * 10) / 10).replace('.', ',')
 
+/** The most one entry can hold: more is a typo (a few extra zeros), not a meal. */
+const MAX_AMOUNT = 5000
+
 /**
  * Changes a logged food: amount, meal, name, and its values when the table or the estimate was off.
  * A new amount scales the values, keeping any that were typed.
@@ -548,7 +551,7 @@ function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGo
     name.trim() !== '' &&
     grams !== undefined &&
     grams > 0 &&
-    grams <= 5000 &&
+    grams <= MAX_AMOUNT &&
     VALUE_FIELDS.every(({ key }) => (parseDecimal(texts[key]) ?? -1) >= 0)
 
   const amount = grams && grams > 0 ? grams : entry.grams
@@ -602,7 +605,15 @@ function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGo
         <div className="grid grid-cols-2 gap-3">
           <Field
             label={entry.unit === 'portion' ? 'Porções' : portion ? `Vezes ${portion.label}` : 'Quantidade (g)'}
-            hint={portion && grams ? `${formatNumber(grams, 0)} g` : undefined}
+            hint={
+              grams !== undefined && grams > MAX_AMOUNT ? (
+                <span className="text-critical">
+                  No máximo {formatNumber(MAX_AMOUNT, 0)} {entry.unit === 'portion' ? 'porções' : 'g'}.
+                </span>
+              ) : portion && grams ? (
+                `${formatNumber(grams, 0)} g`
+              ) : undefined
+            }
           >
             <DecimalInput value={gramsText} onChange={(e) => changeGrams(e.target.value)} />
           </Field>
