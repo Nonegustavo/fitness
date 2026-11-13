@@ -52,13 +52,20 @@ export function HealthConnectCard() {
           <p className="mt-1 text-sm text-ink-2">
             {busy
               ? 'Importando…'
-              : hc.lastImportAt
-                ? `Última importação: ${relativeDay(dayKey(hc.lastImportAt), today)}, ${formatTime(hc.lastImportAt)}`
+              : hc.lastOkAt
+                ? `Última importação com sucesso: ${relativeDay(dayKey(hc.lastOkAt), today)}, ${formatTime(hc.lastOkAt)}`
                 : 'Nenhuma importação ainda.'}
           </p>
-          {hc.message && !busy && (
-            <p className={cx('mt-1 text-sm', hc.phase === 'error' ? 'text-critical' : 'text-ink-2')}>{hc.message}</p>
-          )}
+          {!busy &&
+            (hc.lastError ? (
+              // Kept across restarts, until an import works.
+              <p className="mt-1 text-sm text-critical">
+                A importação de {relativeDay(dayKey(hc.lastError.at), today)}, {formatTime(hc.lastError.at)} falhou:{' '}
+                {hc.lastError.message}
+              </p>
+            ) : (
+              hc.message && <p className={cx('mt-1 text-sm', hc.phase === 'error' ? 'text-critical' : 'text-ink-2')}>{hc.message}</p>
+            ))}
           {!hc.access?.history && (
             <p className="mt-1 text-xs text-muted">
               Sem a permissão de histórico, o Health Connect só mostra os últimos 30 dias.

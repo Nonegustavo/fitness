@@ -1,5 +1,5 @@
 import { History, RefreshCw } from 'lucide-react'
-import { Button, Card, cx } from '../../components/ui'
+import { Button, Card, cx, Skeleton } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { dayKey, formatDay, formatTime, relativeDay } from '../../lib/dates'
 import { useSyncState } from '../../sync/controller'
@@ -12,10 +12,15 @@ export function GarminCard() {
   const today = useToday()
   if (!sync.configured) return null
   const busy = garmin.phase === 'syncing'
+  const when = (at: number) => `${relativeDay(dayKey(at), today)}, ${formatTime(at)}`
+  // The key isn't saved yet: a step still to do, not something that broke.
+  const notSetUp = garmin.lastError?.missing === 'key'
 
   return (
     <Card title="Garmin">
-      {!sync.email ? (
+      {!sync.authChecked ? (
+        <Skeleton className="h-4 w-2/3" />
+      ) : !sync.email ? (
         <p className="text-sm text-ink-2">
           Entre na sua conta, acima, para buscar atividades, sono e recuperação do Garmin.
         </p>
@@ -24,13 +29,24 @@ export function GarminCard() {
           <p className="text-sm">
             {busy
               ? (garmin.progress ?? 'Buscando…')
-              : garmin.lastRunAt
-                ? `Última busca: ${relativeDay(dayKey(garmin.lastRunAt), today)}, ${formatTime(garmin.lastRunAt)}`
-                : 'Nenhuma busca ainda.'}
+              : notSetUp
+                ? 'O Garmin ainda não está ligado: a chave não foi salva no Supabase.'
+                : garmin.lastOkAt
+                  ? `Última busca com sucesso: ${when(garmin.lastOkAt)}`
+                  : 'Nenhuma busca ainda.'}
           </p>
-          {garmin.message && !busy && (
-            <p className={cx('mt-1 text-sm', garmin.phase === 'error' ? 'text-critical' : 'text-ink-2')}>{garmin.message}</p>
-          )}
+          {!busy &&
+            (garmin.lastError && !notSetUp ? (
+              // Kept across restarts, until a fetch works.
+              <p className="mt-1 text-sm text-critical">
+                A busca de {when(garmin.lastError.at)} falhou: {garmin.lastError.message}
+              </p>
+            ) : (
+              garmin.message &&
+              !notSetUp && (
+                <p className={cx('mt-1 text-sm', garmin.phase === 'error' ? 'text-critical' : 'text-ink-2')}>{garmin.message}</p>
+              )
+            ))}
           {garmin.historyFrom && (
             <p className="mt-1 text-xs text-muted">Dados desde {formatDay(garmin.historyFrom, "d 'de' MMMM 'de' yyyy")}</p>
           )}
@@ -45,7 +61,7 @@ export function GarminCard() {
           <p className="mt-2 text-xs text-muted">O app também busca sozinho, a cada 3 horas, enquanto está aberto.</p>
         </>
       )}
-      <details className="mt-3 text-sm">
+      <details className="mt-3 text-sm" open={notSetUp || undefined}>
         <summary className="cursor-pointer text-ink-2 select-none hover:text-ink">Como ligar</summary>
         <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-ink-2">
           <li>

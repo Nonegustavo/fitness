@@ -10,6 +10,7 @@ import { supabase } from '../../sync/supabase'
 import { runWeatherQueue } from '../activities/weatherQueue'
 import { importCoachPlan } from '../sisrun/coachPlan'
 import { syncWatch } from '../sisrun/watch'
+import { currentError, lastSuccess, recordFailure, recordSuccess, type Outcome, type SourceError } from '../status/outcome'
 import type { ParsedFit } from '../activities/fit'
 import { garminCalendar, garminFile, garminGet, GarminError, orNull } from './api'
 import { parseCalendar, type PlannedEvent } from './calendar'
@@ -27,8 +28,11 @@ const HEALTH_CHUNK_DAYS = 28
 /** Coaches' plans (SisRUN, Garmin Coach) are runs, rides and swims. */
 const WORKOUT_SPORTS = new Set(['running', 'cycling', 'swimming', 'walking'])
 
-/** This device's Garmin bookkeeping (local, not synced). */
-interface GarminMeta {
+/**
+ * This device's Garmin bookkeeping (local, not synced). `lastRunAt` is the last attempt, failed or
+ * not (the automatic fetch waits 3 hours after it); `lastOkAt` and `lastError` say how it went.
+ */
+interface GarminMeta extends Outcome {
   lastRunAt?: number
   /** The day the last complete sync reached. */
   lastDay?: DayKey
@@ -47,6 +51,10 @@ export interface GarminState {
   /** What the last run brought, or its error. */
   message?: string
   lastRunAt?: number
+  /** The last fetch that worked, kept across restarts. */
+  lastOkAt?: number
+  /** The last fetch's problem when it failed after the last success, kept across restarts. */
+  lastError?: SourceError
   historyFrom?: DayKey
 }
 
@@ -65,6 +73,9 @@ const subscribe = (listener: () => void) => {
 
 export const useGarminState = (): GarminState => useSyncExternalStore(subscribe, () => state)
 
+/** For code outside React (pulling Hoje down reads how the fetch went). */
+export const getGarminState = (): GarminState => state
+
 /** The workouts from the last calendar fetch, or null when no calendar is set up. */
 export async function plannedEvents(): Promise<PlannedEvent[] | null> {
   const row = await db.meta.get(CALENDAR_KEY)
@@ -77,7 +88,15 @@ const readMeta = async (): Promise<GarminMeta> => ((await db.meta.get(META_KEY))
 const writeMeta = (meta: GarminMeta) => db.meta.put({ key: META_KEY, value: meta })
 
 /** When this device last brought Garmin's data, for the daily analysis to say how fresh what it reads is. */
-export const garminSyncedAt = async (): Promise<number | undefined> => (await readMeta()).lastRunAt
+export const garminSyncedAt = async (): Promise<number | undefined> => lastSuccess(await readMeta())
+
+/** What the state shows of the meta's outcome. */
+const outcomeOf = (meta: GarminMeta): Pick<GarminState, 'lastRunAt' | 'lastOkAt' | 'lastError' | 'historyFrom'> => ({
+  lastRunAt: meta.lastRunAt,
+  lastOkAt: lastSuccess(meta),
+  lastError: currentError(meta),
+  historyFrom: meta.historyFrom,
+})
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -268,15 +287,22 @@ async function run(range: (meta: GarminMeta, today: DayKey) => [DayKey, DayKey],
       ...(updated > 0 ? [updated === 1 ? '1 atividade editada no Garmin atualizada' : `${updated} atividades editadas no Garmin atualizadas`] : []),
       days === 1 ? '1 dia de sono e recuperação atualizado' : `${days} dias de sono e recuperação atualizados`,
     ]
-    meta.lastRunAt = Date.now()
-    await writeMeta(meta)
-    setState({ phase: 'idle', progress: undefined, message: parts.join(' · '), lastRunAt: meta.lastRunAt, historyFrom: meta.historyFrom })
+    const now = Date.now()
+    const worked = recordSuccess({ ...meta, lastRunAt: now }, now)
+    await writeMeta(worked)
+    setState({ phase: 'idle', progress: undefined, message: parts.join(' · '), ...outcomeOf(worked) })
   } catch (error) {
-    // Even a failed run waits for the next window, so an error doesn't hammer Garmin.
-    meta.lastRunAt = Date.now()
-    await writeMeta(meta)
     const message = error instanceof Error ? error.message : String(error)
-    setState({ phase: 'error', progress: undefined, message, lastRunAt: meta.lastRunAt })
+    const garmin = error instanceof GarminError ? error : undefined
+    // Even a failed run waits for the next window, so an error doesn't hammer Garmin. The error is kept
+    // too, so it still shows after a restart and the last success stays the last success.
+    const now = Date.now()
+    const failed = recordFailure(
+      { ...meta, lastRunAt: now },
+      { at: now, message, ...(garmin?.status !== undefined && { status: garmin.status }), ...(garmin?.missing && { missing: garmin.missing }) },
+    )
+    await writeMeta(failed)
+    setState({ phase: 'error', progress: undefined, message, ...outcomeOf(failed) })
   } finally {
     running = false
     // The weather of what came (and of the last 60 days, the first time), slowly in the background.
@@ -323,7 +349,7 @@ let autoTimer: ReturnType<typeof setTimeout> | undefined
 /** Syncs on its own, at most every 3 hours, while the app is open and signed in. */
 export function startGarminSync(): void {
   if (!supabase) return
-  void readMeta().then((meta) => setState({ lastRunAt: meta.lastRunAt, historyFrom: meta.historyFrom }))
+  void readMeta().then((meta) => setState(outcomeOf(meta)))
   const check = () => {
     if (!getSyncState().email || document.visibilityState !== 'visible') return
     // The Android watch for new SisRUN workouts keeps running (and up to date) after an update or a reboot.

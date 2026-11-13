@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { onLocalChange } from '../db/events'
 import { db, PULL_CURSOR } from '../db/schema'
 import { syncOnce } from './engine'
+import { describeSyncError } from './errors'
 import { supabase, supabaseRemote } from './supabase'
 
 export interface SyncState {
@@ -10,12 +11,30 @@ export interface SyncState {
   email: string | null
   /** Whether the saved login has been read yet: until then a null `email` doesn't mean signed out. */
   authChecked?: boolean
+  /**
+   * The saved login was read, there is no session, and this device had been signed in (and never
+   * chose "Sair"): the session expired, which is a problem to fix, not sync turned off.
+   */
+  expired: boolean
+  /** The e-mail this device was last signed in with, to fill in the login form again. */
+  accountEmail?: string
   phase: 'idle' | 'syncing' | 'error' | 'offline'
+  /** When a sync finished in this run of the app (in memory only: other code waits for the first one). */
   lastSyncAt?: number
+  /** When a sync last worked on this device, kept across restarts. */
+  lastOkAt?: number
+  /** The last sync's problem, in Portuguese. */
   error?: string
+  /** Supabase's own text of that problem, when the message doesn't say it all. */
+  errorDetail?: string
 }
 
-let state: SyncState = { configured: supabase !== null, email: null, phase: 'idle' }
+/** This device was signed in, with this e-mail (removed by "Sair"). */
+const ACCOUNT_KEY = 'account'
+/** When a sync last worked on this device. */
+const LAST_OK_KEY = 'lastSyncOk'
+
+let state: SyncState = { configured: supabase !== null, email: null, expired: false, phase: 'idle' }
 const listeners = new Set<() => void>()
 
 function setState(changes: Partial<SyncState>) {
@@ -49,12 +68,15 @@ export async function syncNow(): Promise<void> {
     return
   }
   running = true
-  setState({ phase: 'syncing', error: undefined })
+  setState({ phase: 'syncing', error: undefined, errorDetail: undefined })
   try {
     await syncOnce(db, supabaseRemote(supabase))
-    setState({ phase: 'idle', lastSyncAt: Date.now() })
+    const now = Date.now()
+    await db.meta.put({ key: LAST_OK_KEY, value: now }).catch(() => undefined)
+    setState({ phase: 'idle', lastSyncAt: now, lastOkAt: now })
   } catch (error) {
-    setState({ phase: 'error', error: error instanceof Error ? error.message : String(error) })
+    const problem = describeSyncError(error)
+    setState({ phase: 'error', error: problem.message, errorDetail: problem.detail })
   } finally {
     running = false
     if (runAgain) {
@@ -70,12 +92,39 @@ function scheduleSync(delayMs = 1500) {
   timer = setTimeout(() => void syncNow(), delayMs)
 }
 
+const readAccount = async (): Promise<string | undefined> =>
+  ((await db.meta.get(ACCOUNT_KEY))?.value as { email?: string } | undefined)?.email
+
+/** Each auth event's reading of the saved account; a later event's wins over an earlier one still reading. */
+let authEvents = 0
+
 /** Wires the sync triggers: login, local writes, reconnecting, reopening the app, and a timer. */
 export function startSync(): void {
   if (!supabase) return
+  void db.meta
+    .get(LAST_OK_KEY)
+    .then((row) => {
+      if (state.lastOkAt === undefined && typeof row?.value === 'number') setState({ lastOkAt: row.value })
+    })
+    .catch(() => undefined)
   supabase.auth.onAuthStateChange((_event, session) => {
-    setState({ email: session?.user.email ?? null, authChecked: true })
-    if (session) scheduleSync(0)
+    const event = ++authEvents
+    const email = session?.user.email ?? null
+    if (session) {
+      setState({ email, authChecked: true, expired: false, accountEmail: email ?? undefined })
+      // Remembered so a lost session later reads as expired, not as signed out on purpose.
+      void db.meta.put({ key: ACCOUNT_KEY, value: { email } }).catch(() => undefined)
+      scheduleSync(0)
+      return
+    }
+    // No session: signed out on purpose, never signed in, or the session expired. `authChecked` waits
+    // for the answer, so the screens don't flash the wrong one.
+    void readAccount()
+      .catch(() => undefined)
+      .then((account) => {
+        if (event !== authEvents) return
+        setState({ email: null, authChecked: true, expired: account !== undefined, accountEmail: account })
+      })
   })
   onLocalChange(() => scheduleSync())
   window.addEventListener('online', () => scheduleSync(0))
@@ -97,9 +146,22 @@ export async function signIn(email: string, password: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
+/** Signs this device out (the others stay signed in); the data stays here. */
 export async function signOut(): Promise<void> {
-  await requireClient().auth.signOut()
+  const client = requireClient()
+  // Forgotten first, so the auth event that follows reads "signed out", not "expired".
+  await db.meta.bulkDelete([ACCOUNT_KEY, LAST_OK_KEY])
+  // `local`: the default scope ends the session on every device.
+  await client.auth.signOut({ scope: 'local' })
   // Local data stays; the next login pulls everything again from the start.
   await db.meta.delete(PULL_CURSOR)
-  setState({ phase: 'idle', lastSyncAt: undefined, error: undefined })
+  setState({
+    phase: 'idle',
+    expired: false,
+    accountEmail: undefined,
+    lastSyncAt: undefined,
+    lastOkAt: undefined,
+    error: undefined,
+    errorDetail: undefined,
+  })
 }

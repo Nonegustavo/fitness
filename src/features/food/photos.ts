@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../../db/schema'
 import { newId } from '../../lib/ids'
 import { getSyncState, onSyncStateChange } from '../../sync/controller'
+import { isConnectionError } from '../../sync/errors'
 import { supabase } from '../../sync/supabase'
 
 /** Private bucket in the project's storage, one folder per user (supabase/migrations). */
@@ -47,26 +48,67 @@ async function pathOf(id: string): Promise<string | undefined> {
   return user ? `${user}/${id}.jpg` : undefined
 }
 
+/** How one photo's upload went: `stop` when none of the rest can go either (no session, no connection). */
+export type UploadStep = 'sent' | 'failed' | 'stop'
+
+/**
+ * Goes through the queue in order. A photo that fails waits for the next round while the ones after it
+ * still go, so one bad photo doesn't hold back all the others.
+ */
+export async function drainQueue<T>(queue: T[], send: (item: T) => Promise<UploadStep>): Promise<{ sent: number; failed: number }> {
+  let sent = 0
+  let failed = 0
+  for (const item of queue) {
+    const step = await send(item)
+    if (step === 'stop') break
+    if (step === 'sent') sent++
+    else failed++
+  }
+  return { sent, failed }
+}
+
 let uploading = false
 
 /** Sends the photos that only this device has to the server; what fails waits for the next sync. */
 export async function uploadPendingPhotos(): Promise<void> {
-  if (uploading || !supabase || !navigator.onLine) return
+  const client = supabase
+  if (uploading || !client || !navigator.onLine) return
   uploading = true
   try {
-    for (const photo of await db.photos.where('pending').equals(1).toArray()) {
+    await drainQueue(await db.photos.where('pending').equals(1).toArray(), async (photo) => {
+      if (!navigator.onLine) return 'stop'
       const path = await pathOf(photo.id)
-      if (!path) return
-      const { error } = await supabase.storage
-        .from(BUCKET)
-        .upload(path, photo.blob, { contentType: 'image/jpeg', upsert: true })
-      if (error) return
+      if (!path) return 'stop'
+      try {
+        const { error } = await client.storage
+          .from(BUCKET)
+          .upload(path, photo.blob, { contentType: 'image/jpeg', upsert: true })
+        if (error) throw error
+      } catch (error) {
+        // The server out of reach fails every photo alike; anything else is this photo's own problem.
+        return isConnectionError(error) ? 'stop' : 'failed'
+      }
       await db.photos.update(photo.id, { pending: 0 })
-    }
+      return 'sent'
+    })
   } finally {
     uploading = false
   }
 }
+
+/** The photos still to send: how many, and since when the oldest waits. */
+export interface PendingPhotos {
+  count: number
+  oldestAt?: number
+}
+
+export async function pendingPhotos(): Promise<PendingPhotos> {
+  const pending = await db.photos.where('pending').equals(1).toArray()
+  const oldestAt = pending.length ? Math.min(...pending.map((photo) => photo.createdAt)) : undefined
+  return { count: pending.length, ...(oldestAt !== undefined && { oldestAt }) }
+}
+
+export const usePendingPhotos = (): PendingPhotos | undefined => useLiveQuery(pendingPhotos)
 
 /** Uploads after every successful sync, so photos follow the records that point at them. */
 export function startPhotoUploads(): void {

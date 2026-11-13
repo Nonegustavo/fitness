@@ -143,6 +143,55 @@ describe('garmin token migration', () => {
   })
 })
 
+describe('records rev order migration', () => {
+  const revOf = async (user: string, id: string) =>
+    Number((await asUser<Row>(user, 'select rev from public.records where id = $1', [id]))[0].rev)
+  const row = (id: string, kg: number, updatedAt: number) => ({ ...weight(kg, updatedAt), id })
+
+  it('gives an inserted row its rev from the trigger, and later pushes larger ones', async () => {
+    const before = Number((await pg.query<{ last_value: string }>('select last_value from public.records_rev_seq')).rows[0].last_value)
+    await push(USER_B, [row('order-1', 70, 1000)])
+    const first = await revOf(USER_B, 'order-1')
+    // The column default takes one value, the trigger the next: the stored rev is the trigger's.
+    expect(first).toBe(before + 2)
+    await push(USER_B, [row('order-2', 71, 1000)])
+    const second = await revOf(USER_B, 'order-2')
+    await push(USER_B, [row('order-1', 72, 2000)])
+    const third = await revOf(USER_B, 'order-1')
+    expect(second).toBeGreaterThan(first)
+    expect(third).toBeGreaterThan(second)
+  })
+
+  it('changes nothing when the server ignores an older push', async () => {
+    const [before] = await asUser<Row>(USER_B, `select * from public.records where id = 'order-1'`)
+    await push(USER_B, [row('order-1', 50, 1500)])
+    const [after] = await asUser<Row>(USER_B, `select * from public.records where id = 'order-1'`)
+    expect(after).toEqual(before)
+  })
+
+  // PGlite has a single connection, so two pushes can't actually race here. What can be checked is
+  // that a push holds the user's advisory lock until its transaction ends, which is what makes a
+  // second push of the same user wait on a real server.
+  it('holds an advisory lock from the push until the commit', async () => {
+    const advisoryLocks = async () =>
+      Number(
+        (
+          await pg.query<{ count: string }>(
+            `select count(*) from pg_locks where locktype = 'advisory' and pid = pg_backend_pid() and granted`,
+          )
+        ).rows[0].count,
+      )
+    await pg.exec('begin')
+    try {
+      await push(USER_B, [row('order-3', 73, 1000)])
+      expect(await advisoryLocks()).toBeGreaterThan(0)
+    } finally {
+      await pg.exec('commit')
+    }
+    expect(await advisoryLocks()).toBe(0)
+  })
+})
+
 describe('food photos migration', () => {
   const upload = (user: string, name: string) =>
     asUser(user, `insert into storage.objects (bucket_id, name) values ('fotos', $1)`, [name])
