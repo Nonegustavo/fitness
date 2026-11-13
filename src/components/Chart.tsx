@@ -43,6 +43,7 @@ export function useChartTokens(): ChartTokens {
       series2: token('--series-2'),
     }
     // `dark` is the cache key: the tokens change when the scheme flips.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dark])
 }
 
@@ -133,6 +134,7 @@ export function Chart({
       chart.current = null
     }
     // The group is read once: a chart keeps the one it was created with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

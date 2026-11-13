@@ -1,0 +1,14 @@
+# The same line endings on every machine (the Windows PC, the cloud sessions, CI): LF in the repository
+# and in the working tree. A tool that rewrites a file with LF (cap sync, a script) then changes nothing.
+* text=auto eol=lf
+*.bat text eol=crlf
+
+# Never text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.jar binary
+*.keystore binary
+*.woff2 binary

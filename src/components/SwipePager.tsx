@@ -177,6 +177,7 @@ export function SwipePager<K extends string>({
   const [ready, setReady] = useState<readonly K[]>([])
   // Each page as `children` drew it, for as long as `children` stays the same: a drag starting, a
   // swap or a page drawn ahead then leaves the other pages as they are instead of drawing them again.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `children` is what the cache is of
   const drawn = useMemo(() => new Map<K, ReactNode>(), [children])
   const draw = (key: K) => {
     if (!drawn.has(key)) drawn.set(key, children(key))
@@ -302,6 +303,7 @@ export function SwipePager<K extends string>({
       rest()
     }
     // Only a new page or a new slide moves anything.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current.shown, current.slide?.id])
 
   const onDown = useEffectEvent((event: PointerEvent) => {
@@ -452,6 +454,8 @@ export function SwipePager<K extends string>({
       element.removeEventListener('lostpointercapture', lost)
       host.removeEventListener('click', click, true)
       if (anywhere) document.body.style.touchAction = touchAction
+      // The motion is this component's own state, not a node: what it holds as the pager leaves is what to stop.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       motion.current.animation?.cancel()
     }
   }, [anywhere])

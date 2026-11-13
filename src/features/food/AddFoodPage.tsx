@@ -84,6 +84,7 @@ export default function AddFoodPage() {
         { replace: true },
       )
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as said above
   }, [])
 
   const catalog = useFoodCatalog()

@@ -1,6 +1,9 @@
 node_modules
 dist
 dist-android
+dist-e2e
+test-results
+playwright-report
 dev-dist
 coverage
 *.local

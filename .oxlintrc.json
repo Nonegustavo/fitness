@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // Only the two rules of hooks: a hook called under a condition, and an effect or memo that forgot
+  // something it reads. Everything else is left to TypeScript's strict checks.
+  "plugins": ["react"],
+  "categories": {
+    "correctness": "off"
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error"
+  },
+  "ignorePatterns": ["dist", "dist-android", "dist-e2e", "dev-dist", "android", "supabase/functions"]
+}

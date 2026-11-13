@@ -167,6 +167,7 @@ function CloseDayCard({ date, eaten, goals }: { date: DayKey; eaten: Nutrients; 
       })
     return closeTheDay(foods, left)
     // A new `left` object comes with every render; its values are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefs, catalog, left.kcal, left.protein, left.carbs, left.fat])
 
   // The last stretch of the day: with more than that left, it's still meals ahead, not a gap to close.
