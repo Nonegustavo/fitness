@@ -6,7 +6,6 @@ import {
   exerciseBlocks,
   keepDone,
   lastCheckedSet,
-  loggedLater,
   matchTemplate,
   pastSession,
   removeExercise,
@@ -351,13 +350,9 @@ describe('a workout logged afterwards', () => {
     expect(session.templateId).toBeUndefined()
   })
 
-  it('tells itself apart from a workout followed in the app', () => {
-    const logged = { ...pastSession(template, at, 60, [], typeOf), id: 'p', updatedAt: 0, deleted: 0 as const, dirty: 0 as const }
-    expect(loggedLater(logged)).toBe(true)
-    const followed = before(at, [exercise({ sets: [done('normal', { reps: 8 }), { key: 'x', kind: 'normal', done: true }] })])
-    expect(loggedLater(followed)).toBe(false)
-    expect(loggedLater(before(at, []))).toBe(false)
-    expect(loggedLater({ ...logged, endedAt: undefined })).toBe(false)
+  it('is marked as logged afterwards, finished, with or without a template', () => {
+    expect(pastSession(template, at, 45, [], typeOf)).toMatchObject({ loggedLater: true, startedAt: at, endedAt: at + 45 * 60_000 })
+    expect(pastSession(undefined, at, 60, [], typeOf).loggedLater).toBe(true)
   })
 
   it('lasts as long as the template usually does', () => {

@@ -59,15 +59,20 @@ export function PastWorkoutModal({
     event.preventDefault()
     if (!valid || saving) return
     setSaving(true)
-    const id = await logPastWorkout(
-      template,
-      startedAt,
-      minutes,
-      sessions,
-      (exerciseId) => exercises.get(exerciseId)?.type ?? 'weight_reps',
-    )
-    onClose()
-    navigate(`/treinos/sessao/${id}`)
+    try {
+      const id = await logPastWorkout(
+        template,
+        startedAt,
+        minutes,
+        sessions,
+        (exerciseId) => exercises.get(exerciseId)?.type ?? 'weight_reps',
+      )
+      onClose()
+      navigate(`/treinos/sessao/${id}`)
+    } finally {
+      // A save that failed leaves the sheet open to try again (the app says it couldn't save).
+      setSaving(false)
+    }
   }
 
   return (

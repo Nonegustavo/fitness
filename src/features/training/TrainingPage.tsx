@@ -180,6 +180,11 @@ export default function TrainingPage() {
             )}
           </Card>
 
+          <UpcomingCard today={today} />
+        </Stack>
+
+        {/* What is still to do on the left, what was done on the right; one after the other on the phone. */}
+        <Stack>
           <Card title="Esta semana">
             <div className="grid grid-cols-3 gap-3">
               <Stat label="Treinos" value={week.length} />
@@ -188,10 +193,6 @@ export default function TrainingPage() {
             </div>
             <MuscleMap counts={setsByMuscle(finished, exercises, thisWeek, today)} />
           </Card>
-        </Stack>
-
-        <Stack>
-          <UpcomingCard today={today} />
 
           <ProgressCard sessions={finished} exercises={exercises} today={today} />
 

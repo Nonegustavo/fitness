@@ -22,7 +22,19 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { celebrate } from '../../components/celebrate'
 import { Confirm, Modal } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
-import { Button, Card, cx, DecimalInput, Empty, IconButton, Page, SkeletonCard, Stat, TextInput } from '../../components/ui'
+import {
+  Button,
+  Card,
+  clockHintIfDifferent,
+  cx,
+  DecimalInput,
+  Empty,
+  IconButton,
+  Page,
+  SkeletonCard,
+  Stat,
+  TextInput,
+} from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { mutate } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -33,7 +45,7 @@ import { setPeakHeartRates, useActivityStream, useWorkoutActivity } from '../act
 import { WorkoutWatchCard } from '../activities/WorkoutWatchCard'
 import { ShareSessionButton } from '../activities/ShareButtons'
 import { EQUIPMENT, formatComparison, formatE1rm, formatReps, formatSet, MUSCLES } from './catalog'
-import { clockHintIfDifferent, Elapsed } from './components'
+import { Elapsed } from './components'
 import { ExercisePicker } from './ExercisePicker'
 import { startRest, stopRest } from './restTimer'
 import { checkedValues, previousSets } from './setValues'
@@ -65,7 +77,6 @@ import {
   exerciseBlocks,
   finishWorkout,
   lastCheckedSet,
-  loggedLater,
   matchTemplate,
   newSessionExercise,
   removeExercise,
@@ -168,7 +179,7 @@ export default function SessionPage() {
               {records.size === 1 ? '1 recorde' : `${records.size} recordes`} de carga (1RM estimado)
             </p>
           )}
-          {loggedLater(session) && (
+          {session.loggedLater && (
             <p className="mt-3 flex items-center gap-2 text-sm text-ink-2">
               <History size={16} className="shrink-0" aria-hidden /> Treino registrado depois: confira as séries.
             </p>

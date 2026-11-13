@@ -119,6 +119,7 @@ export function pastSession(
     date: dayKey(startedAt),
     startedAt,
     endedAt: startedAt + minutes * 60_000,
+    loggedLater: true,
     exercises: fromTemplate(template).map((exercise) => {
       const type = typeOf(exercise.exerciseId)
       const previous = previousSets(exercise.sets, lastPerformance(sessions, exercise.exerciseId, startedAt)?.exercise)
@@ -138,17 +139,6 @@ export function pastSession(
 /** Saves a workout logged afterwards (see pastSession) and gives its id. */
 export async function logPastWorkout(...args: Parameters<typeof pastSession>): Promise<string> {
   return (await save(db.workoutSessions, pastSession(...args))).id
-}
-
-/**
- * A finished workout logged afterwards: done sets, none with the time it was checked. A workout followed
- * in the app has every done set timed (checking, the set timer, the watch and the notification all
- * record it).
- */
-export function loggedLater(session: WorkoutSession): boolean {
-  if (!session.endedAt) return false
-  const done = session.exercises.flatMap((exercise) => exercise.sets.filter((set) => set.done))
-  return done.length > 0 && done.every((set) => set.completedAt === undefined)
 }
 
 /** An exercise added during a workout: as many sets as last time, or three. */

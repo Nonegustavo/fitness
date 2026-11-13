@@ -11,6 +11,7 @@ import {
   type SelectHTMLAttributes,
 } from 'react'
 import { Link } from 'react-router'
+import { formatClock, parseClock } from '../lib/format'
 import { arrowTarget } from './keys'
 import { useReveal } from './reveal'
 import type { PagerDrag } from './SwipePager'
@@ -214,6 +215,24 @@ export function Field({
       {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}
     </Wrapper>
   )
+}
+
+/**
+ * How a time typed in a field was read ("= 1:30"), for the field's hint: "130" turning out to be 2:10 is
+ * no surprise then. A nudge in red when it can't be read, nothing while the field is empty. `parse`
+ * reads the text (as seconds, unless the field has its own reading).
+ */
+export function clockHint(text: string, parse: (text: string) => number | undefined = parseClock): ReactNode {
+  if (!text.trim()) return undefined
+  const seconds = parse(text)
+  if (seconds === undefined) return <span className="text-critical">use min:seg</span>
+  return `= ${formatClock(seconds)}`
+}
+
+/** The same, only while the text isn't already written as it reads ("130", not "2:10"): for tight rows. */
+export function clockHintIfDifferent(text: string): ReactNode {
+  const seconds = parseClock(text)
+  return seconds !== undefined && formatClock(seconds) === text.trim() ? undefined : clockHint(text)
 }
 
 const inputClass =

@@ -4,7 +4,20 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Confirm } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
-import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, Switch, TextInput } from '../../components/ui'
+import {
+  Button,
+  Card,
+  clockHint,
+  clockHintIfDifferent,
+  cx,
+  DecimalInput,
+  Empty,
+  Field,
+  IconButton,
+  Page,
+  Switch,
+  TextInput,
+} from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import { patch, remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -14,7 +27,6 @@ import { newId } from '../../lib/ids'
 import { EQUIPMENT, MUSCLES } from './catalog'
 import { ExercisePicker } from './ExercisePicker'
 import { DEFAULT_GYM, LOAD_STEP, lastPerformance } from './stats'
-import { clockHint, clockHintIfDifferent } from './components'
 import { DEFAULT_REST_SEC, DEFAULT_WARMUP_REST_SEC, useExerciseMap, useSessions, useTemplates } from './training'
 import { replaceWarmups, suggestWarmup, type WarmupSet } from './warmup'
 import { WarmupPreview } from './WarmupPreview'

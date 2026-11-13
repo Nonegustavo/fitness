@@ -585,6 +585,11 @@ export interface WorkoutSession extends Synced {
   startedAt: number
   /** Unset while the workout is in progress. */
   endedAt?: number
+  /**
+   * Logged after it happened ("Registrar treino passado"): its sets came filled in from the last time
+   * or the template, for the user to correct, and none has the time it was done.
+   */
+  loggedLater?: boolean
   exercises: SessionExercise[]
   notes?: string
   /** How hard the whole session felt, 1–10 (RPE). */
