@@ -99,6 +99,7 @@ export default function InsightsPage() {
       icon={ChartScatter}
       tone="insights"
       subtitle="Como hábitos, treino, alimentação e clima andam junto com seu sono, recuperação, corridas e peso"
+      wide
     >
       <div className="flex justify-center">
         <Segmented label="Período" value={period} options={PERIODS} onChange={setPeriod} />

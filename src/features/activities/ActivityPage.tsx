@@ -169,14 +169,14 @@ export default function ActivityPage() {
       {activity.garminId !== undefined && <RefreshFromGarmin activity={activity} />}
 
       <Button variant="ghost" className="w-full text-critical" onClick={() => setConfirmDelete(true)}>
-        <Trash2 size={16} /> Excluir atividade
+        <Trash2 size={16} /> Apagar atividade
       </Button>
 
       {confirmDelete && (
         <Confirm
-          title="Excluir atividade?"
+          title="Apagar atividade?"
           message="Ela sai do app em todos os aparelhos. No Garmin Connect, nada muda."
-          confirmLabel="Excluir"
+          confirmLabel="Apagar"
           danger
           onClose={() => setConfirmDelete(false)}
           onConfirm={() => void deleteActivity(activity.id).then(() => navigate('/treinos/atividades'))}

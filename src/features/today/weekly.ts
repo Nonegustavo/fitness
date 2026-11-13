@@ -190,7 +190,8 @@ export const delta = (now: number | undefined, then: number | undefined, digits 
 /**
  * The summary's rows, each with its change from the period before. Counts (days, workouts, sets,
  * activities) are totals of the period; calories, protein, sleep, steps and water are averages over the
- * days with data, so a month reads like a week; the weight is its trend's change over the period.
+ * days with data, so a month reads like a week; the weight is its trend's change over the period. The
+ * labels don't name the period (the screen says it above them): they go two to a row on the phone.
  */
 export function rowsOf(w: WeekStats, p: WeekStats, grain: SummaryGrain = 'week'): Row[] {
   const month = grain === 'month'
@@ -199,21 +200,21 @@ export function rowsOf(w: WeekStats, p: WeekStats, grain: SummaryGrain = 'week')
     rows.push({ label: 'Dias com alimentação', short: 'Alimentação', value: String(w.foodDays), change: delta(w.foodDays, p.foodDays) })
   if (w.workouts || p.workouts) {
     rows.push({
-      label: month ? 'Musculação no mês' : 'Musculação',
+      label: 'Musculação',
       short: 'Musculação',
       value: `${w.workouts} ${w.workouts === 1 ? 'treino' : 'treinos'}`,
       change: delta(w.workouts, p.workouts),
       key: 1,
     })
     rows.push({
-      label: month ? 'Séries no mês' : 'Séries',
+      label: 'Séries',
       value: String(w.sets),
       change: delta(w.sets, p.workouts || p.sets ? p.sets : undefined),
     })
   }
   if (w.activities || p.activities)
     rows.push({
-      label: month ? 'Outras atividades no mês' : 'Outras atividades',
+      label: 'Outras atividades',
       short: 'Atividades',
       value: String(w.activities),
       change: delta(w.activities, p.activities),
@@ -233,7 +234,7 @@ export function rowsOf(w: WeekStats, p: WeekStats, grain: SummaryGrain = 'week')
   }
   if (w.steps !== undefined) rows.push({ label: 'Passos por dia', short: 'Passos', value: formatNumber(w.steps, 0), change: delta(w.steps, p.steps) })
   if (w.weightChange !== undefined)
-    rows.push({ label: month ? 'Peso no mês (tendência)' : 'Peso (tendência)', short: 'Peso', value: `${formatSigned(w.weightChange)} kg`, key: 4 })
+    rows.push({ label: 'Peso (tendência)', short: 'Peso', value: `${formatSigned(w.weightChange)} kg`, key: 4 })
   if (w.waterL !== undefined) rows.push({ label: 'Água por dia', short: 'Água', value: `${formatNumber(w.waterL)} L`, change: delta(w.waterL, p.waterL, 1, ' L') })
   if (w.habits !== undefined)
     rows.push({

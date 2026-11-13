@@ -225,7 +225,7 @@ export default function SessionPage() {
         </Button>
       ) : (
         <Button variant="ghost" className="w-full text-critical" onClick={() => setDialog('delete')}>
-          <Trash2 size={16} /> Excluir treino
+          <Trash2 size={16} /> Apagar treino
         </Button>
       )}
       {/* Room for the rest timer, which floats over the bottom of the page. */}
@@ -265,9 +265,9 @@ export default function SessionPage() {
       )}
       {(dialog === 'discard' || dialog === 'delete') && (
         <Confirm
-          title={dialog === 'discard' ? 'Descartar treino?' : 'Excluir treino?'}
+          title={dialog === 'discard' ? 'Descartar treino?' : 'Apagar treino?'}
           message={dialog === 'discard' ? 'Nada deste treino será salvo.' : 'O treino sai do histórico.'}
-          confirmLabel={dialog === 'discard' ? 'Descartar' : 'Excluir'}
+          confirmLabel={dialog === 'discard' ? 'Descartar' : 'Apagar'}
           danger
           onClose={() => setDialog(null)}
           onConfirm={() => {
@@ -354,7 +354,7 @@ function ExerciseCard({
   const linked = !!exercise.supersetWithNext && !!next
   const inSuperset = linked || !!previous?.supersetWithNext
   const nameOf = (id: string) => library.find((e) => e.id === id)?.name ?? 'o próximo'
-  const name = info?.name ?? 'Exercício removido'
+  const name = info?.name ?? 'Exercício apagado'
   const hasWarmups = exercise.sets.some((set) => set.kind === 'warmup')
   // Warm-ups climb to a load: none at body weight or for timed exercises.
   const canWarm = active && type === 'weight_reps' && !!info && LOAD_STEP[info.equipment] > 0
@@ -611,7 +611,7 @@ function ReorderModal({
     async () => (session.templateId ? ((await db.workoutTemplates.get(session.templateId)) ?? null) : null),
     [session.templateId],
   )
-  const nameOf = (exercise: { exerciseId: string }) => exercises.get(exercise.exerciseId)?.name ?? 'Exercício removido'
+  const nameOf = (exercise: { exerciseId: string }) => exercises.get(exercise.exerciseId)?.name ?? 'Exercício apagado'
   const names = (list: { exerciseId: string }[]) => LIST.format(list.map(nameOf))
 
   const live = template && !template.deleted ? template : undefined

@@ -120,7 +120,7 @@ export default function ExerciseDetail() {
         </IconButton>
       }
     >
-      {exercise.deleted === 1 && <p className="text-sm text-muted">Este exercício foi excluído da biblioteca.</p>}
+      {exercise.deleted === 1 && <p className="text-sm text-muted">Este exercício foi apagado da biblioteca.</p>}
       {exercise.notes && (
         <Card>
           <p className="text-sm text-ink-2">{exercise.notes}</p>

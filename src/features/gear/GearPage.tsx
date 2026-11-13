@@ -178,15 +178,15 @@ function GearForm({ gear, activities, today, onClose }: { gear?: Gear; activitie
         </Button>
         {gear && (
           <Button variant="ghost" className="w-full text-critical" onClick={() => setConfirmDelete(true)}>
-            <Trash2 size={16} /> Excluir tênis
+            <Trash2 size={16} /> Apagar tênis
           </Button>
         )}
       </form>
       {confirmDelete && gear && (
         <Confirm
-          title="Excluir tênis?"
-          message="As atividades feitas com ele ficam sem tênis. Para guardar a quilometragem, aposente em vez de excluir."
-          confirmLabel="Excluir"
+          title="Apagar tênis?"
+          message="As atividades feitas com ele ficam sem tênis. Para guardar a quilometragem, aposente em vez de apagar."
+          confirmLabel="Apagar"
           danger
           onClose={() => setConfirmDelete(false)}
           onConfirm={() => void deleteGear(gear.id).then(onClose)}

@@ -137,7 +137,7 @@ export function RaceModal({ race, initial, onClose }: { race: Race | null; initi
                 onClose()
               }}
             >
-              <Trash2 size={16} /> Excluir
+              <Trash2 size={16} /> Apagar
             </Button>
           )}
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>

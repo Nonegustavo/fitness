@@ -309,7 +309,7 @@ function MealCard({
             ))}
           </div>
         )}
-        {/* No swipe to delete here: a sideways drag changes the day. "Remover" is in the food's sheet. */}
+        {/* No swipe to delete here: a sideways drag changes the day. "Apagar" is in the food's sheet. */}
         <ul className="divide-y divide-line">
           {entries.map((entry) => (
             <li key={entry.id}>
@@ -654,11 +654,11 @@ function EntryModal({ entry, goals, onClose }: { entry: FoodLog; goals?: MacroGo
           <Button
             variant="danger"
             onClick={() => {
-              removeWithUndo(db.foodLogs, entry.id, `${entry.name} removido`)
+              removeWithUndo(db.foodLogs, entry.id, `Apagado: ${entry.name}`)
               onClose()
             }}
           >
-            <Trash2 size={16} /> Remover
+            <Trash2 size={16} /> Apagar
           </Button>
           <Button
             title={entry.date === today ? 'Adicionar de novo' : 'Adicionar hoje, na mesma refeição'}

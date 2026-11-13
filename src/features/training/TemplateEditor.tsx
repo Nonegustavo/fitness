@@ -268,7 +268,7 @@ function TemplateForm({ id }: { id: string }) {
       <div className="flex gap-2">
         {!isNew && (
           <Button variant="ghost" className="text-critical" onClick={() => setConfirmDelete(true)}>
-            <Trash2 size={16} /> Excluir
+            <Trash2 size={16} /> Apagar
           </Button>
         )}
         {template && (
@@ -304,9 +304,9 @@ function TemplateForm({ id }: { id: string }) {
       )}
       {confirmDelete && (
         <Confirm
-          title="Excluir ficha?"
+          title="Apagar ficha?"
           message="Os treinos já feitos com ela continuam no histórico."
-          confirmLabel="Excluir"
+          confirmLabel="Apagar"
           danger
           onClose={() => setConfirmDelete(false)}
           onConfirm={() => void remove(db.workoutTemplates, id).then(() => navigate('/treinos'))}
@@ -365,7 +365,7 @@ function ExerciseEditor({
         {handle}
         <div className="min-w-0 flex-1 pt-1.5">
           <p className="font-medium">
-            {index + 1}. {info?.name ?? 'Exercício removido'}
+            {index + 1}. {info?.name ?? 'Exercício apagado'}
           </p>
           {info && (
             <p className="text-xs text-muted">

@@ -205,9 +205,9 @@ describe('rowsOf', () => {
     const rows = rowsOf(stats({ workouts: 1, sets: 12, activities: 4, foodDays: 20 }), stats({ foodDays: 25, activities: 6 }), 'month')
     expect(rows.map((row) => [row.label, row.value, row.change])).toEqual([
       ['Dias com alimentação', '20', '−5'],
-      ['Musculação no mês', '1 treino', '+1'],
-      ['Séries no mês', '12', undefined],
-      ['Outras atividades no mês', '4', '−2'],
+      ['Musculação', '1 treino', '+1'],
+      ['Séries', '12', undefined],
+      ['Outras atividades', '4', '−2'],
     ])
   })
 

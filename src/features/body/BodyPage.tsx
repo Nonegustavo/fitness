@@ -242,7 +242,7 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
 
       <Stack>
         <Card title="Pesagens">
-          {/* No swipe to delete here: a sideways drag changes the tab. "Excluir" is in the weigh-in's sheet. */}
+          {/* No swipe to delete here: a sideways drag changes the tab. "Apagar" is in the weigh-in's sheet. */}
           <ul className="divide-y divide-line">
             {listed.map((entry) => {
               const extras = describeExtras(entry)
@@ -382,7 +382,7 @@ function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'n
 
       <Stack>
         <Card title="Histórico">
-          {/* No swipe to delete here either: "Excluir" is in the measurement's sheet. */}
+          {/* No swipe to delete here either: "Apagar" is in the measurement's sheet. */}
           <ul className="divide-y divide-line">
             {[...measurements].reverse().map((entry) => (
               <li key={entry.id}>
