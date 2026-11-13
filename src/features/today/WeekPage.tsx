@@ -33,8 +33,14 @@ export default function WeekPage() {
       tone="insights"
       subtitle={grain === 'week' ? 'Cada semana, de domingo a sábado, ao lado da anterior' : 'Cada mês ao lado do anterior'}
     >
-      <Segmented label="Período do resumo" value={grain} options={TABS} onChange={(next) => show(next, summaryPeriod(next, period.from, today).from)}
-      />
+      <div className="flex justify-center">
+        <Segmented
+          label="Período do resumo"
+          value={grain}
+          options={TABS}
+          onChange={(next) => show(next, summaryPeriod(next, period.from, today).from)}
+        />
+      </div>
       <PeriodNav period={period} today={today} onStep={(steps) => show(grain, stepSummary(period, steps))} />
       <Summary key={`${period.grain}:${period.from}:${period.to}`} period={period} />
       <Link
