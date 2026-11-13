@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-android
 dev-dist
 coverage
 *.local

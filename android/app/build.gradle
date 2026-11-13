@@ -1,6 +1,12 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 
+// Every build is a new version (minutes since 1970), so after an install Capacitor sees a new binary and
+// serves the APK's own web files again, not a version the app downloaded earlier (src/ota).
+def buildMinute = (int) System.currentTimeMillis().intdiv(60000L)
+// The native level this APK provides: a downloaded web version that needs more is not used (native-level.json).
+def nativeLevel = new groovy.json.JsonSlurper().parse(rootProject.file('../native-level.json')).level as int
+
 android {
     namespace = "io.github.nonegustavo.fitness"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -8,8 +14,10 @@ android {
         applicationId "io.github.nonegustavo.fitness"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode buildMinute
+        versionName "1.0.${buildMinute}"
+        // Read by AppInfoPlugin.kt as R.integer.native_level (no BuildConfig here).
+        resValue "integer", "native_level", "${nativeLevel}"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

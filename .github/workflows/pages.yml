@@ -29,6 +29,12 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      # The Android app's web part, which the phone downloads by itself (src/ota): published under android/.
+      - run: npx vite build --mode android --outDir dist-android
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      - run: node scripts/pack-android.mjs dist-android dist/android
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
