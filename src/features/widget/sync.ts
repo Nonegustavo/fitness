@@ -7,6 +7,7 @@ import { buildAgenda } from '../calendar/agenda'
 import { goalsFor, sumNutrients } from '../food/nutrition'
 import { plannedEvents } from '../garmin/sync'
 import { isAndroidApp } from '../healthconnect/plugin'
+import { planWorkouts, readPlan } from '../sisrun/coachPlan'
 import { nextTemplate } from '../training/stats'
 import { widgetSummary, widgetWorkouts, type WidgetSummary } from './summary'
 
@@ -24,7 +25,7 @@ const AHEAD_DAYS = 13
 async function compute(): Promise<WidgetSummary> {
   const today = dayKey()
   const until = shiftDay(today, AHEAD_DAYS)
-  const [settings, foodLogs, waterLogs, sessions, templates, plans, activities, events, eventTimes] = await Promise.all([
+  const [settings, foodLogs, waterLogs, sessions, templates, plans, activities, events, eventTimes, races, coachPlan] = await Promise.all([
     db.settings.get(SETTINGS_ID),
     db.foodLogs.where('date').equals(today).toArray(),
     db.waterLogs.where('date').equals(today).toArray(),
@@ -36,6 +37,11 @@ async function compute(): Promise<WidgetSummary> {
     db.activities.where('startTime').aboveOrEqual(parseDay(today).getTime()).toArray(),
     plannedEvents(),
     db.eventTimes.where('date').between(today, until, true, true).toArray(),
+    // As the app's calendar (useAgenda) builds it: a race stands for the Garmin runs of its day, and
+    // the coach's prescriptions name the SisRUN workouts. Read inside the liveQuery, so a change to
+    // either (the coach plan is in db.meta) sends the widget again.
+    db.races.where('date').between(today, until, true, true).toArray(),
+    readPlan(),
   ])
   const workouts = alive(sessions)
   const live = alive(templates)
@@ -47,12 +53,15 @@ async function compute(): Promise<WidgetSummary> {
     templates: live,
     eventTimes: alive(eventTimes),
     walkRoutine: settings?.walkRoutine,
+    coach: planWorkouts(coachPlan),
+    races: alive(races),
   })
   const trainingDay = workouts.some((session) => session.date === today)
   return widgetSummary({
     date: today,
     eaten: sumNutrients(alive(foodLogs).map((log) => log.nutrients)),
     goals: settings ? goalsFor(settings, trainingDay) : undefined,
+    normalGoals: settings ? goalsFor(settings, false) : undefined,
     waterMl: alive(waterLogs).reduce((total, log) => total + log.ml, 0),
     waterGoalMl: settings?.waterGoalMl ?? 0,
     agenda: widgetWorkouts(agenda),

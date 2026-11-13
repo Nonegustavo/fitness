@@ -26,7 +26,8 @@ public class QuickWidget extends AppWidgetProvider {
     static final String[] KEYS = {
         "date", "kcal", "kcalLabel", "kcalDetail", "kcalProgress", "kcalOver",
         "carbs", "carbsProgress", "protein", "proteinProgress", "fat", "fatProgress",
-        "water", "waterProgress", "agenda", "next"
+        "water", "waterProgress", "agenda", "next",
+        "emptyKcal", "emptyKcalLabel", "emptyKcalDetail", "emptyCarbs", "emptyProtein", "emptyFat", "emptyWater"
     };
 
     private static final int LABEL = 0xFFC3C2B7;
@@ -59,23 +60,27 @@ public class QuickWidget extends AppWidgetProvider {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.quick_widget);
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         LocalDate today = LocalDate.now();
-        // Numbers from another day would be wrong: dashes and empty bars until the app opens and sends today's.
+        // Numbers from another day would be wrong. On a new day the widget shows what the app sent for a
+        // day with nothing logged yet (the "empty…" keys), with empty bars; prefs written by an older web
+        // version don't have those (WidgetPlugin keeps them as ""), and then it shows dashes until the app opens.
         boolean fresh = today.toString().equals(prefs.getString("date", ""));
+        boolean empty = !fresh && !prefs.getString("emptyKcal", "").isEmpty();
 
         boolean over = fresh && "true".equals(prefs.getString("kcalOver", ""));
-        views.setTextViewText(R.id.widget_kcal, fresh ? prefs.getString("kcal", "—") : "—");
-        views.setTextViewText(R.id.widget_kcal_label, fresh ? prefs.getString("kcalLabel", "kcal") : "kcal");
+        views.setTextViewText(R.id.widget_kcal, text(prefs, "kcal", fresh, empty, "—"));
+        views.setTextViewText(R.id.widget_kcal_label, text(prefs, "kcalLabel", fresh, empty, "kcal"));
         views.setTextColor(R.id.widget_kcal_label, over ? AMBER : LABEL);
-        views.setTextViewText(R.id.widget_kcal_detail, fresh ? prefs.getString("kcalDetail", "") : "abra o app para atualizar");
+        views.setTextViewText(R.id.widget_kcal_detail,
+            fresh || empty ? text(prefs, "kcalDetail", fresh, empty, "") : "abra o app para atualizar");
         bar(views, R.id.widget_kcal_bar, prefs.getString("kcalProgress", "-1"), fresh);
         if (over) {
             views.setViewVisibility(R.id.widget_kcal_bar, View.GONE);
             views.setViewVisibility(R.id.widget_kcal_bar_over, View.VISIBLE);
         }
-        meter(views, R.id.widget_carbs, R.id.widget_carbs_bar, prefs, "carbs", fresh);
-        meter(views, R.id.widget_protein, R.id.widget_protein_bar, prefs, "protein", fresh);
-        meter(views, R.id.widget_fat, R.id.widget_fat_bar, prefs, "fat", fresh);
-        meter(views, R.id.widget_water_value, R.id.widget_water_bar, prefs, "water", fresh);
+        meter(views, R.id.widget_carbs, R.id.widget_carbs_bar, prefs, "carbs", fresh, empty);
+        meter(views, R.id.widget_protein, R.id.widget_protein_bar, prefs, "protein", fresh, empty);
+        meter(views, R.id.widget_fat, R.id.widget_fat_bar, prefs, "fat", fresh, empty);
+        meter(views, R.id.widget_water_value, R.id.widget_water_bar, prefs, "water", fresh, empty);
 
         Workout next = nextWorkout(prefs, today);
         views.setTextViewText(R.id.widget_next, next.title);
@@ -93,9 +98,17 @@ public class QuickWidget extends AppWidgetProvider {
     }
 
     /** A value and its bar toward the goal. */
-    private static void meter(RemoteViews views, int textId, int barId, SharedPreferences prefs, String key, boolean fresh) {
-        views.setTextViewText(textId, fresh ? prefs.getString(key, "—") : "—");
+    private static void meter(
+        RemoteViews views, int textId, int barId, SharedPreferences prefs, String key, boolean fresh, boolean empty) {
+        views.setTextViewText(textId, text(prefs, key, fresh, empty, "—"));
         bar(views, barId, prefs.getString(key + "Progress", "-1"), fresh);
+    }
+
+    /** Today's text, the empty day's ("kcal" → "emptyKcal") on a new day, or the fallback without either. */
+    private static String text(SharedPreferences prefs, String key, boolean fresh, boolean empty, String fallback) {
+        if (fresh) return prefs.getString(key, fallback);
+        if (!empty) return fallback;
+        return prefs.getString("empty" + Character.toUpperCase(key.charAt(0)) + key.substring(1), fallback);
     }
 
     /** The fill the app sent (0–1000); a bar without a goal (-1) is hidden, and stays empty on a new day. */
