@@ -16,6 +16,8 @@ O app abre em http://localhost:5173. Para testar no celular na mesma rede Wi-Fi,
 Outros comandos:
 
 - `npm test`: testes da sincronização, dos cálculos e do SQL do Supabase
+- `npm run lint`: confere as regras dos hooks do React
+- `npm run e2e`: abre todas as telas com dados de exemplo, no tamanho do celular e do computador, e falha se alguma der erro ou ficar mais larga que a tela (na primeira vez, `npx playwright install chromium`)
 - `npm run build`: confere os tipos e gera a versão de produção em `dist/`
 - `npm run build:android`: gera a versão do app Android e copia para `android/` (veja [App Android](#app-android-health-connect))
 
@@ -24,7 +26,7 @@ Outros comandos:
 Sem isso o app funciona, mas os dados ficam só no aparelho em que foram registrados, e a foto do prato e a análise do dia ficam desligadas.
 
 1. Crie um projeto gratuito em [supabase.com](https://supabase.com).
-2. No projeto, abra **SQL Editor**, cole o conteúdo de [`supabase/migrations/20261102000000_records.sql`](supabase/migrations/20261102000000_records.sql) e rode.
+2. No projeto, abra **SQL Editor**, cole o conteúdo de [`supabase/migrations/20261102000000_records.sql`](supabase/migrations/20261102000000_records.sql) e rode. Depois faça o mesmo com [`20261112000000_records_rev_order.sql`](supabase/migrations/20261112000000_records_rev_order.sql), que põe em fila os envios de dois aparelhos ao mesmo tempo, para nenhum registro ficar para trás. Os arquivos podem ser rodados de novo sem estragar nada.
 3. Em **Authentication → Users → Add user → Create new user**, crie seu usuário com e-mail e senha e marque **Auto Confirm User**.
 4. Em **Authentication → Sign In / Providers**, desligue **Allow new users to sign up**, para ninguém mais criar conta no seu projeto.
 5. Pelo botão **Connect** no topo do painel, copie a URL do projeto e a **publishable key**.
@@ -57,6 +59,8 @@ A foto (ou a descrição em texto, como "2 ovos mexidos e 1 pão francês") é a
    O `--use-api` empacota a função nos servidores do Supabase, sem precisar do Docker. O `--no-verify-jwt` deixa a checagem de login com a própria função, que confere o usuário no Supabase Auth. Com o MCP do Supabase conectado ao Claude, dá para publicar pela ferramenta `deploy_edge_function`, com `verify_jwt` desligado.
 4. Para guardar as fotos junto das refeições, rode no **SQL Editor** o conteúdo de [`supabase/migrations/20261103230000_food_photos.sql`](supabase/migrations/20261103230000_food_photos.sql). Ele cria um espaço privado no Storage, com uma pasta por usuário que só o dono lê.
 
+A mesma função revisa os seus alimentos: em **Adicionar alimento → alimentos com valores para conferir → Revisar com IA**, ela recebe a lista (o nome e os valores de até 150 alimentos, sem fotos) e aponta os que parecem errados, como uma porção gravada como 100 g ou macros trocados. Custa alguns centavos de dólar por revisão. Depois de atualizar o código, publique a função de novo com o mesmo comando.
+
 ### Ler a tabela nutricional por foto
 
 Ao criar um alimento (ou em **Adicionar alimento → câmera → Tabela nutricional**), uma foto da tabela da embalagem é lida pelo Claude na função [`supabase/functions/read-label`](supabase/functions/read-label/index.ts), que preenche o formulário por porção para você conferir. Usa a mesma `ANTHROPIC_API_KEY`; cada leitura custa uns 5 centavos de dólar, e só é preciso uma vez por produto.
@@ -80,7 +84,8 @@ O app busca no Garmin Connect as atividades (com o .FIT original), o sono, a HRV
 1. No site do Garmin Connect, em [Personal API Token](https://connect.garmin.com/app/settings/personalApiToken), crie uma chave com validade de até 1 ano. Pelos termos, ela é pessoal e só serve para ferramentas de uso próprio.
 2. No Supabase, em **Edge Functions → Secrets**, crie o segredo `GARMIN_API_KEY` com a chave.
 3. Opcional: para ver os treinos agendados (do SisRUN, por exemplo), publique o calendário no Garmin Connect e salve o link do mesmo jeito, como `GARMIN_CALENDAR_URL`.
-4. Publique a função:
+4. No **SQL Editor**, rode o conteúdo de [`supabase/migrations/20261103200000_garmin_token.sql`](supabase/migrations/20261103200000_garmin_token.sql): a função guarda ali, numa linha que só você lê, o acesso de 24 horas que o Garmin dá, em vez de pedir um novo a cada busca.
+5. Publique a função:
 
    ```bash
    npx supabase functions deploy garmin --remote=xxxx --no-verify-jwt --use-api
@@ -117,13 +122,23 @@ Para gerar e instalar, com o [Android Studio](https://developer.android.com/stud
 
 Os dados do app Android ficam separados dos do app instalado pelo Chrome; a sincronização com o Supabase junta os dois.
 
+### O app se atualiza sozinho
+
+Depois dessa instalação, o cabo só é preciso quando muda a parte nativa (Kotlin/Java, permissões, o widget ou uma versão do Capacitor). O resto chega pela publicação do site:
+
+- Cada publicação leva junto um pacote com a parte web do app (`android/manifest.json` e um `.zip` no site, montados por [`scripts/pack-android.mjs`](scripts/pack-android.mjs)).
+- O app procura uma versão nova ao abrir e ao voltar para a frente, no máximo a cada 6 horas e nunca durante um treino. Baixa em segundo plano, confere o tamanho e o SHA-256, e só troca na próxima vez que for aberto (ou ao voltar depois de meia hora fora).
+- Uma versão que não abre é descartada: o app volta para a anterior e não tenta aquela de novo.
+- [`native-level.json`](native-level.json) diz qual nível nativo o código web exige. Uma versão que exige mais do que o APK instalado tem não é baixada, e **Ajustes → Estado das fontes** avisa que aquela precisa do cabo.
+- Em **Ajustes → Atualização do app** ficam a versão em uso, quando o app procurou pela última vez e os botões **Procurar atualização**, **Reiniciar para atualizar** e **Voltar à versão instalada** (a que veio no APK).
+
 O app Android também avisa por notificação: os lembretes dos hábitos (marcados em cada hábito, valem para todos os aparelhos) e o fim do descanso entre séries quando a tela está desligada. Os lembretes são agendados para as próximas duas semanas e somem do dia que já foi marcado; a notificação do hábito tem o botão **Feito**.
 
 ## Publicar no GitHub Pages (para usar no celular)
 
 1. No GitHub, em **Settings → Pages**, escolha **Source: GitHub Actions**.
 2. Em **Settings → Secrets and variables → Actions → Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` com os mesmos valores do `.env.local`.
-3. A cada push na `main`, o workflow [`pages.yml`](.github/workflows/pages.yml) roda os testes e publica em https://nonegustavo.github.io/fitness/.
+3. A cada push na `main`, o workflow [`pages.yml`](.github/workflows/pages.yml) roda o lint, os testes e o teste das telas, e publica em https://nonegustavo.github.io/fitness/ o site e o pacote que o app Android baixa sozinho.
 4. No celular, abra esse endereço no Chrome e toque em **Adicionar à tela inicial**. Segurando o ícone, aparecem atalhos para **Água** e **Registrar peso**.
 
 ## Fontes de dados
@@ -145,14 +160,20 @@ O app Android também avisa por notificação: os lembretes dos hábitos (marcad
 - **Correlações.** Cada dia vira uma linha com tudo o que o app sabe, e o que acontece num dia é comparado com a noite seguinte. Os destaques usam o teste de Welch (fez / não fez) ou a correlação de Spearman (quantidades) e passam pela correção de Benjamini–Hochberg, que limita os falsos destaques a 10%. A conta é feita no aparelho (`src/features/insights`).
 - **Análise do dia.** Depois da primeira sincronização do dia (assim a análise feita no outro aparelho já chegou), o app monta um resumo em texto: duas semanas dia a dia com o diário, o último mês contra o anterior, as metas, as correlações e os treinos planejados. A resposta vira um registro sincronizado, e cada aparelho tenta no máximo uma vez por dia sozinho.
 - **Fotos.** A foto do prato é reduzida no aparelho, guardada no IndexedDB e enviada ao Storage do Supabase na sincronização seguinte. Os outros aparelhos baixam cada foto quando ela aparece na tela.
+- **Estado das fontes.** O app acompanha a sincronização, o Garmin, o Health Connect, o SisRUN e as fotos por enviar: quando uma delas falha ou fica tempo demais sem trazer nada, aparece um ponto no ícone de Ajustes do Hoje e no "Mais", e **Ajustes → Estado das fontes** diz o que houve e oferece o botão que resolve.
+- **Recordes de corrida.** Os melhores trechos de cada corrida são calculados uma vez, em segundo plano, e guardados no aparelho; as telas leem esse resumo em vez das amostras de todas as corridas.
 
 ```
 src/
-  db/          banco local (Dexie), tipos e backup
-  sync/        motor de sincronização e cliente do Supabase
+  db/          banco local (Dexie), tipos, backup e as leituras compartilhadas entre as telas
+  sync/        motor de sincronização, cliente do Supabase e chamadas às funções
+  ota/         o app Android baixando e trocando a própria parte web
   features/    telas: hoje, treinos, atividades e sono do Garmin, alimentação (com receitas e fotos), corpo, água,
-               hábitos (com lembretes), diário, clima, análise do dia, correlações, ajustes
+               hábitos (com lembretes), diário, clima, análise do dia, correlações, resumo da semana e do mês,
+               estado das fontes, ajustes
   components/  componentes de interface, gráficos (ECharts), arrastar e soltar, deslizar para apagar
+e2e/           teste que abre todas as telas com dados de exemplo (Playwright)
+scripts/       conversão da TACO, pacote do app Android e a impressão digital da parte nativa
 supabase/      SQL do banco e do Storage (e os testes deles) e as funções da refeição, da análise do dia, do Garmin e do SisRUN
 android/       app Android (Capacitor), com a ponte para o Health Connect
 ```
