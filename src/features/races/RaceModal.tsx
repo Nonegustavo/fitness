@@ -11,6 +11,7 @@ import { formatClock } from '../../lib/format'
 import { formatDistance, useActivities } from '../activities/activities'
 import { raceRun } from '../calendar/agenda'
 import { isRun } from '../running/running'
+import { clockHint } from '../training/components'
 import { distanceInput, parseClock, parseDistance } from './race'
 import { NO_RUN, saveRace } from './races'
 
@@ -20,8 +21,14 @@ const textareaClass =
 const runLabel = (run: Activity) =>
   `${formatDay(run.date, 'd/MM')} às ${formatTime(run.startTime)}${run.distanceM ? ` · ${formatDistance(run.distanceM)}` : ''} em ${formatClock(run.timerSec)}`
 
+/**
+ * A race time as typed, with a comma, a dot or a space taking the colon's place ("38,25"): Android's
+ * numeric keypad has no colon. Whole numbers are minutes ("50" is 50:00).
+ */
+const readClock = (text: string) => parseClock(text.trim().replace(/\s*[,.]\s*|\s+/g, ':'))
+
 /** A time typed in a field: empty is none (null); undefined when it can't be read. */
-const clockField = (text: string) => (text.trim() ? parseClock(text) : null)
+const clockField = (text: string) => (text.trim() ? readClock(text) : null)
 
 /**
  * A race's sheet: putting one in the list or changing it (name, day, time, distance, goal). Once its
@@ -89,7 +96,7 @@ export function RaceModal({ race, initial, onClose }: { race: Race | null; initi
           <Field label="Distância (km)" hint={distance === undefined ? 'Ex.: 10, 21,1 ou 6 a 8' : 'Ex.: 10 ou 6 a 8'}>
             <TextInput value={distanceText} onChange={(e) => setDistanceText(e.target.value)} placeholder="10" />
           </Field>
-          <Field label="Meta de tempo" hint={goal === undefined ? 'Ex.: 50:00 ou 1:45:00' : 'Opcional'}>
+          <Field label="Meta de tempo" hint={clockHint(goalText, readClock) ?? 'Opcional'}>
             <TextInput value={goalText} onChange={(e) => setGoalText(e.target.value)} placeholder="50:00" inputMode="numeric" />
           </Field>
         </div>
@@ -106,7 +113,7 @@ export function RaceModal({ race, initial, onClose }: { race: Race | null; initi
                 <option value={NO_RUN}>Não corri esta prova</option>
               </Select>
             </Field>
-            <Field label="Tempo oficial" hint={official === undefined ? 'Ex.: 38:12' : 'Opcional: o do chip, quando é outro que o do relógio'}>
+            <Field label="Tempo oficial" hint={clockHint(officialText, readClock) ?? 'Opcional: o do chip, quando é outro que o do relógio'}>
               <TextInput value={officialText} onChange={(e) => setOfficialText(e.target.value)} placeholder="38:12" inputMode="numeric" />
             </Field>
           </>

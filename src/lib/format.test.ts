@@ -22,6 +22,28 @@ describe('format', () => {
     expect(parseClock('1:x')).toBeUndefined()
   })
 
+  it('reads clock times typed on a keypad without a colon', () => {
+    // Digits alone are seconds: "130" is 2:10.
+    expect(parseClock('130')).toBe(130)
+    expect(parseClock('1,30')).toBe(90)
+    expect(parseClock('1.30')).toBe(90)
+    expect(parseClock('1 30')).toBe(90)
+    expect(parseClock(' 1 , 30 ')).toBe(90)
+    expect(parseClock('1,02,05')).toBe(3725)
+    expect(parseClock('1.02:05')).toBe(3725)
+    expect(parseClock('0,5')).toBe(5)
+  })
+
+  it('refuses what a clock would not show', () => {
+    expect(parseClock('1:75')).toBeUndefined()
+    expect(parseClock('1,60')).toBeUndefined()
+    expect(parseClock('1,300')).toBeUndefined()
+    expect(parseClock('1,')).toBeUndefined()
+    expect(parseClock(',30')).toBeUndefined()
+    expect(parseClock('1,2,3,4')).toBeUndefined()
+    expect(parseClock('1,5x')).toBeUndefined()
+  })
+
   it('formats workout durations', () => {
     expect(formatDuration(45 * 60_000)).toBe('45 min')
     expect(formatDuration(65 * 60_000)).toBe('1h05')

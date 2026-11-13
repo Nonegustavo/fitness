@@ -14,6 +14,7 @@ import { newId } from '../../lib/ids'
 import { EQUIPMENT, MUSCLES } from './catalog'
 import { ExercisePicker } from './ExercisePicker'
 import { DEFAULT_GYM, LOAD_STEP, lastPerformance } from './stats'
+import { clockHint, clockHintIfDifferent } from './components'
 import { DEFAULT_REST_SEC, DEFAULT_WARMUP_REST_SEC, useExerciseMap, useSessions, useTemplates } from './training'
 import { replaceWarmups, suggestWarmup, type WarmupSet } from './warmup'
 import { WarmupPreview } from './WarmupPreview'
@@ -119,6 +120,12 @@ function toPlannedSet(set: DraftSet, type: ExerciseType): PlannedSet {
 
 export default function TemplateEditor() {
   const { id = 'nova' } = useParams()
+  // The route stays mounted when only the id changes: keyed by it, the form starts over for another
+  // template instead of carrying the first one's draft into it.
+  return <TemplateForm key={id} id={id} />
+}
+
+function TemplateForm({ id }: { id: string }) {
   const isNew = id === 'nova'
   const navigate = useNavigate()
   // null = not found; undefined = still loading.
@@ -361,7 +368,7 @@ function ExerciseEditor({
 
       {/* On a phone the note goes under the two rests; wider, all three share the line. */}
       <div className="mt-3 grid grid-cols-[6.5rem_1fr] gap-3 sm:grid-cols-[6.5rem_auto_1fr]">
-        <Field label="Descanso" hint="min:seg">
+        <Field label="Descanso" hint={clockHint(exercise.rest) ?? 'min:seg'}>
           <TextInput
             inputMode="numeric"
             value={exercise.rest}
@@ -369,7 +376,7 @@ function ExerciseEditor({
             placeholder="1:30"
           />
         </Field>
-        <Field label="Descanso do aquecimento" hint="min:seg">
+        <Field label="Descanso do aquecimento" hint={clockHint(exercise.warmupRest) ?? 'min:seg'}>
           <TextInput
             className="max-w-[6.5rem]"
             inputMode="numeric"
@@ -436,14 +443,26 @@ function ExerciseEditor({
                 {warmup ? 'A' : normalCount}
               </button>
               {type === 'time' ? (
-                <TextInput
-                  className="h-9 px-2 text-center"
-                  inputMode="numeric"
-                  placeholder="0:45"
-                  aria-label="Tempo"
-                  value={set.duration}
-                  onChange={(e) => setSet(set.key, { duration: e.target.value })}
-                />
+                <div className="min-w-0">
+                  <TextInput
+                    className="h-9 px-2 text-center"
+                    inputMode="numeric"
+                    placeholder="0:45"
+                    aria-label="Tempo"
+                    value={set.duration}
+                    onChange={(e) => setSet(set.key, { duration: e.target.value })}
+                    onBlur={() => {
+                      // Written back as it was read ("130" becomes "2:10"), which also takes the hint away.
+                      const seconds = parseClock(set.duration)
+                      if (seconds !== undefined) setSet(set.key, { duration: formatClock(seconds) })
+                    }}
+                  />
+                  {clockHintIfDifferent(set.duration) && (
+                    <span className="mt-0.5 block text-center text-xs text-muted">
+                      {clockHintIfDifferent(set.duration)}
+                    </span>
+                  )}
+                </div>
               ) : (
                 <>
                   <TextInput

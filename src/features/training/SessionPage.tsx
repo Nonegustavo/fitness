@@ -32,7 +32,7 @@ import { setPeakHeartRates, useActivityStream, useWorkoutActivity } from '../act
 import { WorkoutWatchCard } from '../activities/WorkoutWatchCard'
 import { ShareSessionButton } from '../activities/ShareButtons'
 import { EQUIPMENT, formatComparison, formatE1rm, formatReps, formatSet, MUSCLES } from './catalog'
-import { Elapsed } from './components'
+import { clockHintIfDifferent, Elapsed } from './components'
 import { ExercisePicker } from './ExercisePicker'
 import { startRest, stopRest } from './restTimer'
 import { checkedValues, previousSets } from './setValues'
@@ -781,6 +781,8 @@ function SetRow({
   const values = set.done ? set : shown.some((text) => text.trim() !== '') ? withHints(typed()) : undefined
   const comparison = working && values ? compareSet(values, previous, type) : undefined
   const before = working && type === 'weight_reps' && previous ? setE1rm(previous) : undefined
+  // How a time being typed is read ("130" is 2:10), in the comparison's place until it's written as it reads.
+  const durationHint = type === 'time' && !timing ? clockHintIfDifferent(duration) : undefined
   // Reps in reserve, once a working set with reps is checked.
   const rirShown = set.done && working && type !== 'time'
 
@@ -856,7 +858,11 @@ function SetRow({
         {before !== undefined && formatE1rm(before)}
       </span>
       <span className={cx(type === 'weight_reps' && 'col-span-2')}>
-        {comparison && <ComparisonLine comparison={comparison} />}
+        {durationHint ? (
+          <span className="block truncate text-center text-[11px] leading-3.5 text-muted tabular-nums">{durationHint}</span>
+        ) : (
+          comparison && <ComparisonLine comparison={comparison} />
+        )}
       </span>
       {rirShown && <RirToggle rir={set.rir} open={rirOpen} label={label} onToggle={onToggleRir} />}
       {rirShown && rirOpen && <RirPicker rir={set.rir} label={label} onChange={(rir) => void write({ rir })} />}

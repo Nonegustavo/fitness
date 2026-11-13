@@ -40,10 +40,15 @@ export function formatClock(totalSec: number): string {
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${ss}` : `${minutes}:${ss}`
 }
 
-/** "1:30" -> 90, "45" -> 45 seconds, "1:02:05" -> 3725. */
+/**
+ * "1:30" -> 90, "45" -> 45 seconds, "1:02:05" -> 3725. A comma, a dot or a space stands for the colon
+ * ("1,30", "1.30", "1 30"), as Android's numeric keypad has no colon. After a separator, one or two
+ * digits below 60, as on a clock.
+ */
 export function parseClock(input: string): number | undefined {
-  const parts = input.trim().split(':')
-  if (parts.length > 3 || parts.some((part) => !/^\d+$/.test(part))) return undefined
+  const parts = input.trim().split(/\s*[:,.]\s*|\s+/)
+  if (parts.length > 3 || !/^\d+$/.test(parts[0])) return undefined
+  if (parts.slice(1).some((part) => !/^\d{1,2}$/.test(part) || Number(part) >= 60)) return undefined
   return parts.reduce((total, part) => total * 60 + Number(part), 0)
 }
 
