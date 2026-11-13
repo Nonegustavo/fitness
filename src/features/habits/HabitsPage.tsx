@@ -1,12 +1,14 @@
 import { Archive, ArchiveRestore, Check, Circle, ListChecks, Plus, Trash2, X } from 'lucide-react'
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router'
 import { DayNav, DayPager } from '../../components/DayNav'
-import { Modal } from '../../components/Modal'
+import { Confirm, Modal } from '../../components/Modal'
 import { SortableList } from '../../components/Sortable'
+import { useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { useNewFromLink } from '../../components/useNewFromLink'
 import { Button, Card, cx, DecimalInput, Field, IconButton, Page, Segmented, SkeletonLines, Switch, TextInput } from '../../components/ui'
 import { useToday } from '../../db/hooks'
-import { patch, remove, save, saveOrder } from '../../db/repo'
+import { patch, save, saveOrder } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Habit, HabitLog } from '../../db/types'
 import { dayRange, formatDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
@@ -42,9 +44,15 @@ const SKIPPED_CELL = 'repeating-linear-gradient(135deg, var(--muted) 0 1px, var(
 
 const STATS_DAYS = 30
 
+const DAY = /^\d{4}-\d{2}-\d{2}$/
+
 export default function HabitsPage() {
   const today = useToday()
-  const [date, setDate] = useState(today)
+  const [params, setParams] = useSearchParams()
+  // The day lives in the address (?data=), so going back or reopening the screen returns to it.
+  const asked = params.get('data')
+  const date = asked && DAY.test(asked) && asked <= today ? asked : today
+  const setDate = (next: DayKey) => setParams(next === today ? {} : { data: next }, { replace: true })
   const habits = useHabits()
   const [editing, setEditing] = useState<Habit | 'new' | null>(null)
   useNewFromLink('habito', () => setEditing('new'))
@@ -453,6 +461,8 @@ function HabitModal({
   const savedTimes = habit ? weeklyTimes(habit) : undefined
   const [frequency, setFrequency] = useState<'day' | 'week'>(savedTimes === undefined ? 'day' : 'week')
   const [times, setTimes] = useState(savedTimes ?? 3)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const removeWithUndo = useRemoveWithUndo()
   // A weekly limit has no day to be reminded of.
   const noReminder = polarity === 'bad' && frequency === 'week'
   const target = parseDecimal(targetText)
@@ -485,9 +495,9 @@ function HabitModal({
     onClose()
   }
 
-  async function onDelete() {
+  function onDelete() {
     if (!habit) return
-    await remove(db.habits, habit.id)
+    removeWithUndo(db.habits, habit.id, 'Hábito apagado')
     onClose()
   }
 
@@ -654,8 +664,8 @@ function HabitModal({
         </div>
         <div className="flex gap-2">
           {habit && (
-            <Button variant="danger" onClick={() => void onDelete()}>
-              <Trash2 size={16} /> Excluir
+            <Button variant="danger" onClick={() => setConfirmDelete(true)}>
+              <Trash2 size={16} /> Apagar
             </Button>
           )}
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>
@@ -663,6 +673,16 @@ function HabitModal({
           </Button>
         </div>
       </form>
+      {confirmDelete && habit && (
+        <Confirm
+          title="Apagar hábito?"
+          message="Ele sai do app com todo o histórico, em todos os aparelhos. Para guardar o histórico, arquive em vez de apagar."
+          confirmLabel="Apagar"
+          danger
+          onClose={() => setConfirmDelete(false)}
+          onConfirm={onDelete}
+        />
+      )}
     </Modal>
   )
 }

@@ -88,7 +88,7 @@ function OtherDays({
 }) {
   return (
     <Card title="Outros dias">
-      <TextInput type="search" placeholder="Buscar no diário" value={query} onChange={(event) => onQuery(event.target.value)} />
+      <TextInput type="search" aria-label="Buscar no diário" placeholder="Buscar no diário" value={query} onChange={(event) => onQuery(event.target.value)} />
       {others.length === 0 ? (
         <Empty>{query.trim() ? 'Nada encontrado.' : 'Os outros dias que você escrever aparecem aqui.'}</Empty>
       ) : (
