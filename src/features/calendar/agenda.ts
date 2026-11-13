@@ -58,10 +58,14 @@ export function keyedEvents(events: PlannedEvent[]): { event: PlannedEvent; key:
     const base = eventKey(event)
     groups.set(base, [...(groups.get(base) ?? []), event])
   }
+  // The Android background check numbers the copies too (SisrunWatch.kt, keyed), and a copy has to get
+  // the same key on both sides. Kotlin orders the descriptions by UTF-16 code unit, as < and > do
+  // here and localeCompare doesn't ("água" before "Zona"); one without a description is "" there, first.
+  const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
   const keys = new Map<PlannedEvent, string>()
   for (const [base, group] of groups) {
     group
-      .sort((a, b) => (a.time ?? -1) - (b.time ?? -1) || (a.description ?? '').localeCompare(b.description ?? ''))
+      .sort((a, b) => (a.time ?? -1) - (b.time ?? -1) || byCodeUnit(a.description ?? '', b.description ?? ''))
       .forEach((event, i) => keys.set(event, i === 0 ? base : `${base}#${i + 1}`))
   }
   return events.map((event) => ({ event, key: keys.get(event)! }))

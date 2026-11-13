@@ -408,6 +408,45 @@ describe('Garmin workouts listed twice', () => {
     const [item] = buildAgenda('2026-11-08', '2026-11-08', TODAY, sources({ events: [race, fromSisrun], eventTimes: times }))
     expect(item).toMatchObject({ eventKey: base, customTime: '07:30', time: dayTime('2026-11-08', '07:30') })
   })
+
+  // The Android background check numbers the copies too (SisrunWatch.kt, keyed), ordering the
+  // descriptions as Kotlin compares strings: by UTF-16 code unit, so capitals come before lower case
+  // and accented letters after "z". An alphabetical order here ("aquecimento", "Único", "Zona") would
+  // make this side's "#2" the other side's "#3".
+  const copies = ['aquecimento e 6 tiros', 'Único treino forte da semana', undefined, 'Zona 2 contínuo'].map((description) => ({
+    ...race,
+    description,
+  }))
+
+  it('are numbered as the Android side numbers them: by time, then by the code units of the description', () => {
+    expect(keyedEvents(copies).map(({ event, key }) => [event.description, key])).toEqual([
+      ['aquecimento e 6 tiros', `${base}#3`],
+      ['Único treino forte da semana', `${base}#4`],
+      // Without a description: the empty string there, before every other.
+      [undefined, base],
+      ['Zona 2 contínuo', `${base}#2`],
+    ])
+    // The time still comes first, and a copy without one before the ones with it.
+    const early = { ...race, time: dayTime('2026-11-08', '07:00'), description: 'ritmo de prova' }
+    const allDay = { date: race.date, title: race.title, description: 'Único treino forte da semana' }
+    expect(keyedEvents([race, early, allDay]).map(({ key }) => key)).toEqual([`${base}#3`, `${base}#2`, base])
+  })
+
+  it('are hidden and timed by those numbers, each on the copy the Android side means', () => {
+    const [warmUp, only, bare] = copies
+    const times: EventTime[] = [
+      { id: `${base}#2`, date: '2026-11-08', hidden: true, ...meta },
+      { id: `${base}#3`, date: '2026-11-08', time: '07:30', ...meta },
+    ]
+    // "#2" is the "Zona 2" copy, which leaves; "#3" is the warm-up one, planned at 07:30.
+    expect(visibleEvents(copies, times)).toEqual([warmUp, only, bare])
+    const items = buildAgenda('2026-11-08', '2026-11-08', TODAY, sources({ events: copies, eventTimes: times }))
+    expect(items.map((item) => [item.event?.description, item.customTime])).toEqual([
+      ['aquecimento e 6 tiros', '07:30'],
+      [undefined, undefined],
+      ['Único treino forte da semana', undefined],
+    ])
+  })
 })
 
 describe('suggestTemplate', () => {

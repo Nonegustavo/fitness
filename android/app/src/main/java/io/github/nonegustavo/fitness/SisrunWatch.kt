@@ -192,6 +192,7 @@ object SisrunWatch {
         for (event in events) groups.getOrPut(baseKey(event)) { mutableListOf() } += event
         val keys = HashMap<Event, String>()
         for ((base, group) in groups) {
+            // This order must stay the same as keyedEvents in src/features/calendar/agenda.ts, which has the tests.
             group.sortedWith(compareBy<Event> { it.time ?: -1L }.thenBy { it.description }).forEachIndexed { i, event ->
                 keys[event] = if (i == 0) base else "$base#${i + 1}"
             }
