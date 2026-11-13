@@ -68,7 +68,9 @@ type SwitchResult = 'switched' | 'wait' | 'none'
 async function trySwitch(guard: { late: boolean } = { late: false }): Promise<SwitchResult> {
   await finishGoingBack()
   const state = await readState()
-  const decision = decideBoot(state, RUNNING, await hasLiveWorkout())
+  // With nothing waiting (nearly every start) the database isn't opened before the app is drawn.
+  const waiting = !!state.target && state.target.build !== RUNNING.build
+  const decision = decideBoot(state, RUNNING, waiting && (await hasLiveWorkout()))
   switch (decision.kind) {
     case 'none':
       return 'none'
@@ -91,7 +93,9 @@ async function trySwitch(guard: { late: boolean } = { late: false }): Promise<Sw
       }
       if (guard.late) return 'none'
       // Counted before trying: a version that dies before confirming is given up on the second time.
-      await writeState({ ...state, target: { ...target, tries: target.tries + 1 } })
+      // And to be confirmed again: after an APK older than this version is installed, the phone opens
+      // with the APK's files, and the folder has to be made the starting one once more.
+      await writeState({ ...state, target: { ...target, tries: target.tries + 1, confirmed: false } })
       session.set(PREVIOUS_KEY, await servedPath())
       await reloadInto(target.dir)
       return 'switched'
@@ -157,7 +161,8 @@ async function confirm(): Promise<void> {
   const decision = decideConfirm(state, RUNNING, ok, await servedPath())
   if (decision.kind === 'keep') {
     await persistServed()
-    const next: OtaState = { ...state, target: { ...decision.target, confirmed: true } }
+    // It came up: the tries start over, for the day it has to be switched to again (see trySwitch).
+    const next: OtaState = { ...state, target: { ...decision.target, confirmed: true, tries: 0 } }
     delete next.failed
     await writeState(next)
     session.remove(PREVIOUS_KEY)

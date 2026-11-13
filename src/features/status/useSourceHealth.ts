@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useSyncExternalStore } from 'react'
 import { useNow } from '../../db/hooks'
 import { db } from '../../db/schema'
+import { useNeedsCable } from '../../ota/store'
 import { useSyncState } from '../../sync/controller'
 import { countPending } from '../../sync/engine'
 import { usePendingPhotos } from '../food/photos'
@@ -31,6 +32,8 @@ export function useSourceHealth(): SourceHealth[] {
   const hc = useHealthConnectState()
   const plan = useCoachPlan()
   const photos = usePendingPhotos()
+  // In the Android app: a published version that this APK is too old for.
+  const update = useNeedsCable()
   // "More than 48 hours", "more than an hour": checked every minute is plenty.
   const now = useNow(60_000).getTime()
   const android = isAndroidApp()
@@ -63,9 +66,10 @@ export function useSourceHealth(): SourceHealth[] {
             : undefined,
           sisrun: plan,
           photos: photos ?? { count: 0 },
+          update,
         },
         now,
       ),
-    [sync, pending, online, garmin, hc, plan, photos, now, android],
+    [sync, pending, online, garmin, hc, plan, photos, update, now, android],
   )
 }
