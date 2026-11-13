@@ -1,8 +1,9 @@
 import { ChevronDown, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
+import { useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { Button, cx, DecimalInput, Field, TextInput } from '../../components/ui'
-import { remove, save } from '../../db/repo'
+import { save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { WeightEntry } from '../../db/types'
 import { dayKey, dayTime, formatTime } from '../../lib/dates'
@@ -22,11 +23,19 @@ type ExtraKey = (typeof EXTRA_FIELDS)[number]['key']
 
 const toInput = (value: number | undefined): string => (value === undefined ? '' : String(value).replace('.', ','))
 
-const isValidOptional = (text: string, min: number, max: number) => {
-  if (text.trim() === '') return true
+/**
+ * Why a typed number can't be saved, or undefined when it can. An empty field has nothing to say:
+ * whether it may stay empty is the caller's call.
+ */
+function rangeProblem(text: string, min: number, max: number, unit = ''): string | undefined {
+  if (text.trim() === '') return undefined
   const value = parseDecimal(text)
-  return value !== undefined && value >= min && value <= max
+  if (value !== undefined && value >= min && value <= max) return undefined
+  return `Entre ${formatNumber(min)} e ${formatNumber(max)}${unit}.`
 }
+
+/** The reason in red, under the field. */
+const problemHint = (problem: string | undefined) => problem && <span className="text-critical">{problem}</span>
 
 export function WeightModal({ entry, onClose }: { entry: WeightEntry | null; onClose: () => void }) {
   const today = dayKey()
@@ -40,15 +49,22 @@ export function WeightModal({ entry, onClose }: { entry: WeightEntry | null; onC
   const [showExtras, setShowExtras] = useState(EXTRA_FIELDS.some(({ key }) => entry?.[key] !== undefined))
   const [note, setNote] = useState(entry?.note ?? '')
 
+  const removeWithUndo = useRemoveWithUndo()
+
+  // The rules, each with the reason shown under its field.
   const weightKg = parseDecimal(weight)
-  const valid =
-    weightKg !== undefined &&
-    weightKg >= 20 &&
-    weightKg <= 400 &&
-    isValidOptional(fat, 1, 80) &&
-    EXTRA_FIELDS.every(({ key }) => isValidOptional(extras[key], 0, 10000)) &&
-    date !== '' &&
-    date <= today
+  const problems = {
+    weight: rangeProblem(weight, 20, 400, ' kg'),
+    fat: rangeProblem(fat, 1, 80, '%'),
+    date: date === '' ? 'Escolha a data.' : date > today ? 'A data não pode ser no futuro.' : undefined,
+    ...(Object.fromEntries(EXTRA_FIELDS.map(({ key }) => [key, rangeProblem(extras[key], 0, 10000)])) as Record<
+      ExtraKey,
+      string | undefined
+    >),
+  }
+  const extrasProblem = EXTRA_FIELDS.some(({ key }) => problems[key])
+  const extrasOpen = showExtras || extrasProblem
+  const valid = weightKg !== undefined && Object.values(problems).every((problem) => problem === undefined)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -67,9 +83,9 @@ export function WeightModal({ entry, onClose }: { entry: WeightEntry | null; onC
     onClose()
   }
 
-  async function onDelete() {
+  function onDelete() {
     if (!entry) return
-    await remove(db.weights, entry.id)
+    removeWithUndo(db.weights, entry.id, 'Pesagem apagada')
     onClose()
   }
 
@@ -77,13 +93,13 @@ export function WeightModal({ entry, onClose }: { entry: WeightEntry | null; onC
     <Modal open title={entry ? 'Editar pesagem' : 'Registrar pesagem'} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Peso (kg)">
+          <Field label="Peso (kg)" hint={problemHint(problems.weight)}>
             <DecimalInput autoFocus={!entry} value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="82,4" />
           </Field>
-          <Field label="Gordura (%)">
+          <Field label="Gordura (%)" hint={problemHint(problems.fat)}>
             <DecimalInput value={fat} onChange={(e) => setFat(e.target.value)} placeholder="18,5" />
           </Field>
-          <Field label="Data">
+          <Field label="Data" hint={problemHint(problems.date)}>
             <TextInput type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field label="Hora">
@@ -94,16 +110,17 @@ export function WeightModal({ entry, onClose }: { entry: WeightEntry | null; onC
         <button
           type="button"
           className="flex items-center gap-1 text-sm font-medium text-ink-2"
-          aria-expanded={showExtras}
+          aria-expanded={extrasOpen}
           onClick={() => setShowExtras((open) => !open)}
         >
-          <ChevronDown size={16} className={cx('transition', showExtras && 'rotate-180')} />
+          <ChevronDown size={16} className={cx('transition', extrasOpen && 'rotate-180')} />
           Mais dados da balança
         </button>
-        {showExtras && (
+        {/* Kept open while one of them is wrong, so the reason stays in sight. */}
+        {extrasOpen && (
           <div className="grid grid-cols-2 gap-3">
             {EXTRA_FIELDS.map(({ key, label }) => (
-              <Field key={key} label={label}>
+              <Field key={key} label={label} hint={problemHint(problems[key])}>
                 <DecimalInput value={extras[key]} onChange={(e) => setExtras({ ...extras, [key]: e.target.value })} />
               </Field>
             ))}
@@ -116,8 +133,8 @@ export function WeightModal({ entry, onClose }: { entry: WeightEntry | null; onC
 
         <div className="flex gap-2">
           {entry && (
-            <Button variant="danger" onClick={() => void onDelete()}>
-              <Trash2 size={16} /> Excluir
+            <Button variant="danger" onClick={onDelete}>
+              <Trash2 size={16} /> Apagar
             </Button>
           )}
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>

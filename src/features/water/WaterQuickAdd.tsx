@@ -12,7 +12,7 @@ import type { WaterContainer } from '../../db/types'
 import { dayKey, formatTime, relativeDay, type DayKey } from '../../lib/dates'
 import { formatMl, parseDecimal } from '../../lib/format'
 import { CONTAINER_ICONS } from './containerIcons'
-import { addWater, CLOCK, sumMl, useContainers } from './water'
+import { addWater, CLOCK, sumMl, useContainers, waterAmountProblem } from './water'
 import { tapFeedback } from '../../lib/haptics'
 
 /** The day's water against the goal; `past` for a day that's over ("faltaram"). */
@@ -137,7 +137,8 @@ function CustomAmountModal({
   const [text, setText] = useState('')
   const [clock, setClock] = useState(() => formatTime(Date.now()))
   const ml = parseDecimal(text)
-  const valid = ml !== undefined && ml > 0 && ml <= 5000 && (clock === '' || CLOCK.test(clock))
+  const problem = waterAmountProblem(text)
+  const valid = ml !== undefined && !problem && (clock === '' || CLOCK.test(clock))
   const today = dayKey()
 
   function submit(event: FormEvent) {
@@ -151,7 +152,7 @@ function CustomAmountModal({
     <Modal open title={date && date !== today ? `Água de ${relativeDay(date, today)}` : 'Registrar água'} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Quantidade (ml)">
+          <Field label="Quantidade (ml)" hint={problem && <span className="text-critical">{problem}</span>}>
             <DecimalInput autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Ex.: 400" />
           </Field>
           <Field label="Hora">

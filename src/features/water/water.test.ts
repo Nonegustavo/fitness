@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WaterLog } from '../../db/types'
-import { loggedAt, suggestedGoalMl, sumMl, totalsByDay } from './water'
+import { loggedAt, suggestedGoalMl, sumMl, totalsByDay, waterAmountProblem } from './water'
 
 const log = (date: string, ml: number): WaterLog => ({
   id: `${date}-${ml}`,
@@ -22,6 +22,15 @@ describe('water', () => {
     const now = new Date(2026, 10, 7, 15, 42, 10).getTime()
     expect(loggedAt('2026-11-07', now)).toBe(now)
     expect(loggedAt('2026-11-05', now)).toBe(new Date(2026, 10, 5, 15, 42).getTime())
+  })
+
+  it('says why an amount can not be logged', () => {
+    expect(waterAmountProblem('')).toBeUndefined()
+    expect(waterAmountProblem('250')).toBeUndefined()
+    expect(waterAmountProblem('5000')).toBeUndefined()
+    expect(waterAmountProblem('5001')).toBe('No máximo 5.000 ml por registro.')
+    expect(waterAmountProblem('0')).toBe('Digite a quantidade em ml.')
+    expect(waterAmountProblem('abc')).toBe('Digite a quantidade em ml.')
   })
 
   it('sums logs per day', () => {

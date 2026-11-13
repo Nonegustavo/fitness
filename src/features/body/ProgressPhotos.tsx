@@ -2,10 +2,11 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Camera, ImageIcon, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '../../components/Modal'
+import { useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { useToast } from '../../components/Toast'
 import { Button, Card, cx, Empty, Field, Segmented, Select, SkeletonCard } from '../../components/ui'
 import { useToday } from '../../db/hooks'
-import { alive, remove, save } from '../../db/repo'
+import { alive, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { Pose, ProgressPhoto } from '../../db/types'
 import { daysBetween, formatDay, type DayKey } from '../../lib/dates'
@@ -176,6 +177,7 @@ function PhotoTile({
 
 function PhotoModal({ photo, weight, onClose }: { photo: ProgressPhoto; weight?: number; onClose: () => void }) {
   const url = usePhotoUrl(photo.photoId)
+  const removeWithUndo = useRemoveWithUndo()
   return (
     <Modal
       open
@@ -188,7 +190,7 @@ function PhotoModal({ photo, weight, onClose }: { photo: ProgressPhoto; weight?:
         variant="danger"
         className="mt-4"
         onClick={() => {
-          void remove(db.progressPhotos, photo.id)
+          removeWithUndo(db.progressPhotos, photo.id, 'Foto apagada')
           onClose()
         }}
       >

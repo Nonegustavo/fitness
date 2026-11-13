@@ -10,7 +10,7 @@ import { useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { toneColor } from '../../components/tone'
 import { Button, Card, cx, DecimalInput, Empty, Field, IconButton, Page, SkeletonLines, TextInput } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
-import { patch, remove, save, saveOrder } from '../../db/repo'
+import { patch, save, saveOrder } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
 import type { ContainerIcon, WaterContainer, WaterLog } from '../../db/types'
 import { formatDay, formatTime, type DayKey } from '../../lib/dates'
@@ -18,7 +18,7 @@ import { formatMl, formatNumber, parseDecimal } from '../../lib/format'
 import type { DayValue } from '../../lib/stats'
 import { useWeights } from '../body/body'
 import { CONTAINER_ICONS } from './containerIcons'
-import { changeWater, CLOCK, suggestedGoalMl, sumMl, useContainers, useWaterLogs } from './water'
+import { changeWater, CLOCK, suggestedGoalMl, sumMl, useContainers, useWaterLogs, waterAmountProblem } from './water'
 import { WaterQuickAdd, WaterSummary } from './WaterQuickAdd'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -168,7 +168,8 @@ function EntryModal({ log, name, onClose }: { log: WaterLog; name: string; onClo
   const [clock, setClock] = useState(formatTime(log.time))
   const [mlText, setMlText] = useState(String(log.ml))
   const ml = parseDecimal(mlText)
-  const valid = CLOCK.test(clock) && ml !== undefined && ml > 0 && ml <= 5000
+  const amountProblem = waterAmountProblem(mlText)
+  const valid = CLOCK.test(clock) && ml !== undefined && !amountProblem
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -182,10 +183,10 @@ function EntryModal({ log, name, onClose }: { log: WaterLog; name: string; onClo
       <form onSubmit={submit} className="space-y-4">
         <p className="text-sm text-ink-2 first-letter:uppercase">{formatDay(log.date)}</p>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Hora">
+          <Field label="Hora" hint={!CLOCK.test(clock) && <span className="text-critical">Escolha a hora.</span>}>
             <TextInput type="time" value={clock} onChange={(e) => setClock(e.target.value)} />
           </Field>
-          <Field label="Quantidade (ml)">
+          <Field label="Quantidade (ml)" hint={amountProblem && <span className="text-critical">{amountProblem}</span>}>
             <DecimalInput value={mlText} onChange={(e) => setMlText(e.target.value)} />
           </Field>
         </div>
@@ -197,7 +198,7 @@ function EntryModal({ log, name, onClose }: { log: WaterLog; name: string; onClo
               onClose()
             }}
           >
-            <Trash2 size={16} /> Remover
+            <Trash2 size={16} /> Apagar
           </Button>
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>
             Salvar
@@ -353,6 +354,7 @@ function ContainerModal({
   const [mlText, setMlText] = useState(container ? String(container.ml) : '')
   const [icon, setIcon] = useState<ContainerIcon>(container?.icon ?? 'glass')
   const [favorite, setFavorite] = useState(container ? container.favorite === 1 : true)
+  const removeWithUndo = useRemoveWithUndo()
   const ml = parseDecimal(mlText)
   const valid = name.trim() !== '' && ml !== undefined && ml >= 10 && ml <= 5000
 
@@ -370,9 +372,9 @@ function ContainerModal({
     onClose()
   }
 
-  async function onDelete() {
+  function onDelete() {
     if (!container) return
-    await remove(db.waterContainers, container.id)
+    removeWithUndo(db.waterContainers, container.id, 'Recipiente apagado')
     onClose()
   }
 
@@ -415,8 +417,8 @@ function ContainerModal({
         </label>
         <div className="flex gap-2">
           {container && (
-            <Button variant="danger" onClick={() => void onDelete()}>
-              <Trash2 size={16} /> Excluir
+            <Button variant="danger" onClick={onDelete}>
+              <Trash2 size={16} /> Apagar
             </Button>
           )}
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>

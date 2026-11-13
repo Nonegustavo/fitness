@@ -3,6 +3,7 @@ import { alive, patch, save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { WaterContainer, WaterLog } from '../../db/types'
 import { dayKey, dayTime, formatTime, type DayKey } from '../../lib/dates'
+import { formatNumber, parseDecimal } from '../../lib/format'
 
 /** The usual 35 ml per kg of body weight, rounded to 50 ml. */
 export const suggestedGoalMl = (weightKg: number): number => Math.round((weightKg * 35) / 50) * 50
@@ -18,6 +19,21 @@ export function totalsByDay(logs: WaterLog[]): Map<DayKey, number> {
 /** When water logged now goes on `date`: now itself today, else the same time of day on that day. */
 export function loggedAt(date: DayKey, now = Date.now()): number {
   return date === dayKey(now) ? now : dayTime(date, formatTime(now))
+}
+
+/** The most one log of water can hold. */
+export const MAX_WATER_ML = 5000
+
+/**
+ * Why an amount typed for one log can't be saved, or undefined when it can. Nothing typed has
+ * nothing to say yet (the button still waits for a number).
+ */
+export function waterAmountProblem(text: string): string | undefined {
+  if (text.trim() === '') return undefined
+  const ml = parseDecimal(text)
+  if (ml === undefined || ml <= 0) return 'Digite a quantidade em ml.'
+  if (ml > MAX_WATER_ML) return `No máximo ${formatNumber(MAX_WATER_ML, 0)} ml por registro.`
+  return undefined
 }
 
 /** "HH:mm" typed in a time field. */

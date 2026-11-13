@@ -1,8 +1,9 @@
 import { Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
+import { useRemoveWithUndo } from '../../components/SwipeToDelete'
 import { Button, DecimalInput, Field, TextInput } from '../../components/ui'
-import { remove, save } from '../../db/repo'
+import { save } from '../../db/repo'
 import { db } from '../../db/schema'
 import type { MeasurementEntry, MeasurementSite } from '../../db/types'
 import { dayKey } from '../../lib/dates'
@@ -18,6 +19,7 @@ export function MeasurementModal({
   onClose: () => void
 }) {
   const today = dayKey()
+  const removeWithUndo = useRemoveWithUndo()
   const [date, setDate] = useState(entry?.date ?? today)
   const [note, setNote] = useState(entry?.note ?? '')
   const [texts, setTexts] = useState<Record<string, string>>(() =>
@@ -47,9 +49,9 @@ export function MeasurementModal({
     onClose()
   }
 
-  async function onDelete() {
+  function onDelete() {
     if (!entry) return
-    await remove(db.measurements, entry.id)
+    removeWithUndo(db.measurements, entry.id, 'Medição apagada')
     onClose()
   }
 
@@ -72,8 +74,8 @@ export function MeasurementModal({
         </Field>
         <div className="flex gap-2">
           {entry && (
-            <Button variant="danger" onClick={() => void onDelete()}>
-              <Trash2 size={16} /> Excluir
+            <Button variant="danger" onClick={onDelete}>
+              <Trash2 size={16} /> Apagar
             </Button>
           )}
           <Button type="submit" variant="primary" className="flex-1" disabled={!valid}>
