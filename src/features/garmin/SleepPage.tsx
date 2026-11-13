@@ -1,25 +1,33 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Moon } from 'lucide-react'
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { DayNav, DayPager } from '../../components/DayNav'
 import { PeriodBars } from '../../components/PeriodBars'
 import { PeriodControl, useFirstDay, usePeriod, type Period } from '../../components/PeriodControl'
 import { PeriodLine } from '../../components/TimeCharts'
-import { Button, Card, cx, Empty, Page, SkeletonCard, SkeletonLines, Stat } from '../../components/ui'
-import { useToday } from '../../db/hooks'
+import { Button, Card, COLUMNS, cx, Empty, Field, Page, Select, SkeletonCard, SkeletonLines, Stack, Stat } from '../../components/ui'
+import { useSettings, useToday } from '../../db/hooks'
 import { db } from '../../db/schema'
+import { updateSettings } from '../../db/settings'
 import type { DailyHealth } from '../../db/types'
-import { formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
+import { daysBetween, formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 import type { DayValue } from '../../lib/stats'
+import { isAndroidApp } from '../healthconnect/plugin'
+import { importHealthConnect, useHealthConnectState } from '../healthconnect/sync'
 import { Hypnogram } from './Hypnogram'
-import { hrvStatus, sleepStages, STAGE_CLASS, useDailyHealth } from './recovery'
+import { hrvStatus, sleepStages, STAGE_CLASS, stressBand, useDailyHealth } from './recovery'
+import { balanceSentence, clock, regularity, regularitySentence, sleepBalance, sleepGoalMin, spreadText } from './sleepHabits'
 
 const NIGHTS = ['noite', 'noites'] as const
 const hasNight = (day: DailyHealth) => day.sleep !== undefined || day.hrv?.lastNight !== undefined || day.restingHr !== undefined
 const sleepHours = (hours: number) => formatDuration(hours * 3_600_000)
 const hoursAxis = (hours: number) => `${hours}h`
+/** Health Connect keeps 30 days for the apps without its history permission. */
+const STAGES_KEPT_DAYS = 30
+/** The sleep goals offered: 6h00 to 9h30, every 15 minutes. */
+const GOALS = Array.from({ length: 15 }, (_, i) => 360 + i * 15)
 
 /** One reading per day, from the days that have it. */
 const readings = (days: DailyHealth[], pick: (day: DailyHealth) => number | undefined): DayValue[] =>
@@ -50,6 +58,7 @@ export default function SleepPage() {
   const setDate = (next: DayKey) => setParams(next === today ? {} : { data: next }, { replace: true })
   const latest = useLatestNight()
   const trends = useTrends()
+  const habits = useSleepHabits(today)
 
   if (latest === undefined) {
     return (
@@ -61,7 +70,7 @@ export default function SleepPage() {
   }
 
   return (
-    <Page title="Sono e recuperação" icon={Moon} tone="sleep" subtitle="Do relógio Garmin">
+    <Page title="Sono e recuperação" icon={Moon} tone="sleep" subtitle="Do relógio Garmin" wide>
       {!latest ? (
         <Card>
           <Empty>Nenhum dado de sono ainda.</Empty>
@@ -73,12 +82,18 @@ export default function SleepPage() {
           </p>
         </Card>
       ) : (
-        // All of the screen is the night's page: dragged sideways, everything moves with the finger.
-        <DayPager date={date} today={today} onChange={setDate} className="space-y-4">
+        // All of the screen is the night's page: dragged sideways, everything moves with the finger. On a
+        // wide screen the night is on the left, the habit and the history on the right.
+        <DayPager date={date} today={today} onChange={setDate} className={COLUMNS}>
           {(day) => (
             <>
-              <SleepDay date={day} today={today} latest={latest} onDate={setDate} />
-              <TrendsCard trends={trends} />
+              <Stack>
+                <SleepDay date={day} today={today} latest={latest} onDate={setDate} />
+              </Stack>
+              <Stack>
+                <RegularityCard habits={habits} />
+                <TrendsCard trends={trends} />
+              </Stack>
             </>
           )}
         </DayPager>
@@ -125,7 +140,7 @@ function NightCards({
   return (
     <>
       {day?.sleep ? (
-        <NightCard day={day} />
+        <NightCard day={day} today={today} />
       ) : (
         <Card title={nightLabel(date)}>
           <Empty>
@@ -147,11 +162,15 @@ function NightCards({
   )
 }
 
-function NightCard({ day }: { day: DailyHealth }) {
+function NightCard({ day, today }: { day: DailyHealth; today: DayKey }) {
   const sleep = day.sleep
   if (!sleep) return null
   const stages = sleepStages(sleep)
   const total = stages.reduce((sum, part) => sum + part.seconds, 0)
+  const vitals = [
+    sleep.avgHr !== undefined && { label: 'FC média', value: `${Math.round(sleep.avgHr)} bpm` },
+    sleep.avgRespiration !== undefined && { label: 'Respiração', value: `${formatNumber(sleep.avgRespiration, 0)} rpm` },
+  ].filter((vital) => !!vital)
   return (
     <Card title={nightLabel(day.id)}>
       <div className="grid grid-cols-3 gap-3">
@@ -164,13 +183,13 @@ function NightCard({ day }: { day: DailyHealth }) {
         />
       </div>
       {total > 0 && (
-        <>
+        <div className="@container">
           <div className="mt-4 flex h-3 overflow-hidden rounded-full" role="img" aria-label="Fases do sono">
             {stages.map((part) => (
               <span key={part.key} className={cx('h-full', STAGE_CLASS[part.key])} style={{ width: `${(part.seconds / total) * 100}%` }} />
             ))}
           </div>
-          <ul className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+          <ul className="mt-3 grid gap-x-6 gap-y-1 text-sm @sm:grid-cols-2">
             {stages.map((part) => (
               <li key={part.key} className="flex items-center gap-2">
                 <span className={cx('size-2.5 shrink-0 rounded-full', STAGE_CLASS[part.key])} />
@@ -182,15 +201,76 @@ function NightCard({ day }: { day: DailyHealth }) {
               </li>
             ))}
           </ul>
-        </>
+        </div>
       )}
-      {day.sleepStages && day.sleepStages.length > 1 && (
+      {vitals.length > 0 && (
+        // A quieter line under the stages: the three numbers on top keep the room they have on a phone.
+        <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-line pt-3 text-sm">
+          {vitals.map((vital) => (
+            <div key={vital.label} className="flex items-baseline gap-2">
+              <dt className="text-ink-2">{vital.label}</dt>
+              <dd className="font-medium tabular-nums">{vital.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {day.sleepStages && day.sleepStages.length > 1 ? (
         <div className="mt-5">
           <p className="mb-1 text-sm font-medium">Ao longo da noite</p>
           <Hypnogram spans={day.sleepStages} />
         </div>
+      ) : (
+        <MissingStages date={day.id} today={today} />
       )}
     </Card>
+  )
+}
+
+/**
+ * The night's stages with their times only come from Health Connect, on the phone (the Garmin API has
+ * the totals): where they come from, or a button in the app to bring them now.
+ */
+function MissingStages({ date, today }: { date: DayKey; today: DayKey }) {
+  const android = isAndroidApp()
+  const healthConnect = useHealthConnectState()
+  const [tried, setTried] = useState(false)
+  const age = daysBetween(date, today)
+  const history = android && healthConnect.access?.history === true
+  if (age > STAGES_KEPT_DAYS && !history) return <p className="mt-4 text-sm text-muted">Sem as fases desta noite.</p>
+  if (!android) {
+    return <p className="mt-4 text-sm text-muted">As fases ao longo da noite chegam pelo app do celular: abra o app para trazê-las.</p>
+  }
+  if (healthConnect.access && !healthConnect.access.granted.includes('sleep')) {
+    return (
+      <p className="mt-4 text-sm text-muted">
+        As fases ao longo da noite vêm do Health Connect.{' '}
+        <Link to="/ajustes" className="font-medium text-accent-ink underline underline-offset-2">
+          Permitir o sono em Ajustes
+        </Link>
+      </p>
+    )
+  }
+  const busy = healthConnect.phase === 'busy'
+  const bring = async () => {
+    // An import reaches back from the last one; an older night needs the whole history.
+    await importHealthConnect({ full: age > 2 })
+    setTried(true)
+  }
+  return (
+    <div className="mt-4 flex items-center gap-3">
+      <p className="min-w-0 flex-1 text-sm text-muted">
+        {busy
+          ? 'Trazendo do Health Connect…'
+          : tried
+            ? healthConnect.phase === 'error'
+              ? `Não deu certo: ${healthConnect.message ?? 'tente de novo'}.`
+              : 'O Health Connect não tem as fases desta noite.'
+            : 'As fases ao longo da noite vêm do Health Connect, no celular.'}
+      </p>
+      <Button size="sm" className="shrink-0" disabled={busy} onClick={() => void bring()}>
+        Importar agora
+      </Button>
+    </div>
   )
 }
 
@@ -215,7 +295,7 @@ function recoveryStats({ hrv, restingHr, bodyBattery, stress, steps }: DailyHeal
     })
   }
   if (stress?.avg !== undefined) {
-    stats.push({ label: 'Estresse médio', value: stress.avg, note: stress.max ? `máx ${stress.max}` : undefined })
+    stats.push({ label: 'Estresse médio', value: stress.avg, note: [stressBand(stress.avg), stress.max && `máx ${stress.max}`].filter(Boolean).join(' · ') })
   }
   if (steps !== undefined) stats.push({ label: 'Passos', value: formatNumber(steps, 0) })
   return stats
@@ -224,10 +304,12 @@ function recoveryStats({ hrv, restingHr, bodyBattery, stress, steps }: DailyHeal
 function RecoveryCard({ stats, hrv }: { stats: RecoveryStat[]; hrv?: DailyHealth['hrv'] }) {
   return (
     <Card title="Recuperação">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {stats.map((stat) => (
-          <Stat key={stat.label} {...stat} />
-        ))}
+      <div className="@container">
+        <div className="grid grid-cols-2 gap-4 @sm:grid-cols-3">
+          {stats.map((stat) => (
+            <Stat key={stat.label} {...stat} />
+          ))}
+        </div>
       </div>
       {hrv && (hrv.weeklyAvg !== undefined || hrv.balancedLow !== undefined) && (
         <p className="mt-3 text-xs text-muted">
@@ -250,6 +332,7 @@ interface Trends {
   hours: DayValue[]
   hrv: DayValue[]
   resting: DayValue[]
+  stress: DayValue[]
 }
 
 /**
@@ -263,12 +346,13 @@ function useTrends(): Trends {
   const hours = useMemo(() => readings(days ?? [], (day) => (day.sleep ? day.sleep.totalSec / 3600 : undefined)), [days])
   const hrv = useMemo(() => readings(days ?? [], (day) => day.hrv?.lastNight), [days])
   const resting = useMemo(() => readings(days ?? [], (day) => day.restingHr), [days])
-  return { period, loaded: days !== undefined, hours, hrv, resting }
+  const stress = useMemo(() => readings(days ?? [], (day) => day.stress?.avg), [days])
+  return { period, loaded: days !== undefined, hours, hrv, resting, stress }
 }
 
-/** Sleep, HRV and resting heart rate over the period picked: each night, or the average of a week, month or year. */
+/** Sleep, HRV, resting heart rate and stress over the period picked: each night, or the average of a week, month or year. */
 function TrendsCard({ trends }: { trends: Trends }) {
-  const { period, loaded, hours, hrv, resting } = trends
+  const { period, loaded, hours, hrv, resting, stress } = trends
   return (
     <Card title="Histórico">
       <PeriodControl period={period} />
@@ -300,6 +384,77 @@ function TrendsCard({ trends }: { trends: Trends }) {
               <PeriodLine periods={period.window} values={resting} how="mean" unit="bpm" digits={0} label="FC de repouso" />
             </>
           )}
+          {stress.length > 0 && (
+            <>
+              <p className="mt-5 mb-1 text-sm font-medium">Estresse médio</p>
+              <PeriodLine periods={period.window} values={stress} how="mean" unit="" digits={0} label="Estresse médio" />
+            </>
+          )}
+        </>
+      )}
+    </Card>
+  )
+}
+
+interface SleepHabits {
+  /** False while the nights load. */
+  loaded: boolean
+  regular: ReturnType<typeof regularity>
+  balance: ReturnType<typeof sleepBalance>
+  goalMin: number
+}
+
+/** The last 2 weeks' regularity and the last 7 nights against the goal, as of today: the same on every night's page. */
+function useSleepHabits(today: DayKey): SleepHabits {
+  const settings = useSettings()
+  const goalMin = sleepGoalMin(settings)
+  const days = useDailyHealth(shiftDay(today, -13), today)
+  return useMemo(
+    () => ({
+      loaded: days !== undefined,
+      regular: days && regularity(days, today),
+      balance: days && sleepBalance(days, today, goalMin),
+      goalMin,
+    }),
+    [days, today, goalMin],
+  )
+}
+
+/** When the nights usually start and end, how much that varies, and the last 7 against the sleep goal. */
+function RegularityCard({ habits }: { habits: SleepHabits }) {
+  const { loaded, regular, balance, goalMin } = habits
+  if (loaded && !regular && !balance) return null
+  // A goal set off the 15-minute steps (on another device, say) still shows.
+  const goals = GOALS.includes(goalMin) ? GOALS : [...GOALS, goalMin].sort((a, b) => a - b)
+  return (
+    <Card title="Regularidade">
+      {!loaded ? (
+        <SkeletonLines lines={4} />
+      ) : (
+        <>
+          {regular ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Stat label="Costuma dormir" value={clock(regular.bedtime)} note={spreadText(regular.bedtimeSdMin)} />
+                <Stat label="Costuma acordar" value={clock(regular.wake)} note={spreadText(regular.wakeSdMin)} />
+              </div>
+              <p className="mt-3 text-sm text-ink-2">{regularitySentence(regular)}</p>
+            </>
+          ) : (
+            <p className="text-sm text-muted">Com 5 noites com horário nas últimas 2 semanas, aparecem a hora de dormir e a de acordar de costume.</p>
+          )}
+          {balance && <p className="mt-3 text-sm">{balanceSentence(balance)}</p>}
+          <div className="mt-4 max-w-56">
+            <Field label="Meta de sono por noite">
+              <Select value={goalMin} onChange={(event) => void updateSettings(() => ({ sleepGoalMin: Number(event.target.value) }))}>
+                {goals.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {formatDuration(minutes * 60_000)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
         </>
       )}
     </Card>

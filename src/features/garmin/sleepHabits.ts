@@ -42,9 +42,16 @@ export function regularity(days: DailyHealth[], asOf: DayKey): Regularity | unde
 }
 
 /** How regular, in words: "bem regular" up to about half an hour either way, "varia bastante" past an hour. */
-export function regularityWords(regularity: Regularity): string {
+export function regularityWords(regularity: Regularity): 'bem regular' | 'varia um pouco' | 'varia bastante' {
   const spread = Math.round(Math.max(regularity.bedtimeSdMin, regularity.wakeSdMin))
-  return spread <= 30 ? 'bem regular' : spread <= 60 ? 'um pouco irregular' : 'varia bastante'
+  return spread <= 30 ? 'bem regular' : spread <= 60 ? 'varia um pouco' : 'varia bastante'
+}
+
+/** "Nas últimas 2 semanas (12 noites), a hora de dormir e a de acordar são bem regulares." */
+export function regularitySentence(regularity: Regularity): string {
+  const words = regularityWords(regularity)
+  const reads = words === 'bem regular' ? 'são bem regulares' : words === 'varia um pouco' ? 'variam um pouco' : 'variam bastante'
+  return `Nas últimas 2 semanas (${regularity.nights} noites), a hora de dormir e a de acordar ${reads}.`
 }
 
 export interface SleepBalance {

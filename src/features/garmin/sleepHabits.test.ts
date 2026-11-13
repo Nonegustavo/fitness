@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DailyHealth } from '../../db/types'
 import { dayTime, shiftDay } from '../../lib/dates'
-import { balanceSentence, regularity, regularityWords, signedDuration, sleepBalance, sleepGoalMin, spreadText } from './sleepHabits'
+import { balanceSentence, regularity, regularitySentence, regularityWords, signedDuration, sleepBalance, sleepGoalMin, spreadText } from './sleepHabits'
 
 const meta = { updatedAt: 1, deleted: 0, dirty: 0 } as const
 
@@ -36,7 +36,9 @@ describe('regularity', () => {
     expect(result.bedtimeSdMin).toBeCloseTo(30)
     expect(regularityWords(result)).toBe('bem regular')
     expect(regularityWords({ ...result, wakeSdMin: 75 })).toBe('varia bastante')
-    expect(regularityWords({ ...result, bedtimeSdMin: 45 })).toBe('um pouco irregular')
+    expect(regularityWords({ ...result, bedtimeSdMin: 45 })).toBe('varia um pouco')
+    expect(regularitySentence(result)).toBe('Nas últimas 2 semanas (5 noites), a hora de dormir e a de acordar são bem regulares.')
+    expect(regularitySentence({ ...result, wakeSdMin: 75 })).toBe('Nas últimas 2 semanas (5 noites), a hora de dormir e a de acordar variam bastante.')
   })
 
   it('leaves out nights without times and other days', () => {
