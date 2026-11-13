@@ -1,8 +1,8 @@
-import { ArrowDown, ChartScatter } from 'lucide-react'
+import { ArrowDown, ArrowRight, ChartScatter } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { LineOverTime } from '../../components/TimeCharts'
-import { Button, Card, Empty, Field, Page, Segmented, Select, SkeletonCard } from '../../components/ui'
+import { Button, Card, Columns, Empty, Field, Page, Segmented, Select, SkeletonCard, Stack } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { shiftDay } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
@@ -63,8 +63,16 @@ export default function InsightsPage() {
 
   if (!data || !found) {
     return (
-      <Page title="Correlações" icon={ChartScatter} tone="insights">
-        <SkeletonCard lines={5} />
+      <Page title="Correlações" icon={ChartScatter} tone="insights" wide>
+        <Columns>
+          <Stack>
+            <SkeletonCard lines={5} />
+          </Stack>
+          {/* The explorer's place on a wide screen; the phone shows the one card above, as before. */}
+          <Stack className="max-xl:hidden">
+            <SkeletonCard lines={8} />
+          </Stack>
+        </Columns>
       </Page>
     )
   }
@@ -96,85 +104,94 @@ export default function InsightsPage() {
         <Segmented label="Período" value={period} options={PERIODS} onChange={setPeriod} />
       </div>
 
-      <Card title="Destaques">
-        {found.length === 0 ? (
-          <NoHighlights data={data} />
-        ) : (
-          <>
-            <div className="space-y-3">
-              {shown.map(({ group, findings }) => (
-                <section key={group}>
-                  <h3 className="text-xs font-medium text-muted">{group}</h3>
-                  <ul className="divide-y divide-line">
-                    {findings.map((finding) => (
-                      <li key={`${finding.x.key}-${finding.y.key}`} className="py-3">
-                        <p className="text-sm">{describe(finding)}</p>
-                        <p className="mt-1 text-xs text-muted">
-                          Relação {strengthLabel(finding)} · {daysNote(finding.n)} ·{' '}
-                          <button
-                            type="button"
-                            onClick={() => explore(finding)}
-                            className="inline-flex items-center gap-0.5 font-medium text-accent-ink"
-                          >
-                            ver no gráfico <ArrowDown size={12} aria-hidden />
-                          </button>
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-            {found.length > SHOWN && (
-              <Button variant="ghost" size="sm" className="mt-1 w-full" onClick={() => setAll(!all)}>
-                {all ? 'Mostrar menos' : `Mostrar mais ${found.length - SHOWN}`}
-              </Button>
+      <Columns>
+        <Stack>
+          <Card title="Destaques">
+            {found.length === 0 ? (
+              <NoHighlights data={data} />
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {shown.map(({ group, findings }) => (
+                    <section key={group}>
+                      <h3 className="text-xs font-medium text-muted">{group}</h3>
+                      <ul className="divide-y divide-line">
+                        {findings.map((finding) => (
+                          <li key={`${finding.x.key}-${finding.y.key}`} className="py-3">
+                            <p className="text-sm">{describe(finding)}</p>
+                            <p className="mt-1 text-xs text-muted">
+                              Relação {strengthLabel(finding)} · {daysNote(finding.n)} ·{' '}
+                              <button
+                                type="button"
+                                onClick={() => explore(finding)}
+                                className="inline-flex items-center gap-0.5 font-medium text-accent-ink"
+                              >
+                                ver no gráfico
+                                {/* The explorer is below on the phone, beside on a wide screen. */}
+                                <ArrowDown size={12} aria-hidden className="xl:hidden" />
+                                <ArrowRight size={12} aria-hidden className="max-xl:hidden" />
+                              </button>
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ))}
+                </div>
+                {found.length > SHOWN && (
+                  <Button variant="ghost" size="sm" className="mt-1 w-full" onClick={() => setAll(!all)}>
+                    {all ? 'Mostrar menos' : `Mostrar mais ${found.length - SHOWN}`}
+                  </Button>
+                )}
+              </>
             )}
-          </>
-        )}
-      </Card>
+          </Card>
+        </Stack>
 
-      <div ref={explorer} className="scroll-mt-4">
-        <Card title="Explorar">
-          {!x || !y ? (
-            <Empty>Ainda não há dados suficientes para cruzar.</Empty>
-          ) : (
-            <Explorer data={data} metrics={metrics} x={x} y={y} onPick={setPick} />
-          )}
-        </Card>
-      </div>
+        <Stack>
+          <div ref={explorer} className="scroll-mt-4">
+            <Card title="Explorar">
+              {!x || !y ? (
+                <Empty>Ainda não há dados suficientes para cruzar.</Empty>
+              ) : (
+                <Explorer data={data} metrics={metrics} x={x} y={y} onPick={setPick} />
+              )}
+            </Card>
+          </div>
 
-      <Card title="Como ler">
-        <ul className="list-disc space-y-1.5 pl-5 text-sm text-ink-2">
-          <li>
-            A causa vem antes: o que acontece num dia é comparado com a noite e a manhã seguintes (o sono conta para a
-            manhã em que termina, como o Garmin faz), e a noite e a manhã, com o dia que vem depois, como os treinos. O
-            clima de uma corrida só é comparado com aquela corrida.
-          </li>
-          <li>
-            Um destaque precisa de pelo menos {MIN_POINTS} dias com as duas medidas, ou {MIN_GROUP} dias com e {MIN_GROUP}{' '}
-            sem, para um hábito. As medidas da corrida só existem nos dias de corrida (as etapas no alvo, só nos treinos
-            com etapas), então juntam dias mais devagar; com menos de {FEW_DAYS}, uma relação ainda pode mudar bastante.
-          </li>
-          <li>
-            Os destaques passam por um filtro contra o acaso: mesmo testando centenas de pares de uma vez, no máximo 1 em
-            cada 10 seria coincidência.
-          </li>
-          <li>
-            A prontidão é calculada pelo app a partir do sono, da HRV, da FC de repouso, da carga de treino e das dores,
-            e a forma, a partir da carga. Por isso a prontidão não é comparada com essas medidas nem com os treinos da
-            véspera: a relação seria a da própria conta.
-          </li>
-          <li>
-            Andar junto não prova causa. Um dia de treino pesado e uma noite pior podem ter uma terceira causa, como o
-            calor ou o estresse.
-          </li>
-          <li>
-            Embaixo do gráfico: ρ vai de −1 a 1 e mede o quanto as duas medidas sobem e descem juntas; d mede a distância
-            entre as médias dos dois grupos, em desvios-padrão; p é a chance de ver uma relação dessas só por acaso.
-          </li>
-        </ul>
-      </Card>
+          <Card title="Como ler">
+            <ul className="list-disc space-y-1.5 pl-5 text-sm text-ink-2">
+              <li>
+                A causa vem antes: o que acontece num dia é comparado com a noite e a manhã seguintes (o sono conta para a
+                manhã em que termina, como o Garmin faz), e a noite e a manhã, com o dia que vem depois, como os treinos. O
+                clima de uma corrida só é comparado com aquela corrida.
+              </li>
+              <li>
+                Um destaque precisa de pelo menos {MIN_POINTS} dias com as duas medidas, ou {MIN_GROUP} dias com e {MIN_GROUP}{' '}
+                sem, para um hábito. As medidas da corrida só existem nos dias de corrida (as etapas no alvo, só nos treinos
+                com etapas), então juntam dias mais devagar; com menos de {FEW_DAYS}, uma relação ainda pode mudar bastante.
+              </li>
+              <li>
+                Os destaques passam por um filtro contra o acaso: mesmo testando centenas de pares de uma vez, no máximo 1 em
+                cada 10 seria coincidência.
+              </li>
+              <li>
+                A prontidão é calculada pelo app a partir do sono, da HRV, da FC de repouso, da carga de treino e das dores,
+                e a forma, a partir da carga. Por isso a prontidão não é comparada com essas medidas nem com os treinos da
+                véspera: a relação seria a da própria conta.
+              </li>
+              <li>
+                Andar junto não prova causa. Um dia de treino pesado e uma noite pior podem ter uma terceira causa, como o
+                calor ou o estresse.
+              </li>
+              <li>
+                Embaixo do gráfico: ρ vai de −1 a 1 e mede o quanto as duas medidas sobem e descem juntas; d mede a distância
+                entre as médias dos dois grupos, em desvios-padrão; p é a chance de ver uma relação dessas só por acaso.
+              </li>
+            </ul>
+          </Card>
+        </Stack>
+      </Columns>
     </Page>
   )
 }
@@ -233,9 +250,12 @@ function Explorer({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <MetricSelect label="Comparar" value={x.key} metrics={metrics} onChange={(key) => onPick({ x: key, y: y.key })} />
-        <MetricSelect label="Com" value={y.key} metrics={metrics} onChange={(key) => onPick({ x: x.key, y: key })} />
+      {/* Side by side when the card itself is wide enough, not the window: on a computer it is one of two columns. */}
+      <div className="@container">
+        <div className="grid gap-3 @sm:grid-cols-2">
+          <MetricSelect label="Comparar" value={x.key} metrics={metrics} onChange={(key) => onPick({ x: key, y: y.key })} />
+          <MetricSelect label="Com" value={y.key} metrics={metrics} onChange={(key) => onPick({ x: x.key, y: key })} />
+        </div>
       </div>
       <p className="text-xs text-muted">
         {x.key === y.key
