@@ -206,3 +206,21 @@ export const uriToPath = (uri: string): string => decodeURIComponent(uri.replace
 
 export const toHex = (buffer: ArrayBuffer): string =>
   Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('')
+
+export type UpdateStatus = 'checking' | 'downloading' | 'ready' | 'needsCable' | 'failed' | 'error' | 'current'
+
+/** The one thing the update card says about the state, most pressing first. */
+export function updateStatus(
+  phase: 'idle' | 'checking' | 'downloading',
+  error: string | undefined,
+  state: OtaState,
+  running: Running,
+  nativeLevel: number | undefined,
+): UpdateStatus {
+  if (phase !== 'idle') return phase
+  if (state.target && state.target.build !== running.build && state.target.time > running.time) return 'ready'
+  if (state.needsCable && (nativeLevel === undefined || state.needsCable.minNative > nativeLevel)) return 'needsCable'
+  if (state.failed) return 'failed'
+  if (error) return 'error'
+  return 'current'
+}

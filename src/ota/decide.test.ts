@@ -11,6 +11,7 @@ import {
   isSafeEntryName,
   parseState,
   refuse,
+  updateStatus,
   uriToPath,
   type OtaState,
   type Target,
@@ -167,6 +168,18 @@ describe('bytesToBase64', () => {
     expect(bytesToBase64(bytes, 7)).toBe(expected)
     expect(bytesToBase64(bytes, 3)).toBe(expected)
     expect(bytesToBase64(new Uint8Array())).toBe('')
+  })
+})
+
+describe('updateStatus', () => {
+  it('says the most pressing thing', () => {
+    expect(updateStatus('downloading', 'x', state({ target: target() }), running, 1)).toBe('downloading')
+    expect(updateStatus('idle', 'x', state({ target: target(), failed: 'z' }), running, 1)).toBe('ready')
+    expect(updateStatus('idle', undefined, state({ target: target() }), { build: 'bbb2222', time: 2000 }, 1)).toBe('current')
+    expect(updateStatus('idle', undefined, state({ needsCable: { build: 'c', minNative: 2 } }), running, 1)).toBe('needsCable')
+    expect(updateStatus('idle', undefined, state({ needsCable: { build: 'c', minNative: 2 } }), running, 2)).toBe('current')
+    expect(updateStatus('idle', 'x', state({ failed: 'z' }), running, 1)).toBe('failed')
+    expect(updateStatus('idle', 'x', state(), running, 1)).toBe('error')
   })
 })
 
