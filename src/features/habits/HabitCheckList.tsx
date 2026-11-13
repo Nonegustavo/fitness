@@ -203,6 +203,9 @@ function WeekNote({ habit, week, className }: { habit: Habit; week: WeekResult; 
   return <span className={cx(over ? 'text-critical' : 'text-muted', className)}>{weekProgressText(week)}</span>
 }
 
+/** The chip's −/+ buttons: 28 px to the eye, 40 px to the finger. */
+const STEPPER = "relative size-7 before:absolute before:-inset-1.5 before:content-['']"
+
 /** A habit as one button (yes/no) or a small stepper (counted), for the compact list. */
 function HabitChip({ habit, log, week, onSet, onMenu, ref }: ItemProps) {
   const press = useLongPress(onMenu)
@@ -252,11 +255,13 @@ function HabitChip({ habit, log, week, onSet, onMenu, ref }: ItemProps) {
     >
       {Icon && <Icon aria-hidden size={16} className="mr-1.5 shrink-0" style={{ color: skipped ? 'var(--muted)' : color }} />}
       {name}
-      <IconButton label={`Diminuir ${habit.name}`} className="size-7" disabled={value <= 0} onClick={() => onSet(value - 1)}>
+      {/* Small to fit the chip, but what answers the finger reaches 40 px: 6 px past the button on every
+          side, inside the chip's height and short of the other button across the number (24 px away). */}
+      <IconButton label={`Diminuir ${habit.name}`} className={STEPPER} disabled={value <= 0} onClick={() => onSet(value - 1)}>
         <Minus size={14} />
       </IconButton>
       <span className={cx('w-5 text-center font-semibold tabular-nums', (value === 0 || skipped) && 'text-muted')}>{value}</span>
-      <IconButton label={`Aumentar ${habit.name}`} className="size-7" onClick={() => onSet(value + 1)}>
+      <IconButton label={`Aumentar ${habit.name}`} className={STEPPER} onClick={() => onSet(value + 1)}>
         <Plus size={14} />
       </IconButton>
     </div>
