@@ -25,6 +25,14 @@ const HRV_STATUS: Record<string, string> = {
 
 export const hrvStatus = (status: string | undefined): string | undefined => (status ? HRV_STATUS[status] : undefined)
 
+/** Garmin's bands of the stress level (0–100): rest up to 25, then low, medium and high. */
+export const stressBand = (level: number): 'repouso' | 'baixo' | 'médio' | 'alto' =>
+  level <= 25 ? 'repouso' : level <= 50 ? 'baixo' : level <= 75 ? 'médio' : 'alto'
+
+/** What a day's average stress means, in a few words. */
+export const stressWords = (level: number): string =>
+  ({ repouso: 'em repouso quase o dia todo', baixo: 'estresse baixo', médio: 'estresse médio', alto: 'estresse alto' })[stressBand(level)]
+
 /** Garmin's words for a sleep score: 90 and up excellent, 80 good, 60 fair, below that poor. */
 export const sleepQuality = (score: number): string =>
   score >= 90 ? 'Excelente' : score >= 80 ? 'Bom' : score >= 60 ? 'Razoável' : 'Ruim'

@@ -1,4 +1,4 @@
-import { Activity, BatteryMedium, Flame, Footprints, HeartPulse, Scale, Target, Utensils } from 'lucide-react'
+import { Activity, BatteryMedium, Brain, Flame, Footprints, HeartPulse, Scale, Target, Utensils } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { MiniBars, RangeBars, Sparkline } from '../../components/MiniCharts'
@@ -13,7 +13,7 @@ import { useActivities } from '../activities/activities'
 import { metricSeries, useWeights } from '../body/body'
 import { DayProgress } from '../food/DayProgress'
 import { goalsFor, sumNutrients, useFoodLogs, useTrainingDays } from '../food/nutrition'
-import { hrvStatus } from '../garmin/recovery'
+import { hrvStatus, stressWords } from '../garmin/recovery'
 import { distanceText } from '../races/race'
 import { useNextRace } from '../races/races'
 import { RacePredictionLine } from '../running/RacePrediction'
@@ -229,6 +229,33 @@ export function BatteryBig({ today }: { today: DayKey }) {
         <RangeBars ranges={ranges} color={toneColor('habits')} label="Body Battery dos últimos 7 dias, da mínima à máxima" />
         <DayLetters days={days} today={today} />
       </div>
+    </Card>
+  )
+}
+
+/** The day's stress from the watch (Garmin's 0 to 100), what its band means, and the last 14 days. */
+export function StressBig({ today }: { today: DayKey }) {
+  const rows = useRecentHealth(today, 13)
+  if (!rows) return <SkeletonCard lines={4} />
+  const days = dayRange(shiftDay(today, -13), today)
+  const values = perDay(rows, days, (row) => row.stress?.avg)
+  const latestIndex = values.findLastIndex((value) => value !== undefined)
+  if (latestIndex < 0) return null
+  const latest = values[latestIndex]!
+  const max = rows.find((row) => row.id === days[latestIndex])?.stress?.max
+  const mean = average(values.filter((value): value is number => value !== undefined))
+  const when = days[latestIndex] === today ? 'hoje, até a última sincronização' : relativeDay(days[latestIndex], today)
+  return (
+    <Card icon={Brain} tone="recovery" title="Estresse" action={detailsLink('/sono')}>
+      <Headline value={latest} note={`${when}${max ? ` · pico ${max}` : ''}${mean !== undefined ? ` · média de 14 dias ${Math.round(mean)}` : ''}`} />
+      <p className="mt-2 text-sm first-letter:uppercase">{stressWords(latest)}.</p>
+      <div className="mt-3">
+        <MiniBars values={values.map((value) => value ?? 0)} marker={mean} color={toneColor('recovery')} label="Estresse médio nos últimos 14 dias" />
+        <DayLetters days={days} today={today} />
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        Média do dia, de 0 a 100: até 25 é repouso, 26–50 baixo, 51–75 médio e acima de 75 alto.
+      </p>
     </Card>
   )
 }

@@ -12,6 +12,7 @@ import {
   gymText,
   mealsText,
   recoveryParts,
+  sleepHabitsLine,
   sleepParts,
   strengthLines,
   walkingLines,
@@ -111,10 +112,23 @@ describe('a day', () => {
       'HRV 47 ms (média de 7 dias 52, faixa normal 48–60, baixa)',
       'FC repouso 50 bpm',
       'Body Battery mín. 25, máx. 90',
-      'estresse 29 (máx. 88)',
+      'estresse 29 (baixo, máx. 88)',
       'passos 10.700',
       'gasto pelo relógio 2.850 kcal (ativas 820)',
     ])
+  })
+
+  it('sums up the regularity of the last 14 nights and the balance of the last 7', () => {
+    // Bedtimes alternating 23:10 and 00:10 (mean 23:40), wake-ups at 07:05; 7h a night.
+    const health: DailyHealth[] = dayRange(shiftDay(TODAY, -9), TODAY).map((id, i) => {
+      const start = i % 2 === 0 ? at(shiftDay(id, -1), 23, 10) : at(id, 0, 10)
+      return { id, sleep: { totalSec: 7 * 3600, start, end: at(id, 7, 5) }, ...meta }
+    })
+    expect(sleepHabitsLine(health, TODAY, 480)).toBe(
+      'Regularidade (10 noites): dorme às 23:40 ± 32 min, acorda às 07:05 ± 0 min. Saldo de 7 noites: −7h00 contra a meta de 8h00 (média de 7h00 por noite).',
+    )
+    expect(sleepHabitsLine(health.slice(-2), TODAY, 420)).toBe('Saldo de 2 noites: 0 min contra a meta de 7h00 (média de 7h00 por noite).')
+    expect(sleepHabitsLine([], TODAY, 480)).toBeUndefined()
   })
 
   it('details a run: pace, heart rate, zones, the coach plan, the laps and the comment', () => {

@@ -4,7 +4,7 @@ import { DEFAULT_AREAS, HOME_ELEMENTS, homeAreas, orderForTime, toggleElement } 
 
 describe('homeAreas', () => {
   it('uses the default areas, with the week on top, when nothing is saved', () => {
-    expect(homeAreas({})).toEqual({ ...DEFAULT_AREAS, week: true, smartOrder: true, now: true, seen: ['readiness', 'weather'] })
+    expect(homeAreas({})).toEqual({ ...DEFAULT_AREAS, week: true, smartOrder: true, now: true, seen: ['readiness', 'weather', 'stress'] })
   })
 
   it('leaves out of the default what the older layout had hidden', () => {
@@ -21,11 +21,11 @@ describe('homeAreas', () => {
     })
     expect(areas).toEqual({
       focus: ['records', 'sleep', 'readiness', 'weather'],
-      quick: ['sleep', 'water', 'weather'],
+      quick: ['sleep', 'water', 'weather', 'stress'],
       week: true,
       smartOrder: true,
       now: true,
-      seen: ['readiness', 'weather'],
+      seen: ['readiness', 'weather', 'stress'],
     })
     expect(homeAreas({ homeAreas: { focus: [], quick: [], week: false } }).week).toBe(false)
     expect(homeAreas({ homeAreas: { focus: [], quick: [], smartOrder: false } }).smartOrder).toBe(false)
@@ -45,12 +45,21 @@ describe('homeAreas', () => {
     // Readiness was seen (and taken out) before: only the weather comes in.
     const saved = homeAreas({ homeAreas: { focus: ['workout', 'food'], quick: ['body', 'water', 'steps'], seen: ['readiness'] } })
     expect(saved.focus).toEqual(['workout', 'weather', 'food'])
-    expect(saved.quick).toEqual(['body', 'water', 'weather', 'steps'])
-    expect(saved.seen).toEqual(['readiness', 'weather'])
+    expect(saved.quick).toEqual(['body', 'water', 'weather', 'steps', 'stress'])
+    expect(saved.seen).toEqual(['readiness', 'weather', 'stress'])
     // Out of "Visualização rápida" only: it stays in "Em foco" and doesn't come back to the other.
     const smallOut = homeAreas({ homeAreas: toggleElement(saved, 'quick', 'weather', false) })
-    expect(smallOut.quick).toEqual(['body', 'water', 'steps'])
+    expect(smallOut.quick).toEqual(['body', 'water', 'steps', 'stress'])
     expect(smallOut.focus).toContain('weather')
+  })
+
+  it('puts the stress into "Visualização rápida" once, after the Body Battery, and not into "Em foco"', () => {
+    const saved = homeAreas({ homeAreas: { focus: ['sleep'], quick: ['hrv', 'battery', 'steps'], seen: ['readiness', 'weather'] } })
+    expect(saved.quick).toEqual(['hrv', 'battery', 'stress', 'steps'])
+    expect(saved.focus).toEqual(['sleep'])
+    expect(DEFAULT_AREAS.focus).not.toContain('stress')
+    const removed = homeAreas({ homeAreas: toggleElement(saved, 'quick', 'stress', false) })
+    expect(removed.quick).toEqual(['hrv', 'battery', 'steps'])
   })
 
   it('adds an element at the end of an area or takes it out', () => {

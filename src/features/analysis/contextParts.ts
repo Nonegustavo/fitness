@@ -26,7 +26,8 @@ import { metricSeries } from '../body/body'
 import { daysToTarget, estimateExpenditure, slopePerDay } from '../food/energy'
 import { amountLabel, goalsFor, MEAL_LABEL, MEALS, sumNutrients } from '../food/nutrition'
 import type { PlannedEvent } from '../garmin/calendar'
-import { hrvStatus } from '../garmin/recovery'
+import { hrvStatus, stressBand } from '../garmin/recovery'
+import { clock, regularity, signedDuration, sleepBalance, spreadText } from '../garmin/sleepHabits'
 import { distanceText, nextRaceView, raceDone, raceResult } from '../races/race'
 import { describeStep, workoutBlocks } from '../garmin/workout'
 import {
@@ -91,6 +92,22 @@ export function sleepParts(health: DailyHealth | undefined): string[] {
   return parts
 }
 
+/**
+ * The habit behind the nights, in one line: when the last 14 usually started and ended and how much that
+ * varies, and the last 7 against the sleep goal. Undefined without enough nights.
+ */
+export function sleepHabitsLine(health: DailyHealth[], today: DayKey, goalMin: number): string | undefined {
+  const regular = regularity(health, today)
+  const balance = sleepBalance(health, today, goalMin)
+  const parts = present([
+    regular &&
+      `Regularidade (${regular.nights} noites): dorme às ${clock(regular.bedtime)} ${spreadText(regular.bedtimeSdMin)}, acorda às ${clock(regular.wake)} ${spreadText(regular.wakeSdMin)}.`,
+    balance &&
+      `Saldo de ${balance.nights} ${balance.nights === 1 ? 'noite' : 'noites'}: ${signedDuration(balance.balanceMin)} contra a meta de ${hm(goalMin * 60)} (média de ${hm(balance.averageMin * 60)} por noite).`,
+  ])
+  return parts.length > 0 ? parts.join(' ') : undefined
+}
+
 /** HRV with its normal range, resting heart rate, Body Battery, stress, steps and the calories the watch counted. */
 export function recoveryParts(health: DailyHealth | undefined): string[] {
   if (!health) return []
@@ -107,7 +124,8 @@ export function recoveryParts(health: DailyHealth | undefined): string[] {
     battery &&
       (battery.low !== undefined || battery.high !== undefined) &&
       `Body Battery ${present([battery.low !== undefined && `mín. ${battery.low}`, battery.high !== undefined && `máx. ${battery.high}`]).join(', ')}`,
-    health.stress?.avg !== undefined && `estresse ${health.stress.avg}${health.stress.max ? ` (máx. ${health.stress.max})` : ''}`,
+    health.stress?.avg !== undefined &&
+      `estresse ${health.stress.avg} (${stressBand(health.stress.avg)}${health.stress.max ? `, máx. ${health.stress.max}` : ''})`,
     !!health.steps && `passos ${formatNumber(health.steps, 0)}`,
     !!health.calories?.total &&
       `gasto pelo relógio ${kcal(health.calories.total)}${health.calories.active ? ` (ativas ${formatNumber(health.calories.active, 0)})` : ''}`,

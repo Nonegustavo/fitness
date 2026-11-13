@@ -1,16 +1,18 @@
-import { Activity, BatteryMedium, Flame, Footprints, HeartPulse, Plus, Scale, Target, type LucideIcon } from 'lucide-react'
+import { Activity, BatteryMedium, Brain, Flame, Footprints, HeartPulse, Plus, Scale, Target, type LucideIcon } from 'lucide-react'
 import { Children, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { IconTile, type Tone } from '../../components/tone'
 import { cx, IconButton, Skeleton } from '../../components/ui'
 import { useSettings } from '../../db/hooks'
 import type { DailyHealth } from '../../db/types'
-import { daysBetween, formatTime, parseDay, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
+import { dayRange, daysBetween, formatTime, parseDay, relativeDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatFixed, formatNumber, formatSigned } from '../../lib/format'
 import { changeOver } from '../../lib/stats'
 import { metricSeries, useWeights } from '../body/body'
 import { WeightModal } from '../body/WeightModal'
-import { hrvStatus, useDailyHealth } from '../garmin/recovery'
+import { MiniBars } from '../../components/MiniCharts'
+import { toneColor } from '../../components/tone'
+import { hrvStatus, stressBand, useDailyHealth } from '../garmin/recovery'
 import { distanceText } from '../races/race'
 import { useNextRace } from '../races/races'
 import { predicted, useRacePrediction } from '../running/RacePrediction'
@@ -226,6 +228,27 @@ export function BatterySmall({ today }: { today: DayKey }) {
       <Value value={high} />
       <Note>máxima {latest.id === today ? 'de hoje' : relativeDay(latest.id, today)}</Note>
       {low !== undefined && <Note>mínima {low}</Note>}
+    </SmallCard>
+  )
+}
+
+/** The day's average stress, its band and peak, and the last 7 days as small bars. */
+export function StressSmall({ today }: { today: DayKey }) {
+  const days = useRecentHealth(today, 6)
+  if (!days) return <TileSkeleton />
+  const latest = days.filter((day) => day.stress?.avg !== undefined).at(-1)
+  const stress = latest?.stress
+  if (!latest || stress?.avg === undefined) return null
+  const { avg, max } = stress
+  const week = dayRange(shiftDay(today, -6), today).map((date) => days.find((day) => day.id === date)?.stress?.avg ?? 0)
+  return (
+    <SmallCard icon={Brain} tone="recovery" label="Estresse" to="/sono">
+      <Value value={avg} unit={stressBand(avg)} />
+      <Note>
+        {latest.id === today ? 'hoje' : relativeDay(latest.id, today)}
+        {max ? ` · pico ${max}` : ''}
+      </Note>
+      <MiniBars values={week} color={toneColor('recovery')} label="Estresse médio nos últimos 7 dias" className="mt-1.5 h-5" />
     </SmallCard>
   )
 }

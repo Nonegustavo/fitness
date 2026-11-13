@@ -3,6 +3,7 @@ import type { Activity, ActivityLap, DailyHealth, FoodLog, Habit, HabitLog, Pain
 import { dayKey, dayRange, dayTime, shiftDay } from '../../lib/dates'
 import { dailyLoads, loadSeries, loadStatus } from '../running/load'
 import { readiness } from '../running/readiness'
+import { testable } from './analysis'
 import { awakenings, buildDailyData, formatMetric, metricAxis, stepsOnTarget, type Metric, type Sources } from './metrics'
 
 const meta = { updatedAt: 1, deleted: 0, dirty: 0 } as const
@@ -239,6 +240,51 @@ describe('sleep from the stages and the clock', () => {
     const data = buildDailyData({ ...empty, health }, '2026-10-01', '2026-10-03')
     expect(data.rows.get('2026-10-02')).toMatchObject({ bedtime: 23.5, wakeTime: 6.75 })
     expect(data.rows.get('2026-10-03')).toMatchObject({ bedtime: 24.5, wakeTime: 7.25 })
+  })
+
+  /** Nights ending on each day from 2026-10-01, at 23:00 unless `bed` says otherwise, `hours` long. */
+  const nights = (count: number, hours = 7, bed: (i: number) => string = () => '23:00'): DailyHealth[] =>
+    Array.from({ length: count }, (_, i) => {
+      const id = shiftDay('2026-10-01', i)
+      const clock = bed(i)
+      const start = dayTime(clock < '12:00' ? id : shiftDay(id, -1), clock)
+      return { id, sleep: { totalSec: hours * 3600, start, end: start + hours * 3_600_000 }, ...meta }
+    })
+
+  it('adds the last 7 nights against the goal, once 5 of them have sleep', () => {
+    const data = buildDailyData({ ...empty, health: nights(9, 7) }, '2026-10-01', '2026-10-09')
+    expect(data.rows.get('2026-10-04')?.sleepBalance).toBeUndefined()
+    // Five nights an hour short of the default 8 hours, then seven.
+    expect(data.rows.get('2026-10-05')?.sleepBalance).toBe(-5)
+    expect(data.rows.get('2026-10-09')?.sleepBalance).toBe(-7)
+    const goal = buildDailyData({ ...empty, health: nights(9, 7), sleepGoalMin: 420 }, '2026-10-01', '2026-10-09')
+    expect(goal.rows.get('2026-10-09')?.sleepBalance).toBe(0)
+    expect(formatMetric(metricOf(data, 'sleepBalance'), -7)).toBe('−7h00')
+    expect(formatMetric(metricOf(data, 'sleepBalance'), 0.5)).toBe('+30 min')
+    expect(formatMetric(metricOf(data, 'sleepBalance'), 0)).toBe('0 min')
+  })
+
+  it('measures how far a bedtime was from the mean of the 14 nights before', () => {
+    // Five nights at 23:00, then one at 00:30 and one at 22:00.
+    const health = nights(7, 7, (i) => (i === 5 ? '00:30' : i === 6 ? '22:00' : '23:00'))
+    const data = buildDailyData({ ...empty, health }, '2026-10-01', '2026-10-07')
+    expect(data.rows.get('2026-10-05')?.bedtimeShift).toBeUndefined()
+    expect(data.rows.get('2026-10-06')?.bedtimeShift).toBeCloseTo(90)
+    // The usual now leans 15 minutes later: (5 × 23 + 24.5) / 6 = 23.25.
+    expect(data.rows.get('2026-10-07')?.bedtimeShift).toBeCloseTo(75)
+  })
+
+  it('pairs the balance and the bedtime with the right days', () => {
+    const data = buildDailyData(empty, '2026-10-01', '2026-10-01')
+    const balance = metricOf(data, 'sleepBalance')
+    const shift = metricOf(data, 'bedtimeShift')
+    // The balance explains the next day and is explained by the days before; its own bedtime would only find the formula.
+    expect(testable(balance, metricOf(data, 'mood'))).toBe(true)
+    expect(testable(metricOf(data, 'kcal'), balance)).toBe(true)
+    expect(testable(metricOf(data, 'bedtime'), balance)).toBe(false)
+    expect(testable(balance, metricOf(data, 'hrv'))).toBe(false)
+    expect(testable(shift, metricOf(data, 'energy'))).toBe(true)
+    expect(testable(metricOf(data, 'kcal'), shift)).toBe(false)
   })
 })
 

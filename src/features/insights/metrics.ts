@@ -76,7 +76,17 @@ export interface Sources {
   pains?: Pain[]
   /** The heart rate samples of the activities the watch gave no zones for, for their training load. */
   streams?: ReadonlyMap<string, Pick<ActivityStream, 'step' | 'hr'>>
+  /** The sleep goal in minutes a night (Ajustes), for the sleep balance; `SLEEP_GOAL_MIN` when unset. */
+  sleepGoalMin?: number
 }
+
+/** The sleep goal when none was set: 8 hours a night. */
+export const SLEEP_GOAL_MIN = 480
+/** The nights the sleep balance adds up, and the ones the usual bedtime is the mean of. */
+export const BALANCE_NIGHTS = 7
+export const USUAL_NIGHTS = 14
+/** Fewer nights than this with times, and there's no usual bedtime to compare with. */
+export const MIN_USUAL_NIGHTS = 5
 
 const BASE_METRICS: Metric[] = [
   { key: 'sleepHours', label: 'Horas de sono', group: 'Sono', unit: 'h', digits: 2, timing: 'night', cause: true, effect: true },
@@ -88,6 +98,22 @@ const BASE_METRICS: Metric[] = [
   { key: 'awakenings', label: 'Despertares', group: 'Sono', unit: '', digits: 1, timing: 'night', noun: 'despertares', effect: true },
   { key: 'bedtime', label: 'Hora de dormir', group: 'Sono', unit: 'clock', digits: 2, timing: 'night', cause: true },
   { key: 'wakeTime', label: 'Hora de acordar', group: 'Sono', unit: 'clock', digits: 2, timing: 'night', morning: true, cause: true },
+  // As of each night, the last 7 against the goal: a debt the next day may feel, and what the days
+  // before (late meals, training) may have built. Its own night's bedtime would only find the formula.
+  {
+    key: 'sleepBalance',
+    label: 'Saldo de sono (7 noites)',
+    group: 'Sono',
+    unit: 'h',
+    digits: 2,
+    timing: 'night',
+    signed: true,
+    cause: true,
+    effect: true,
+    madeOf: { keys: ['sleepHours', 'bedtime'] },
+  },
+  // How far that night's bedtime was from the usual one (the mean of the 14 nights before), either way.
+  { key: 'bedtimeShift', label: 'Desvio da hora de dormir', group: 'Sono', unit: 'min', digits: 0, timing: 'night', cause: true },
   // The morning's numbers also explain the day ahead: its workouts, the mood, the energy.
   { key: 'hrv', label: 'HRV da noite', group: 'Recuperação', unit: 'ms', digits: 0, timing: 'night', cause: true, effect: true },
   { key: 'restingHr', label: 'FC de repouso', group: 'Recuperação', unit: 'bpm', digits: 0, timing: 'night', cause: true, effect: true },
@@ -172,7 +198,7 @@ const BASE_METRICS: Metric[] = [
 ]
 
 /** 23.5 -> "23:30", 24.5 -> "00:30" (bedtimes past midnight count as 24+). */
-function clock(hours: number): string {
+export function clock(hours: number): string {
   const minutes = Math.round((hours % 24) * 60) % (24 * 60)
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
 }
@@ -181,8 +207,12 @@ export function formatMetric(metric: Metric, value: number): string {
   switch (metric.unit) {
     case 'clock':
       return clock(value)
-    case 'h':
-      return formatDuration(value * 3_600_000)
+    case 'h': {
+      if (!metric.signed) return formatDuration(value * 3_600_000)
+      // A balance: "−2h10", "+30 min" ("0 min" without a sign).
+      const text = formatDuration(Math.abs(value) * 3_600_000)
+      return text === '0 min' ? text : `${value > 0 ? '+' : '−'}${text}`
+    }
     case 'min':
       return `${Math.round(value)} min`
     case 'pace':
@@ -211,7 +241,7 @@ export function metricAxis(metric: Metric, values: number[]): { min?: number; ma
 }
 
 /** A time of day in hours: 06:45 → 6.75. */
-function clockHours(time: number): number {
+export function clockHours(time: number): number {
   const date = new Date(time)
   return date.getHours() + date.getMinutes() / 60
 }
@@ -223,7 +253,7 @@ function mealClock(time: number): number {
 }
 
 /** Bedtime in hours, counting past midnight as 24+ so 23:30 → 23.5 and 00:30 → 24.5. */
-function bedtimeHours(start: number): number {
+export function bedtimeHours(start: number): number {
   const hours = clockHours(start)
   return hours < 12 ? hours + 24 : hours
 }
@@ -317,6 +347,7 @@ export function buildDailyData(sources: Sources, from: DayKey, to: DayKey): Dail
     add(rows, day.id, 'steps', day.steps)
     add(rows, day.id, 'activeCalories', day.calories?.active)
   }
+  addSleepHabits(rows, sources, inRange)
 
   // First weigh-in of each day, and the change since the day before.
   const weighIns = new Map<DayKey, WeightEntry>()
@@ -449,6 +480,32 @@ export function buildDailyData(sources: Sources, from: DayKey, to: DayKey): Dail
   }
 
   return { metrics: [...BASE_METRICS, ...habitMetrics], rows }
+}
+
+/**
+ * For each night, the balance of the last 7 against the sleep goal (with 5 of them recorded, so the sums
+ * compare), and how far its bedtime was from the mean of the 14 nights before it.
+ */
+function addSleepHabits(rows: Map<DayKey, DayRow>, sources: Sources, inRange: (day: DayKey) => boolean) {
+  const goal = sources.sleepGoalMin ?? SLEEP_GOAL_MIN
+  const nights = new Map(sources.health.flatMap((day) => (day.sleep ? [[day.id, day.sleep] as const] : [])))
+  const before = (day: DayKey, count: number) =>
+    dayRange(shiftDay(day, -count), shiftDay(day, -1)).flatMap((id) => {
+      const night = nights.get(id)
+      return night ? [night] : []
+    })
+  for (const [day, sleep] of nights) {
+    if (!inRange(day)) continue
+    const week = [sleep, ...before(day, BALANCE_NIGHTS - 1)]
+    if (week.length >= MIN_USUAL_NIGHTS) {
+      add(rows, day, 'sleepBalance', week.reduce((total, night) => total + night.totalSec / 60 - goal, 0) / 60)
+    }
+    if (sleep.start === undefined) continue
+    const bedtimes = before(day, USUAL_NIGHTS).flatMap((night) => (night.start === undefined ? [] : [bedtimeHours(night.start)]))
+    if (bedtimes.length < MIN_USUAL_NIGHTS) continue
+    const usual = bedtimes.reduce((total, hours) => total + hours, 0) / bedtimes.length
+    add(rows, day, 'bedtimeShift', Math.abs(bedtimeHours(sleep.start) - usual) * 60)
+  }
 }
 
 /** The days before a night that the readiness compares it with. */

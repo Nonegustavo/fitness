@@ -1,6 +1,7 @@
 import {
   Activity,
   BatteryMedium,
+  Brain,
   CalendarCheck,
   CalendarRange,
   ChartSpline,
@@ -61,6 +62,7 @@ export const HOME_ELEMENTS: HomeElement[] = [
   { id: 'restingHr', label: 'FC de repouso', detail: 'A última e as 2 últimas semanas', icon: HeartPulse, tone: 'recovery' },
   { id: 'hrv', label: 'HRV', detail: 'A da última noite, o estado e as 2 últimas semanas', icon: Activity, tone: 'sleep' },
   { id: 'battery', label: 'Body Battery', detail: 'Máxima e mínima de cada dia da semana', icon: BatteryMedium, tone: 'habits' },
+  { id: 'stress', label: 'Estresse', detail: 'Média e pico do dia no Garmin, e as 2 últimas semanas', icon: Brain, tone: 'recovery' },
   { id: 'steps', label: 'Passos', detail: 'Do dia e da semana, até a última sincronização do Garmin', icon: Footprints, tone: 'today' },
   { id: 'burn', label: 'Calorias gastas', detail: 'Do relógio: ativas e em repouso', icon: Flame, tone: 'training' },
 ]
@@ -71,7 +73,7 @@ const KNOWN = new Set(HOME_ELEMENTS.map((element) => element.id))
 
 export const DEFAULT_AREAS: HomeAreas = {
   focus: ['workout', 'weather', 'sleep', 'readiness', 'food', 'runVolume', 'habits'],
-  quick: ['water', 'weather', 'race', 'body', 'restingHr', 'hrv', 'battery', 'steps', 'burn', 'records', 'streak'],
+  quick: ['water', 'weather', 'race', 'body', 'restingHr', 'hrv', 'battery', 'stress', 'steps', 'burn', 'records', 'streak'],
 }
 
 /**
@@ -83,6 +85,7 @@ const ADDED: { id: HomeCardId; area: HomeArea; after: HomeCardId }[] = [
   { id: 'readiness', area: 'focus', after: 'sleep' },
   { id: 'weather', area: 'focus', after: 'workout' },
   { id: 'weather', area: 'quick', after: 'water' },
+  { id: 'stress', area: 'quick', after: 'battery' },
 ]
 
 /** The ids of the newer elements, once each. */

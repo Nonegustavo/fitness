@@ -17,7 +17,7 @@ import { StreaksBig, StreaksSmall } from '../streaks/StreakCards'
 import { sumMl, useWaterLogs } from '../water/water'
 import { WaterQuickAdd, WaterSummary } from '../water/WaterQuickAdd'
 import { WeatherBig, WeatherSmall } from '../weather/HomeCards'
-import { BatteryBig, BurnBig, FoodBig, HrvBig, RaceBig, RestingHrBig, StepsBig, WeightBig } from './bigCards'
+import { BatteryBig, BurnBig, FoodBig, HrvBig, RaceBig, RestingHrBig, StepsBig, StressBig, WeightBig } from './bigCards'
 import {
   FoodSmall,
   HabitsSmall,
@@ -28,7 +28,7 @@ import {
   WaterSmall,
   WorkoutSmall,
 } from './smallCards'
-import { BatterySmall, BurnSmall, HrvSmall, RaceSmall, RestingHrSmall, StepsSmall, WeightSmall } from './tiles'
+import { BatterySmall, BurnSmall, HrvSmall, RaceSmall, RestingHrSmall, StepsSmall, StressSmall, WeightSmall } from './tiles'
 import { WeeklyCard } from './WeeklyCard'
 
 type ElementView = ComponentType<{ today: DayKey }>
@@ -100,6 +100,7 @@ export const ELEMENT_VIEWS: Record<HomeCardId, { big: ElementView; small: Elemen
   hrv: { big: HrvBig, small: HrvSmall },
   readiness: { big: ReadinessBig, small: ReadinessSmall },
   battery: { big: BatteryBig, small: BatterySmall },
+  stress: { big: StressBig, small: StressSmall },
   steps: { big: StepsBig, small: StepsSmall },
   burn: { big: BurnBig, small: BurnSmall },
   weather: { big: WeatherBig, small: WeatherSmall },

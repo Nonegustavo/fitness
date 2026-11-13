@@ -197,6 +197,7 @@ export type HomeCardId =
   | 'streak'
   | 'goalStreaks'
   | 'weather'
+  | 'stress'
 
 /** What the Hoje screen shows: big cards in "Em foco" (a carousel) and small ones in "Visualização rápida". */
 export interface HomeAreas {
@@ -251,6 +252,8 @@ export interface Settings extends Synced {
   heightCm?: number
   /** The Navy body fat formula has one version for each. */
   sex?: Sex
+  /** Minutes of sleep a night to aim for (the balance of the last nights counts against it); 480 when unset. */
+  sleepGoalMin?: number
 }
 
 /** A place picked for the weather forecast, its coordinates rounded to 2 decimals (about 1 km). */
