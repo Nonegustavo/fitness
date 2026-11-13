@@ -68,7 +68,7 @@ export function WeightModal({ entry, onClose }: { entry: WeightEntry | null; onC
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!valid) return
+    if (!valid || weightKg === undefined) return
     const extraValues = Object.fromEntries(EXTRA_FIELDS.map(({ key }) => [key, parseDecimal(extras[key])]))
     await save(db.weights, {
       id: entry?.id,
