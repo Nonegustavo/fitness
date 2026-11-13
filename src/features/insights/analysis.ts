@@ -127,15 +127,18 @@ export function roundSplit(metric: Metric, value: number): number {
 const computedFrom = (effect: Metric, cause: Metric): boolean =>
   !!effect.madeOf && (!!effect.madeOf.keys?.includes(cause.key) || !!effect.madeOf.groups?.includes(cause.group))
 
+/** What is known as a night begins: when it started, and how far that was from the usual time. */
+const OWN_NIGHT = new Set(['bedtime', 'bedtimeShift'])
+
 /**
  * The pairs worth testing: a day against the next night or morning, a night or morning against the day
- * after it, bedtime against its own night, and a run's weather against that same run. A day against
- * the same day mostly finds things measured twice.
+ * after it, the bedtime (and how far it was from the usual one) against its own night, and a run's
+ * weather against that same run. A day against the same day mostly finds things measured twice.
  */
 export function testable(x: Metric, y: Metric): boolean {
   if (x.key === y.key || !x.cause || !y.effect || computedFrom(y, x)) return false
   if (x.condition) return y.during !== undefined && y.during === x.during
-  return (x.timing === 'day' && y.timing === 'night') || (x.timing === 'night' && y.timing === 'day') || x.key === 'bedtime'
+  return (x.timing === 'day' && y.timing === 'night') || (x.timing === 'night' && y.timing === 'day') || OWN_NIGHT.has(x.key)
 }
 
 const MIN_STRENGTH = { groups: 0.3, trend: 0.2 }

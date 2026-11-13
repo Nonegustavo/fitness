@@ -3,6 +3,7 @@ import { dayRange, formatDay, formatTime, shiftDay, weekStart, type DayKey } fro
 import { formatDuration, formatNumber } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
 import type { PlannedEvent } from '../garmin/calendar'
+import { sleepGoalMin } from '../garmin/sleepHabits'
 import { frequencyText, habitTime } from '../habits/habits'
 import { describe, highlights, strengthLabel } from '../insights/analysis'
 import { buildDailyData, formatMetric, type DailyData, type DayRow, type Metric, type Sources } from '../insights/metrics'
@@ -24,6 +25,7 @@ import {
   oneLine,
   recoveryParts,
   runningLines,
+  sleepHabitsLine,
   sleepParts,
   strengthLines,
   walkingLines,
@@ -117,6 +119,8 @@ export function buildContext(input: ContextInput): string {
       weightGoal.kgPerWeek === 0 ? 'manter' : `${weightGoal.kgPerWeek < 0 ? 'perder' : 'ganhar'} ${rate} kg por semana`
     out.push(`- Peso: chegar a ${formatNumber(weightGoal.targetKg, 1)} kg (${pace}).`)
   }
+  const sleepGoal = sleepGoalMin(settings)
+  out.push(`- Sono: ${formatDuration(sleepGoal * 60_000)} por noite.`)
   for (const habit of habits) out.push(`- Hábito: ${describeHabit(habit)}.`)
 
   const todaysLogs = sources.foodLogs.filter((log) => log.date === today)
@@ -149,6 +153,9 @@ export function buildContext(input: ContextInput): string {
       if (pains) out.push(`  Dores (de 1 a 10): ${pains}`)
     })
 
+  // The habit behind the nights above: when they usually start and end, and the week against the goal.
+  const sleepHabits = sleepHabitsLine(sources.health, today, sleepGoal)
+  section(out, 'Sono: regularidade e saldo contra a meta', sleepHabits ? [sleepHabits] : [])
   section(out, 'Semanas (domingo a sábado; da mais antiga à atual)', weekLines(sources, today))
   section(out, 'Musculação', strengthLines(sources.sessions, exercises, today))
   const week = weekStart(today)

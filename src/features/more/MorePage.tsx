@@ -19,7 +19,7 @@ const DETAILS: [to: string, detail: string][] = [
   ['/sono', 'Noite, HRV, FC de repouso e Body Battery do Garmin'],
   ['/analise', 'O Claude lê seus dados e o diário'],
   ['/correlacoes', 'Hábitos, treino e alimentação × sono, recuperação e peso'],
-  ['/semana', 'A semana que passou contra a anterior, área por área'],
+  ['/semana', 'Cada semana e cada mês contra o anterior, área por área'],
   ['/retrospectiva', 'O seu ano em números, mês a mês'],
   ['/agua', 'Registros por dia, meta e recipientes'],
   ['/clima', 'Previsão e o tempo nos treinos'],

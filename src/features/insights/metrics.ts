@@ -110,7 +110,7 @@ const BASE_METRICS: Metric[] = [
     signed: true,
     cause: true,
     effect: true,
-    madeOf: { keys: ['sleepHours', 'bedtime'] },
+    madeOf: { keys: ['sleepHours', 'bedtime', 'bedtimeShift'] },
   },
   // How far that night's bedtime was from the usual one (the mean of the 14 nights before), either way.
   { key: 'bedtimeShift', label: 'Desvio da hora de dormir', group: 'Sono', unit: 'min', digits: 0, timing: 'night', cause: true },

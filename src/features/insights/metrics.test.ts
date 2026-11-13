@@ -285,6 +285,10 @@ describe('sleep from the stages and the clock', () => {
     expect(testable(balance, metricOf(data, 'hrv'))).toBe(false)
     expect(testable(shift, metricOf(data, 'energy'))).toBe(true)
     expect(testable(metricOf(data, 'kcal'), shift)).toBe(false)
+    // Like the bedtime itself, how far it was from the usual one is asked of its own night; and a late
+    // night shortens the balance by the formula, not by a relation.
+    expect(testable(shift, metricOf(data, 'sleepScore'))).toBe(true)
+    expect(testable(shift, balance)).toBe(false)
   })
 })
 

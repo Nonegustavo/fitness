@@ -58,7 +58,7 @@ export const SECTIONS: Section[] = [
 export const SCREENS: Section[] = [
   { to: '/corrida/provas', label: 'Provas', icon: Medal, tone: 'analysis' },
   { to: '/passos', label: 'Passos', icon: Footprints, tone: 'today' },
-  { to: '/semana', label: 'Resumo da semana', icon: CalendarRange, tone: 'insights' },
+  { to: '/semana', label: 'Resumo', icon: CalendarRange, tone: 'insights' },
   { to: '/retrospectiva', label: 'Retrospectiva', icon: PartyPopper, tone: 'analysis' },
 ]
 

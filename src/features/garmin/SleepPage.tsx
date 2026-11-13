@@ -11,7 +11,7 @@ import { useSettings, useToday } from '../../db/hooks'
 import { db } from '../../db/schema'
 import { updateSettings } from '../../db/settings'
 import type { DailyHealth } from '../../db/types'
-import { daysBetween, formatDay, formatTime, shiftDay, type DayKey } from '../../lib/dates'
+import { daysBetween, formatDay, formatTime, parseDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 import type { DayValue } from '../../lib/stats'
 import { isAndroidApp } from '../healthconnect/plugin'
@@ -252,8 +252,8 @@ function MissingStages({ date, today }: { date: DayKey; today: DayKey }) {
   }
   const busy = healthConnect.phase === 'busy'
   const bring = async () => {
-    // An import reaches back from the last one; an older night needs the whole history.
-    await importHealthConnect({ full: age > 2 })
+    // An import reaches back two days from the last one: this one goes back to the evening the night began.
+    await importHealthConnect({ since: parseDay(shiftDay(date, -1)).getTime() })
     setTried(true)
   }
   return (

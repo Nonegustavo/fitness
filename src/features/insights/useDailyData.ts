@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { alive } from '../../db/repo'
-import { db } from '../../db/schema'
+import { db, SETTINGS_ID } from '../../db/schema'
 import type { ActivityStream } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { needsSamples } from '../running/load'
@@ -8,7 +8,8 @@ import { buildDailyData, type DailyData, type Sources } from './metrics'
 
 /** Every table the correlations (and the daily analysis) read, without deleted rows. */
 export async function loadSources(): Promise<Sources> {
-  const [health, weights, foodLogs, waterLogs, habits, habitLogs, activities, sessions, journal, pains] = await Promise.all([
+  const [settings, health, weights, foodLogs, waterLogs, habits, habitLogs, activities, sessions, journal, pains] = await Promise.all([
+    db.settings.get(SETTINGS_ID),
     db.dailyHealth.toArray(),
     db.weights.toArray(),
     db.foodLogs.toArray(),
@@ -38,6 +39,8 @@ export async function loadSources(): Promise<Sources> {
     streams: new Map(
       streams.filter((stream): stream is ActivityStream => !!stream && !stream.deleted).map((stream) => [stream.id, stream]),
     ),
+    // The goal the sleep balance is counted against.
+    sleepGoalMin: settings?.sleepGoalMin,
   }
 }
 

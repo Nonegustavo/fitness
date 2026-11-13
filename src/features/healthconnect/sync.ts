@@ -78,8 +78,11 @@ export async function connectHealthConnect(): Promise<void> {
 
 let running = false
 
-/** Weigh-ins and sleep stages since the last import, or the whole history with `full`. */
-export async function importHealthConnect({ full = false } = {}): Promise<void> {
+/**
+ * Weigh-ins and sleep stages since the last import, or the whole history with `full`. `since` reaches
+ * back to a moment asked for by hand (a night that came without its stages), when that is further.
+ */
+export async function importHealthConnect({ full = false, since }: { full?: boolean; since?: number } = {}): Promise<void> {
   if (running || !isAndroidApp()) return
   running = true
   setState({ phase: 'busy', message: undefined })
@@ -87,12 +90,13 @@ export async function importHealthConnect({ full = false } = {}): Promise<void> 
     const now = Date.now()
     const meta = await readMeta()
     // Without the history permission, Health Connect only shows the last 30 days anyway.
-    const from =
+    const usual =
       full && state.access?.history
         ? HISTORY_START
         : meta.lastImportAt
           ? meta.lastImportAt - 2 * DAY
           : now - FIRST_DAYS * DAY
+    const from = since === undefined ? usual : Math.min(usual, since)
 
     const { samples } = await HealthConnect.readBody({ from, to: now })
     let added = 0

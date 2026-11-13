@@ -68,7 +68,14 @@ describe('buildContext', () => {
   it('lists the goals and habits', () => {
     expect(text).toContain('- Água: 3 L por dia.')
     expect(text).toContain('2.200 kcal, proteína 160 g')
+    expect(text).toContain('- Sono: 8h00 por noite.')
     expect(text).toContain('- Hábito: Álcool (evitar).')
+  })
+
+  it('sets the last nights against the sleep goal', () => {
+    // Seven nights of 7h30 against 8 hours; the nights have no times, so there is no regularity to tell.
+    expect(text).toContain('## Sono: regularidade e saldo contra a meta\nSaldo de 7 noites: −3h30 contra a meta de 8h00 (média de 7h30 por noite).')
+    expect(build({ ...world(), health: [] })).not.toContain('## Sono: regularidade')
   })
 
   it('writes the last two weeks day by day, with the diary', () => {
