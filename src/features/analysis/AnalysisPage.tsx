@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router'
 import { Confirm, Modal } from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { IconTile } from '../../components/tone'
-import { Button, Card, Empty, Page, Pending, SkeletonLines, Switch } from '../../components/ui'
+import { Button, Card, Columns, Empty, Page, Pending, SkeletonLines, Stack, Switch } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import { patch } from '../../db/repo'
 import { db, SETTINGS_ID } from '../../db/schema'
@@ -27,103 +27,119 @@ export default function AnalysisPage() {
   const { generating, error } = useInsightState()
   const [confirming, setConfirming] = useState(false)
   const canGenerate = sync.configured && !!sync.email
+  // Until the saved login has been read, a missing email doesn't mean signed out: no "Ligue a sincronização" yet.
+  const loginKnown = !sync.configured || !!sync.authChecked
   const others = (history ?? []).filter((item) => item.id !== day)
 
   return (
-    <Page title="Análise do dia" icon={Sparkles} tone="analysis" subtitle="O Claude lê seus dados e o diário e diz o que vê e o que fazer">
-      <Card>
-        {insight === undefined ? (
-          <SkeletonLines lines={4} />
-        ) : insight ? (
-          <InsightView insight={insight} />
-        ) : generating ? (
-          <p className="flex items-center gap-2 py-6 text-sm text-ink-2">
-            <LoaderCircle size={18} className="animate-spin" /> Lendo seus dados… leva até um minuto.
-          </p>
-        ) : day !== today ? (
-          <Empty>Não houve análise neste dia.</Empty>
-        ) : !canGenerate ? (
-          <p className="text-sm text-ink-2">
-            A análise roda num servidor seu (Supabase), que guarda a chave da IA. Ligue a sincronização e entre na sua
-            conta em{' '}
-            <Link to="/ajustes" className="font-medium text-accent-ink">
-              Ajustes
+    <Page
+      title="Análise do dia"
+      icon={Sparkles}
+      tone="analysis"
+      subtitle="O Claude lê seus dados e o diário e diz o que vê e o que fazer"
+      wide
+    >
+      <Columns>
+        <Stack>
+          <Card>
+            {insight === undefined ? (
+              <SkeletonLines lines={4} />
+            ) : insight ? (
+              <InsightView insight={insight} />
+            ) : generating ? (
+              <p className="flex items-center gap-2 py-6 text-sm text-ink-2">
+                <LoaderCircle size={18} className="animate-spin" /> Lendo seus dados… leva até um minuto.
+              </p>
+            ) : day !== today ? (
+              <Empty>Não houve análise neste dia.</Empty>
+            ) : !loginKnown ? (
+              <SkeletonLines lines={2} />
+            ) : !canGenerate ? (
+              <p className="text-sm text-ink-2">
+                A análise roda num servidor seu (Supabase), que guarda a chave da IA. Ligue a sincronização e entre na sua
+                conta em{' '}
+                <Link to="/ajustes" className="font-medium text-accent-ink">
+                  Ajustes
+                </Link>
+                .
+              </p>
+            ) : (
+              <div className="space-y-3 py-2 text-sm text-ink-2">
+                <p>Ainda não há análise de hoje.</p>
+                {error && <p className="rounded-xl bg-surface-2 p-3">{error}</p>}
+                <Button variant="primary" onClick={() => void generateInsight(today)}>
+                  <Sparkles size={16} /> Fazer a análise agora
+                </Button>
+              </div>
+            )}
+            {insight && day === today && canGenerate && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+                <span className="text-xs text-muted">Feita às {formatTime(insight.createdAt)}</span>
+                <Button size="sm" variant="ghost" disabled={generating} onClick={() => setConfirming(true)}>
+                  {generating ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />} Fazer de novo
+                </Button>
+              </div>
+            )}
+            {insight && error && day === today && <p className="mt-2 text-xs text-critical">{error}</p>}
+          </Card>
+
+          <Card>
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Todo dia, ao abrir o app</span>
+                <span className="block text-xs text-muted">Uma análise por dia, cerca de US$ 0,15 cada, cobrada na sua chave</span>
+              </span>
+              <Switch
+                checked={settings.insightsAuto !== false}
+                label="Fazer a análise todo dia"
+                onChange={(on) => void patch(db.settings, SETTINGS_ID, { insightsAuto: on })}
+              />
+            </div>
+          </Card>
+        </Stack>
+
+        <Stack>
+          <ChatCard day={day} today={today} />
+
+          <Card>
+            <Link to="/ajustes?secao=sobre-mim" className="flex items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Sobre mim</span>
+                <span className="block truncate text-xs text-muted">
+                  {settings.profile?.trim()
+                    ? settings.profile.trim()
+                    : 'Sua rotina, histórico e objetivos, para análises mais certeiras'}
+                </span>
+              </span>
+              <ChevronRight size={16} className="shrink-0 text-muted" />
             </Link>
-            .
-          </p>
-        ) : (
-          <div className="space-y-3 py-2 text-sm text-ink-2">
-            <p>Ainda não há análise de hoje.</p>
-            {error && <p className="rounded-xl bg-surface-2 p-3">{error}</p>}
-            <Button variant="primary" onClick={() => void generateInsight(today)}>
-              <Sparkles size={16} /> Fazer a análise agora
-            </Button>
-          </div>
-        )}
-        {insight && day === today && canGenerate && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-            <span className="text-xs text-muted">Feita às {formatTime(insight.createdAt)}</span>
-            <Button size="sm" variant="ghost" disabled={generating} onClick={() => setConfirming(true)}>
-              {generating ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />} Fazer de novo
-            </Button>
-          </div>
-        )}
-        {insight && error && day === today && <p className="mt-2 text-xs text-critical">{error}</p>}
-      </Card>
+          </Card>
 
-      <Card>
-        <div className="flex items-center justify-between gap-3">
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">Todo dia, ao abrir o app</span>
-            <span className="block text-xs text-muted">Uma análise por dia, cerca de US$ 0,15 cada, cobrada na sua chave</span>
-          </span>
-          <Switch
-            checked={settings.insightsAuto !== false}
-            label="Fazer a análise todo dia"
-            onChange={(on) => void patch(db.settings, SETTINGS_ID, { insightsAuto: on })}
-          />
-        </div>
-      </Card>
-
-      <ChatCard day={day} today={today} />
-
-      <Card>
-        <Link to="/ajustes?secao=sobre-mim" className="flex items-center justify-between gap-3">
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">Sobre mim</span>
-            <span className="block truncate text-xs text-muted">
-              {settings.profile?.trim()
-                ? settings.profile.trim()
-                : 'Sua rotina, histórico e objetivos, para análises mais certeiras'}
-            </span>
-          </span>
-          <ChevronRight size={16} className="shrink-0 text-muted" />
-        </Link>
-      </Card>
-
-      {/* The other days' card comes in with the screen, not after it. */}
-      {history === undefined && <Pending />}
-      {others.length > 0 && (
-        <Card title="Outros dias">
-          <ul className="divide-y divide-line">
-            {others.slice(0, 30).map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setParams(item.id === today ? {} : { data: item.id }, { replace: true })
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                  }}
-                  className="w-full py-2.5 text-left hover:text-accent-ink"
-                >
-                  <span className="block text-xs text-muted first-letter:uppercase">{relativeDay(item.id, today)}</span>
-                  <span className="line-clamp-2 block text-sm">{item.headline}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+          {/* The other days' card comes in with the screen, not after it. */}
+          {history === undefined && <Pending />}
+          {others.length > 0 && (
+            <Card title="Outros dias">
+              <ul className="divide-y divide-line">
+                {others.slice(0, 30).map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParams(item.id === today ? {} : { data: item.id }, { replace: true })
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      className="w-full py-2.5 text-left hover:text-accent-ink"
+                    >
+                      <span className="block text-xs text-muted first-letter:uppercase">{relativeDay(item.id, today)}</span>
+                      <span className="line-clamp-2 block text-sm">{item.headline}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </Stack>
+      </Columns>
 
       {confirming && (
         <Confirm
