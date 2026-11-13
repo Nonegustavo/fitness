@@ -1,7 +1,7 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useSyncExternalStore } from 'react'
 import { useNow } from '../../db/hooks'
 import { db } from '../../db/schema'
+import { useShared } from '../../db/shared'
 import { useNeedsCable } from '../../ota/store'
 import { useSyncState } from '../../sync/controller'
 import { countPending } from '../../sync/engine'
@@ -23,10 +23,16 @@ const subscribeOnline = (listener: () => void) => {
 
 const useOnline = (): boolean => useSyncExternalStore(subscribeOnline, () => navigator.onLine)
 
+/**
+ * Records changed on this device and not sent yet. One count for every place that shows it (the dots,
+ * the status card, the sync's line): it looks at every synced table again after each write.
+ */
+export const usePendingRecords = (): number => useShared('pendingRecords', () => countPending(db)) ?? 0
+
 /** How every source of data on this device is doing, live (see `sourceHealth`). */
 export function useSourceHealth(): SourceHealth[] {
   const sync = useSyncState()
-  const pending = useLiveQuery(() => countPending(db)) ?? 0
+  const pending = usePendingRecords()
   const online = useOnline()
   const garmin = useGarminState()
   const hc = useHealthConnectState()

@@ -47,4 +47,24 @@ describe('FitnessDB', () => {
     expect(await db.meta.get(PULL_CURSOR)).toMatchObject({ value: 42 })
     expect(await db.activityStreams.orderBy('[id+updatedAt]').keys()).toEqual([['a1', 7]])
   })
+
+  it('opens a database left by a newer version of the app, with what that version added', async () => {
+    // The Android app can go back to an older version of the web part (the one before, or the APK's own)
+    // after a newer one upgraded the database: the older code must still open it and keep the data.
+    const current = new FitnessDB('from-the-future')
+    await current.weights.add({ id: 'w1', date: '2026-11-02', time: 0, weightKg: 80, source: 'manual', updatedAt: 1, deleted: 0, dirty: 0 })
+    const version = current.verno
+    current.close()
+
+    const newer = new Dexie('from-the-future')
+    newer.version(version + 1).stores({ weights: 'id, date, dirty, source', somethingNew: 'id' })
+    await newer.table('somethingNew').put({ id: 'n1' })
+    newer.close()
+
+    const db = new FitnessDB('from-the-future')
+    expect(await db.weights.get('w1')).toMatchObject({ weightKg: 80 })
+    await db.weights.put({ id: 'w2', date: '2026-11-03', time: 0, weightKg: 79, source: 'manual', updatedAt: 2, deleted: 0, dirty: 1 })
+    expect(await db.weights.where('dirty').equals(1).count()).toBe(1)
+    db.close()
+  })
 })

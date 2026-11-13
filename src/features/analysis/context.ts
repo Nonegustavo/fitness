@@ -1,4 +1,4 @@
-import type { ActivityStream, DailyInsight, Exercise, Habit, MeasurementEntry, Race, Settings } from '../../db/types'
+import type { DailyInsight, Exercise, Habit, MeasurementEntry, Race, Settings } from '../../db/types'
 import { dayRange, formatDay, formatTime, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
 import type { AgendaItem } from '../calendar/agenda'
@@ -9,6 +9,7 @@ import { buildDailyData, formatMetric, type DailyData, type DayRow, type Metric,
 import { mean } from '../insights/stats'
 import { firstDayOf } from '../insights/useDailyData'
 import { painLines, painsText } from '../journal/pains'
+import type { EffortSource } from '../running/running'
 import { athleteLines } from './athleteLines'
 import { checkInLines } from './contextCheckIn'
 import {
@@ -56,8 +57,8 @@ export interface ContextInput {
   /** Exercise names and muscles, for the gym workouts. */
   exercises?: Map<string, Exercise>
   measurements?: MeasurementEntry[]
-  /** The runs' distance samples, for the best efforts. */
-  streams?: Map<string, Pick<ActivityStream, 'step' | 'distance'>>
+  /** The runs' best stretches (their samples, or the cache of what they hold), for the records and predictions. */
+  streams?: EffortSource
   /** The calendar of the last two weeks and the next one: planned against done. */
   agenda?: AgendaItem[]
   /** When each source last brought data. */

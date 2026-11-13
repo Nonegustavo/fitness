@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from '../../db/schema'
+import { useShared } from '../../db/shared'
 import { newId } from '../../lib/ids'
 import { getSyncState, onSyncStateChange } from '../../sync/controller'
 import { isConnectionError } from '../../sync/errors'
@@ -108,7 +109,8 @@ export async function pendingPhotos(): Promise<PendingPhotos> {
   return { count: pending.length, ...(oldestAt !== undefined && { oldestAt }) }
 }
 
-export const usePendingPhotos = (): PendingPhotos | undefined => useLiveQuery(pendingPhotos)
+/** One read for every place that shows it (the status dots are on several screens at once). */
+export const usePendingPhotos = (): PendingPhotos | undefined => useShared('pendingPhotos', pendingPhotos)
 
 /** Uploads after every successful sync, so photos follow the records that point at them. */
 export function startPhotoUploads(): void {

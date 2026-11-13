@@ -13,7 +13,7 @@ import { garminSyncedAt, plannedEvents } from '../garmin/sync'
 import { planWorkouts, readPlan } from '../sisrun/coachPlan'
 import { loadSources } from '../insights/useDailyData'
 import { readEffortLookup } from '../running/efforts'
-import { buildContext, hasRecentData, type ContextInput } from './context'
+import { buildContext, hasRecentData } from './context'
 
 const AREAS: InsightSection['area'][] = ['sono', 'recuperacao', 'treino', 'alimentacao', 'corpo', 'habitos', 'geral']
 
@@ -128,9 +128,7 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     insights: live,
     exercises: new Map(alive(exercises).map((exercise) => [exercise.id, exercise])),
     measurements: alive(measurements),
-    // ContextInput (context.ts) still names the field after the samples; what it reaches (runningLines,
-    // athleteLines) takes either the samples or this lookup.
-    streams: efforts as unknown as ContextInput['streams'],
+    streams: efforts,
     agenda,
     synced: { garmin, healthConnect, calendar },
     today: day,

@@ -1,14 +1,11 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { Cloud, CloudOff, RefreshCw, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cx } from '../../components/ui'
 import { useNow } from '../../db/hooks'
-import { db } from '../../db/schema'
 import { useSyncState } from '../../sync/controller'
-import { countPending } from '../../sync/engine'
 import { needsAttention, whenText, worstSource } from '../status/health'
-import { useSourceHealth } from '../status/useSourceHealth'
+import { usePendingRecords, useSourceHealth } from '../status/useSourceHealth'
 
 function Line({ icon, children, className }: { icon: ReactNode; children: ReactNode; className?: string }) {
   return <span className={cx('flex items-center gap-1.5', className)}>{icon}<span className="min-w-0">{children}</span></span>
@@ -17,7 +14,7 @@ function Line({ icon, children, className }: { icon: ReactNode; children: ReactN
 /** The sync's own state in one line (inside the sync's card), with the day of the last success. */
 export function SyncLine() {
   const sync = useSyncState()
-  const pending = useLiveQuery(() => countPending(db)) ?? 0
+  const pending = usePendingRecords()
   const now = useNow(60_000).getTime()
   const pendingText = pending > 0 ? ` · ${pending} pendente${pending > 1 ? 's' : ''}` : ''
 

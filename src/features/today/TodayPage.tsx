@@ -1,4 +1,3 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { House, Settings, SlidersHorizontal } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { Link } from 'react-router'
@@ -6,8 +5,7 @@ import { Carousel } from '../../components/Carousel'
 import { PullToRefresh } from '../../components/PullToRefresh'
 import { useToast } from '../../components/Toast'
 import { IconButton, Page, Pending } from '../../components/ui'
-import { useNow, useSettings, useToday } from '../../db/hooks'
-import { db, SETTINGS_ID } from '../../db/schema'
+import { useNow, useSettings, useSettingsRead, useToday } from '../../db/hooks'
 import { formatDay } from '../../lib/dates'
 import { WeekCard } from '../calendar/cards'
 import { RecapBanner } from '../recap/RecapBanner'
@@ -29,7 +27,7 @@ export default function TodayPage() {
   const today = useToday()
   const settings = useSettings()
   // The areas the user saved, not the default ones meanwhile: the screen waits for them.
-  const settingsRead = useLiveQuery(async () => (await db.settings.get(SETTINGS_ID)) !== undefined) !== undefined
+  const settingsRead = useSettingsRead()
   const [customizing, setCustomizing] = useState(false)
   const toast = useToast()
   const areas = homeAreas(settings)
