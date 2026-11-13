@@ -2,7 +2,7 @@ import { ChevronRight, Plus, Scale } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { PageTabs } from '../../components/PageTabs'
-import { Button, Card, Empty, Page, Select, SkeletonCard, Stat } from '../../components/ui'
+import { Button, Card, COLUMNS, Empty, Page, Select, SkeletonCard, Stack, Stat } from '../../components/ui'
 import { useSettings, useToday } from '../../db/hooks'
 import type { MeasurementEntry, WeightEntry } from '../../db/types'
 import { formatDay, formatTime, relativeDay } from '../../lib/dates'
@@ -34,6 +34,23 @@ const WEIGH_INS = ['pesagem', 'pesagens'] as const
 const MEASURES = ['medição', 'medições'] as const
 
 const LIST_LIMIT = 15
+
+/** A single column in a tab's two (the photos, a first-time card), centered at the width of the phone layout's page. */
+const ACROSS = 'xl:col-span-2 xl:mx-auto xl:w-full xl:max-w-3xl'
+
+/** A tab loading, in the shape it will have: the summary and charts, and on a wide screen the list beside them. */
+function SectionSkeleton() {
+  return (
+    <>
+      <Stack>
+        <SkeletonCard lines={4} />
+      </Stack>
+      <Stack className="max-xl:hidden">
+        <SkeletonCard lines={8} />
+      </Stack>
+    </>
+  )
+}
 
 export default function BodyPage() {
   const [params, setParams] = useSearchParams()
@@ -83,6 +100,7 @@ export default function BodyPage() {
       title="Corpo"
       icon={Scale}
       tone="body"
+      wide
       actions={
         tab === 'fotos' ? undefined : tab === 'peso' ? (
           <Button size="sm" variant="primary" onClick={() => setWeightEditing('new')}>
@@ -95,14 +113,18 @@ export default function BodyPage() {
         )
       }
     >
-      <PageTabs label="Seção" value={tab} options={TABS} onChange={setTab} className="space-y-4">
+      {/* Each tab is two columns on a wide screen: its summary and charts, then its list. */}
+      <PageTabs label="Seção" value={tab} options={TABS} onChange={setTab} className={COLUMNS}>
         {(shown) =>
           shown === 'peso' ? (
             <WeightSection onEdit={setWeightEditing} />
           ) : shown === 'medidas' ? (
             <MeasurementsSection onEdit={setMeasurementEditing} />
           ) : (
-            <ProgressPhotos asked={photoAsked} onAsked={() => setPhotoAsked(0)} />
+            // The photos have no list to put beside them: one column across both, as wide as before.
+            <Stack className={ACROSS}>
+              <ProgressPhotos asked={photoAsked} onAsked={() => setPhotoAsked(0)} />
+            </Stack>
           )
         }
       </PageTabs>
@@ -132,15 +154,17 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
   const weight = useMemo(() => metricSeries(weights ?? [], (entry) => entry.weightKg), [weights])
   const fat = useMemo(() => metricSeries(weights ?? [], (entry) => entry.bodyFatPct), [weights])
 
-  if (!weights) return <SkeletonCard lines={4} />
+  if (!weights) return <SectionSkeleton />
   if (weights.length === 0) {
     return (
-      <Card>
-        <Empty>Nenhuma pesagem ainda.</Empty>
-        <Button variant="primary" className="w-full" onClick={() => onEdit('new')}>
-          Registrar a primeira
-        </Button>
-      </Card>
+      <Stack className={ACROSS}>
+        <Card>
+          <Empty>Nenhuma pesagem ainda.</Empty>
+          <Button variant="primary" className="w-full" onClick={() => onEdit('new')}>
+            Registrar a primeira
+          </Button>
+        </Card>
+      </Stack>
     )
   }
 
@@ -154,99 +178,106 @@ function WeightSection({ onEdit }: { onEdit: (entry: WeightEntry | 'new') => voi
 
   return (
     <>
-      <Card>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Stat
-            label="Último peso"
-            value={`${formatFixed(latest.weightKg)} kg`}
-            note={`${relativeDay(latest.date, today)}, ${formatTime(latest.time)}`}
-          />
-          <Stat label="Tendência" value={trendNow ? `${formatFixed(trendNow.value)} kg` : '—'} note="média suavizada" />
-          <Stat label="Em 7 dias" value={change7 === undefined ? '—' : `${formatSigned(change7)} kg`} note="pela tendência" />
-          <Stat label="Em 30 dias" value={change30 === undefined ? '—' : `${formatSigned(change30)} kg`} note="pela tendência" />
-          {latestFat && (
-            <Stat
-              label="Gordura"
-              value={`${formatFixed(latestFat.value)}%`}
-              note={fatTrend && `tendência ${formatFixed(fatTrend.value)}%`}
-            />
-          )}
-        </div>
-      </Card>
+      <Stack>
+        <Card>
+          {/* Four across when the card itself is wide enough, not the window: on a computer it is one of two columns. */}
+          <div className="@container">
+            <div className="grid grid-cols-2 gap-4 @md:grid-cols-4">
+              <Stat
+                label="Último peso"
+                value={`${formatFixed(latest.weightKg)} kg`}
+                note={`${relativeDay(latest.date, today)}, ${formatTime(latest.time)}`}
+              />
+              <Stat label="Tendência" value={trendNow ? `${formatFixed(trendNow.value)} kg` : '—'} note="média suavizada" />
+              <Stat label="Em 7 dias" value={change7 === undefined ? '—' : `${formatSigned(change7)} kg`} note="pela tendência" />
+              <Stat label="Em 30 dias" value={change30 === undefined ? '—' : `${formatSigned(change30)} kg`} note="pela tendência" />
+              {latestFat && (
+                <Stat
+                  label="Gordura"
+                  value={`${formatFixed(latestFat.value)}%`}
+                  note={fatTrend && `tendência ${formatFixed(fatTrend.value)}%`}
+                />
+              )}
+            </div>
+          </div>
+        </Card>
 
-      <WeightGoalCard trend={weight.trend} today={today} />
+        <WeightGoalCard trend={weight.trend} today={today} />
 
-      <CompositionCard weights={weights} today={today} />
+        <CompositionCard weights={weights} today={today} />
 
-      <PeriodControl period={period} className="" />
+        <PeriodControl period={period} className="" />
 
-      <Card title="Peso (kg)">
-        <PeriodLine
-          periods={period.window}
-          values={weight.readings}
-          trend={weight.trend}
-          how="mean"
-          unit="kg"
-          digits={1}
-          label="Peso"
-          noun={WEIGH_INS}
-          goal={settings.weightGoal?.targetKg}
-          height={220}
-        />
-      </Card>
-
-      {fat.readings.length > 0 && (
-        <Card title="Gordura corporal (%)">
+        <Card title="Peso (kg)">
           <PeriodLine
             periods={period.window}
-            values={fat.readings}
-            trend={fat.trend}
+            values={weight.readings}
+            trend={weight.trend}
             how="mean"
-            unit="%"
+            unit="kg"
             digits={1}
-            label="Gordura corporal"
+            label="Peso"
             noun={WEIGH_INS}
+            goal={settings.weightGoal?.targetKg}
             height={220}
           />
         </Card>
-      )}
 
-      <Card title="Pesagens">
-        {/* No swipe to delete here: a sideways drag changes the tab. "Excluir" is in the weigh-in's sheet. */}
-        <ul className="divide-y divide-line">
-          {listed.map((entry) => {
-            const extras = describeExtras(entry)
-            return (
-              <li key={entry.id}>
-                <button
-                  type="button"
-                  onClick={() => onEdit(entry)}
-                  className="flex w-full items-center gap-3 py-1.5 text-left hover:text-accent-ink"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm">
-                      <span className="font-medium">{formatFixed(entry.weightKg)} kg</span>
-                      {entry.bodyFatPct !== undefined && (
-                        <span className="text-ink-2"> · {formatFixed(entry.bodyFatPct)}% gordura</span>
-                      )}
-                    </span>
-                    <span className="block truncate text-xs text-muted">
-                      {formatDay(entry.date, "EEE, d 'de' MMM 'de' yyyy")}, {formatTime(entry.time)}
-                      {extras && ` · ${extras}`}
-                    </span>
-                  </span>
-                  <ChevronRight size={16} className="shrink-0 text-muted" />
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-        {!showAll && weights.length > LIST_LIMIT && (
-          <Button size="sm" variant="ghost" className="mt-2 w-full" onClick={() => setShowAll(true)}>
-            Mostrar todas ({weights.length})
-          </Button>
+        {fat.readings.length > 0 && (
+          <Card title="Gordura corporal (%)">
+            <PeriodLine
+              periods={period.window}
+              values={fat.readings}
+              trend={fat.trend}
+              how="mean"
+              unit="%"
+              digits={1}
+              label="Gordura corporal"
+              noun={WEIGH_INS}
+              height={220}
+            />
+          </Card>
         )}
-      </Card>
+      </Stack>
+
+      <Stack>
+        <Card title="Pesagens">
+          {/* No swipe to delete here: a sideways drag changes the tab. "Excluir" is in the weigh-in's sheet. */}
+          <ul className="divide-y divide-line">
+            {listed.map((entry) => {
+              const extras = describeExtras(entry)
+              return (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    onClick={() => onEdit(entry)}
+                    className="flex w-full items-center gap-3 py-1.5 text-left hover:text-accent-ink"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm">
+                        <span className="font-medium">{formatFixed(entry.weightKg)} kg</span>
+                        {entry.bodyFatPct !== undefined && (
+                          <span className="text-ink-2"> · {formatFixed(entry.bodyFatPct)}% gordura</span>
+                        )}
+                      </span>
+                      <span className="block truncate text-xs text-muted">
+                        {formatDay(entry.date, "EEE, d 'de' MMM 'de' yyyy")}, {formatTime(entry.time)}
+                        {extras && ` · ${extras}`}
+                      </span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-muted" />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          {!showAll && weights.length > LIST_LIMIT && (
+            <Button size="sm" variant="ghost" className="mt-2 w-full" onClick={() => setShowAll(true)}>
+              Mostrar todas ({weights.length})
+            </Button>
+          )}
+        </Card>
+      </Stack>
     </>
   )
 }
@@ -283,93 +314,99 @@ function MeasurementsSection({ onEdit }: { onEdit: (entry: MeasurementEntry | 'n
     [measurements, selected],
   )
 
-  if (!measurements) return <SkeletonCard lines={4} />
+  if (!measurements) return <SectionSkeleton />
   if (measurements.length === 0) {
     return (
-      <Card>
-        <Empty>Nenhuma medição ainda.</Empty>
-        <Button variant="primary" className="w-full" onClick={() => onEdit('new')}>
-          Registrar medidas
-        </Button>
-      </Card>
+      <Stack className={ACROSS}>
+        <Card>
+          <Empty>Nenhuma medição ainda.</Empty>
+          <Button variant="primary" className="w-full" onClick={() => onEdit('new')}>
+            Registrar medidas
+          </Button>
+        </Card>
+      </Stack>
     )
   }
 
   return (
     <>
-      <Card title="Medidas atuais (cm)">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-muted">
-              <th className="pb-1 font-normal">Local</th>
-              <th className="pb-1 text-right font-normal">Medida</th>
-              <th className="pb-1 text-right font-normal">Variação</th>
-              <th className="pb-1 text-right font-normal">Data</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.site.key} className="border-t border-line">
-                <td className="py-1.5">{row.site.label}</td>
-                <td className="py-1.5 text-right font-medium tabular-nums">{formatFixed(row.value)}</td>
-                <td className="py-1.5 text-right text-ink-2 tabular-nums">
-                  {row.change === undefined ? '—' : formatSigned(row.change)}
-                </td>
-                <td className="py-1.5 text-right text-xs text-muted tabular-nums">{formatDay(row.date, 'd/M/yy')}</td>
+      <Stack>
+        <Card title="Medidas atuais (cm)">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted">
+                <th className="pb-1 font-normal">Local</th>
+                <th className="pb-1 text-right font-normal">Medida</th>
+                <th className="pb-1 text-right font-normal">Variação</th>
+                <th className="pb-1 text-right font-normal">Data</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
-
-      {selected && (
-        <Card
-          title="Evolução"
-          action={
-            <Select
-              aria-label="Local da medida"
-              value={selected.key}
-              onChange={(e) => setSiteKey(e.target.value)}
-              className="h-9 w-auto text-sm"
-            >
-              {rows.map(({ site }) => (
-                <option key={site.key} value={site.key}>
-                  {site.label}
-                </option>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.site.key} className="border-t border-line">
+                  <td className="py-1.5">{row.site.label}</td>
+                  <td className="py-1.5 text-right font-medium tabular-nums">{formatFixed(row.value)}</td>
+                  <td className="py-1.5 text-right text-ink-2 tabular-nums">
+                    {row.change === undefined ? '—' : formatSigned(row.change)}
+                  </td>
+                  <td className="py-1.5 text-right text-xs text-muted tabular-nums">{formatDay(row.date, 'd/M/yy')}</td>
+                </tr>
               ))}
-            </Select>
-          }
-        >
-          <PeriodControl period={period} />
-          <PeriodLine periods={period.window} values={points} how="mean" unit="cm" digits={1} label={selected.label} noun={MEASURES} />
+            </tbody>
+          </table>
         </Card>
-      )}
 
-      <Card title="Histórico">
-        {/* No swipe to delete here either: "Excluir" is in the measurement's sheet. */}
-        <ul className="divide-y divide-line">
-          {[...measurements].reverse().map((entry) => (
-            <li key={entry.id}>
-              <button
-                type="button"
-                onClick={() => onEdit(entry)}
-                className="flex w-full items-center gap-3 py-1.5 text-left hover:text-accent-ink"
+        {selected && (
+          <Card
+            title="Evolução"
+            action={
+              <Select
+                aria-label="Local da medida"
+                value={selected.key}
+                onChange={(e) => setSiteKey(e.target.value)}
+                className="h-9 w-auto text-sm"
               >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">{formatDay(entry.date, "d 'de' MMMM 'de' yyyy")}</span>
-                  <span className="block truncate text-xs text-muted">
-                    {sites
-                      .filter((site) => entry.values[site.key] !== undefined)
-                      .map((site) => `${site.label} ${formatNumber(entry.values[site.key])}`)
-                      .join(' · ')}
+                {rows.map(({ site }) => (
+                  <option key={site.key} value={site.key}>
+                    {site.label}
+                  </option>
+                ))}
+              </Select>
+            }
+          >
+            <PeriodControl period={period} />
+            <PeriodLine periods={period.window} values={points} how="mean" unit="cm" digits={1} label={selected.label} noun={MEASURES} />
+          </Card>
+        )}
+      </Stack>
+
+      <Stack>
+        <Card title="Histórico">
+          {/* No swipe to delete here either: "Excluir" is in the measurement's sheet. */}
+          <ul className="divide-y divide-line">
+            {[...measurements].reverse().map((entry) => (
+              <li key={entry.id}>
+                <button
+                  type="button"
+                  onClick={() => onEdit(entry)}
+                  className="flex w-full items-center gap-3 py-1.5 text-left hover:text-accent-ink"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{formatDay(entry.date, "d 'de' MMMM 'de' yyyy")}</span>
+                    <span className="block truncate text-xs text-muted">
+                      {sites
+                        .filter((site) => entry.values[site.key] !== undefined)
+                        .map((site) => `${site.label} ${formatNumber(entry.values[site.key])}`)
+                        .join(' · ')}
+                    </span>
                   </span>
-                </span>
-                <ChevronRight size={16} className="shrink-0 text-muted" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      </Card>
+                  <ChevronRight size={16} className="shrink-0 text-muted" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </Stack>
     </>
   )
 }
