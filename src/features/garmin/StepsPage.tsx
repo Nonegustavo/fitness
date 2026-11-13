@@ -1,8 +1,9 @@
 import { Footprints } from 'lucide-react'
 import { useMemo } from 'react'
+import { Link } from 'react-router'
 import { PeriodBars } from '../../components/PeriodBars'
 import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
-import { Card, Empty, Page, SkeletonCard, SkeletonLines, Stat } from '../../components/ui'
+import { Card, Columns, Empty, Page, SkeletonCard, SkeletonLines, Stack, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { db } from '../../db/schema'
 import type { DailyHealth } from '../../db/types'
@@ -26,9 +27,17 @@ export default function StepsPage() {
 
   if (!rows) {
     return (
-      <Page title="Passos" icon={Footprints} tone="today">
-        <SkeletonCard lines={2} />
-        <SkeletonCard lines={6} />
+      <Page title="Passos" icon={Footprints} tone="today" wide>
+        <Columns>
+          <Stack>
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={6} />
+          </Stack>
+          {/* The list's place on a wide screen; the phone shows the two cards above, as before. */}
+          <Stack className="max-xl:hidden">
+            <SkeletonCard lines={8} />
+          </Stack>
+        </Columns>
       </Page>
     )
   }
@@ -47,41 +56,60 @@ export default function StepsPage() {
   const listed = [...rows].filter((row) => row.steps !== undefined || row.calories?.total !== undefined).reverse()
 
   return (
-    <Page title="Passos" icon={Footprints} tone="today" subtitle="Do relógio, até a última sincronização do Garmin">
+    <Page
+      title="Passos"
+      icon={Footprints}
+      tone="today"
+      subtitle="Do relógio, até a última sincronização do Garmin"
+      wide={listed.length > 0}
+    >
       {listed.length === 0 ? (
         <Card>
-          <Empty>Nenhum dia com passos ainda. Eles chegam com a sincronização do Garmin.</Empty>
+          <Empty>Nenhum dia com passos ainda.</Empty>
+          <p className="text-sm text-ink-2">
+            Eles chegam com a sincronização do Garmin.{' '}
+            <Link to="/ajustes?secao=garmin" className="font-medium text-accent-ink underline underline-offset-2">
+              Ligar em Ajustes
+            </Link>
+          </p>
         </Card>
       ) : (
-        <>
-          <Card>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Stat label="Hoje" value={steps.at(-1) !== undefined ? formatNumber(steps.at(-1)!, 0) : '—'} note="até a sincronização" />
-              <Stat label="Média de 7 dias" value={week !== undefined ? formatNumber(week, 0) : '—'} />
-              <Stat label={`Média de ${DAYS} dias`} value={month !== undefined ? formatNumber(month, 0) : '—'} />
-              <Stat label="Melhor dia" value={best ? formatNumber(best.steps, 0) : '—'} note={best && relativeDay(best.day, today)} />
-            </div>
-          </Card>
+        <Columns>
+          <Stack>
+            <Card>
+              {/* Four across when the card itself is wide enough, not the window: on a computer it is one of two columns. */}
+              <div className="@container">
+                <div className="grid grid-cols-2 gap-4 @md:grid-cols-4">
+                  <Stat label="Hoje" value={steps.at(-1) !== undefined ? formatNumber(steps.at(-1)!, 0) : '—'} note="até a sincronização" />
+                  <Stat label="Média de 7 dias" value={week !== undefined ? formatNumber(week, 0) : '—'} />
+                  <Stat label={`Média de ${DAYS} dias`} value={month !== undefined ? formatNumber(month, 0) : '—'} />
+                  <Stat label="Melhor dia" value={best ? formatNumber(best.steps, 0) : '—'} note={best && relativeDay(best.day, today)} />
+                </div>
+              </div>
+            </Card>
 
-          <StepsHistory today={today} />
+            <StepsHistory today={today} />
+          </Stack>
 
-          <Card title="Dia a dia">
-            <ul className="divide-y divide-line">
-              {listed.map((row) => (
-                <li key={row.id} className="flex items-baseline gap-3 py-2 text-sm">
-                  <span className="min-w-0 flex-1 text-ink-2 first-letter:uppercase">
-                    {row.id === today ? 'hoje' : formatDay(row.id, "EEE, d 'de' MMM")}
-                  </span>
-                  <span className="w-14 text-right font-medium tabular-nums">{row.steps !== undefined ? formatNumber(row.steps, 0) : '—'}</span>
-                  <span className="w-36 shrink-0 text-right text-xs text-muted tabular-nums">
-                    {row.calories?.total !== undefined && `${formatNumber(row.calories.total, 0)} kcal`}
-                    {row.calories?.active !== undefined && ` · ${formatNumber(row.calories.active, 0)} ativas`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </>
+          <Stack>
+            <Card title="Dia a dia">
+              <ul className="divide-y divide-line">
+                {listed.map((row) => (
+                  <li key={row.id} className="flex items-baseline gap-3 py-2 text-sm">
+                    <span className="min-w-0 flex-1 text-ink-2 first-letter:uppercase">
+                      {row.id === today ? 'hoje' : formatDay(row.id, "EEE, d 'de' MMM")}
+                    </span>
+                    <span className="w-14 text-right font-medium tabular-nums">{row.steps !== undefined ? formatNumber(row.steps, 0) : '—'}</span>
+                    <span className="w-36 shrink-0 text-right text-xs text-muted tabular-nums">
+                      {row.calories?.total !== undefined && `${formatNumber(row.calories.total, 0)} kcal`}
+                      {row.calories?.active !== undefined && ` · ${formatNumber(row.calories.active, 0)} ativas`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </Stack>
+        </Columns>
       )}
     </Page>
   )

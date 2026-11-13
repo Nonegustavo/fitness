@@ -1,5 +1,6 @@
 import { Flame } from 'lucide-react'
 import { useMemo } from 'react'
+import { Link } from 'react-router'
 import {
   axisStyle,
   baseOption,
@@ -14,7 +15,7 @@ import {
   type ChartOption,
 } from '../../components/Chart'
 import { PeriodControl, useFirstDay, usePeriod } from '../../components/PeriodControl'
-import { Card, cx, Empty, Page, SkeletonCard, SkeletonLines, Stat } from '../../components/ui'
+import { Card, Columns, cx, Empty, Page, SkeletonCard, SkeletonLines, Stack, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { db } from '../../db/schema'
 import type { DailyHealth, FoodLog } from '../../db/types'
@@ -288,9 +289,17 @@ export default function CaloriesPage() {
 
   if (!days) {
     return (
-      <Page title="Calorias gastas" icon={Flame} tone="training">
-        <SkeletonCard lines={2} />
-        <SkeletonCard lines={6} />
+      <Page title="Calorias gastas" icon={Flame} tone="training" wide>
+        <Columns>
+          <Stack>
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={6} />
+          </Stack>
+          {/* The list's place on a wide screen; the phone shows the two cards above, as before. */}
+          <Stack className="max-xl:hidden">
+            <SkeletonCard lines={8} />
+          </Stack>
+        </Columns>
       </Page>
     )
   }
@@ -304,53 +313,72 @@ export default function CaloriesPage() {
   const listed = [...days].reverse().filter((day) => day.total !== undefined || day.eaten !== undefined)
 
   return (
-    <Page title="Calorias gastas" icon={Flame} tone="training" subtitle="Do relógio, até a última sincronização do Garmin">
+    <Page
+      title="Calorias gastas"
+      icon={Flame}
+      tone="training"
+      subtitle="Do relógio, até a última sincronização do Garmin"
+      wide={withTotal.length > 0}
+    >
       {withTotal.length === 0 ? (
         <Card>
-          <Empty>Nenhum dia com calorias do relógio ainda. Elas chegam com a sincronização do Garmin.</Empty>
+          <Empty>Nenhum dia com calorias do relógio ainda.</Empty>
+          <p className="text-sm text-ink-2">
+            Elas chegam com a sincronização do Garmin.{' '}
+            <Link to="/ajustes?secao=garmin" className="font-medium text-accent-ink underline underline-offset-2">
+              Ligar em Ajustes
+            </Link>
+          </p>
         </Card>
       ) : (
-        <>
-          {forecast && <ForecastCard forecast={forecast} updatedAt={updatedAt} today={today} />}
+        <Columns>
+          <Stack>
+            {forecast && <ForecastCard forecast={forecast} updatedAt={updatedAt} today={today} />}
 
-          <Card>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Stat
-                label="Hoje até agora"
-                value={todays.total !== undefined ? formatNumber(todays.total, 0) : '—'}
-                note={todays.active !== undefined ? `${formatNumber(todays.active, 0)} ativas` : 'até a sincronização'}
-              />
-              <Stat label="Média de 7 dias" value={week !== undefined ? formatNumber(week, 0) : '—'} />
-              <Stat label={`Média de ${DAYS} dias`} value={month !== undefined ? formatNumber(month, 0) : '—'} />
-              <Stat label="Ativas por dia" value={activeMonth !== undefined ? formatNumber(activeMonth, 0) : '—'} note={`média de ${DAYS} dias`} />
-            </div>
-          </Card>
+            <Card>
+              {/* Four across when the card itself is wide enough, not the window: on a computer it is one of two columns. */}
+              <div className="@container">
+                <div className="grid grid-cols-2 gap-4 @md:grid-cols-4">
+                  <Stat
+                    label="Hoje até agora"
+                    value={todays.total !== undefined ? formatNumber(todays.total, 0) : '—'}
+                    note={todays.active !== undefined ? `${formatNumber(todays.active, 0)} ativas` : 'até a sincronização'}
+                  />
+                  <Stat label="Média de 7 dias" value={week !== undefined ? formatNumber(week, 0) : '—'} />
+                  <Stat label={`Média de ${DAYS} dias`} value={month !== undefined ? formatNumber(month, 0) : '—'} />
+                  <Stat label="Ativas por dia" value={activeMonth !== undefined ? formatNumber(activeMonth, 0) : '—'} note={`média de ${DAYS} dias`} />
+                </div>
+              </div>
+            </Card>
 
-          <EnergyHistory today={today} />
+            <EnergyHistory today={today} />
+          </Stack>
 
-          <Card title="Dia a dia">
-            <p className="mb-1 text-xs text-muted">Gastas pelo relógio, comidas pelo registro de alimentação e o saldo (comido − gasto).</p>
-            <ul className="divide-y divide-line">
-              {listed.map((day) => {
-                const balance = day.total !== undefined && day.eaten !== undefined ? day.eaten - day.total : undefined
-                return (
-                  <li key={day.day} className="flex items-baseline gap-3 py-2 text-sm">
-                    <span className="min-w-0 flex-1 text-ink-2 first-letter:uppercase">
-                      {day.day === today ? 'hoje' : formatDay(day.day, "EEE, d 'de' MMM")}
-                    </span>
-                    <span className="w-16 text-right font-medium tabular-nums">
-                      {day.total !== undefined ? formatNumber(day.total, 0) : '—'}
-                    </span>
-                    <span className="w-16 text-right text-ink-2 tabular-nums">{day.eaten !== undefined ? formatNumber(day.eaten, 0) : '—'}</span>
-                    <span className={cx('w-14 text-right text-xs tabular-nums', balance === undefined ? 'text-muted' : 'text-ink-2')}>
-                      {balance === undefined ? '' : `${balance > 0 ? '+' : balance < 0 ? '−' : ''}${formatNumber(Math.abs(balance), 0)}`}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          </Card>
-        </>
+          <Stack>
+            <Card title="Dia a dia">
+              <p className="mb-1 text-xs text-muted">Gastas pelo relógio, comidas pelo registro de alimentação e o saldo (comido − gasto).</p>
+              <ul className="divide-y divide-line">
+                {listed.map((day) => {
+                  const balance = day.total !== undefined && day.eaten !== undefined ? day.eaten - day.total : undefined
+                  return (
+                    <li key={day.day} className="flex items-baseline gap-3 py-2 text-sm">
+                      <span className="min-w-0 flex-1 text-ink-2 first-letter:uppercase">
+                        {day.day === today ? 'hoje' : formatDay(day.day, "EEE, d 'de' MMM")}
+                      </span>
+                      <span className="w-16 text-right font-medium tabular-nums">
+                        {day.total !== undefined ? formatNumber(day.total, 0) : '—'}
+                      </span>
+                      <span className="w-16 text-right text-ink-2 tabular-nums">{day.eaten !== undefined ? formatNumber(day.eaten, 0) : '—'}</span>
+                      <span className={cx('w-14 text-right text-xs tabular-nums', balance === undefined ? 'text-muted' : 'text-ink-2')}>
+                        {balance === undefined ? '' : `${balance > 0 ? '+' : balance < 0 ? '−' : ''}${formatNumber(Math.abs(balance), 0)}`}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card>
+          </Stack>
+        </Columns>
       )}
     </Page>
   )
