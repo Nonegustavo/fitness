@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo } from 'react'
 import { alive, mutate, remove, save } from '../../db/repo'
 import { db } from '../../db/schema'
+import { useShared } from '../../db/shared'
 import type {
   Exercise,
   PerformedSet,
@@ -29,17 +30,17 @@ export function useExercises(): Exercise[] | undefined {
 
 /** Every exercise by id, deleted ones included, so old workouts keep their names. */
 export function useExerciseMap(): Map<string, Exercise> {
-  const rows = useLiveQuery(() => db.exercises.toArray())
+  const rows = useShared('exercises', () => db.exercises.toArray())
   return useMemo(() => new Map((rows ?? []).map((exercise) => [exercise.id, exercise])), [rows])
 }
 
 export function useTemplates(): WorkoutTemplate[] | undefined {
-  return useLiveQuery(async () => alive(await db.workoutTemplates.toArray()).sort((a, b) => a.order - b.order))
+  return useShared('workoutTemplates', async () => alive(await db.workoutTemplates.toArray()).sort((a, b) => a.order - b.order))
 }
 
 /** All workouts, newest first. */
 export function useSessions(): WorkoutSession[] | undefined {
-  return useLiveQuery(async () =>
+  return useShared('workoutSessions', async () =>
     alive(await db.workoutSessions.toArray()).sort((a, b) => b.startedAt - a.startedAt),
   )
 }

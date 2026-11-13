@@ -2,13 +2,22 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { dayKey, type DayKey } from '../lib/dates'
 import { DEFAULT_SETTINGS, SETTINGS_ID, db } from './schema'
+import { useShared } from './shared'
 import type { Settings } from './types'
 
 const fallbackSettings: Settings = { id: SETTINGS_ID, ...DEFAULT_SETTINGS, updatedAt: 0, deleted: 0, dirty: 0 }
 
+/** The settings row, null when there is none; shared by every component (never change it in place). */
+const useStoredSettings = (): Settings | null | undefined =>
+  useShared('settings', async () => (await db.settings.get(SETTINGS_ID)) ?? null)
+
+/** The settings; the defaults while they load. */
 export function useSettings(): Settings {
-  return useLiveQuery(() => db.settings.get(SETTINGS_ID)) ?? fallbackSettings
+  return useStoredSettings() ?? fallbackSettings
 }
+
+/** Whether the settings were read (a screen laid out by them can wait instead of showing the defaults first). */
+export const useSettingsRead = (): boolean => useStoredSettings() !== undefined
 
 /** A query's answer, tagged with the key it was asked for. */
 export interface KeyedAnswer<T> {

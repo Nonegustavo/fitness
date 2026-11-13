@@ -1,12 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { alive } from '../../db/repo'
 import { db } from '../../db/schema'
+import { useShared } from '../../db/shared'
 import type { MeasurementEntry, WeightEntry } from '../../db/types'
 import { firstPerDay, smoothedTrend, type DayValue } from '../../lib/stats'
 
 /** All weigh-ins, oldest first. */
 export function useWeights(): WeightEntry[] | undefined {
-  return useLiveQuery(async () => alive(await db.weights.toArray()).sort((a, b) => a.time - b.time))
+  return useShared('weights', async () => alive(await db.weights.toArray()).sort((a, b) => a.time - b.time))
 }
 
 /** All measurement sessions, oldest first. */

@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Activity as ActivityIcon, Bike, Dumbbell, Footprints, HeartPulse, Mountain, SportShoe, Waves, type LucideIcon } from 'lucide-react'
 import { alive, patch, remove } from '../../db/repo'
 import { db } from '../../db/schema'
+import { useShared } from '../../db/shared'
 import type { Activity, ActivityStream, WorkoutSession } from '../../db/types'
 import { formatDay } from '../../lib/dates'
 import { formatClock, formatFixed } from '../../lib/format'
@@ -11,7 +12,7 @@ import { weatherText } from './weather'
 
 /** All activities, newest first. */
 export function useActivities(): Activity[] | undefined {
-  return useLiveQuery(async () => alive(await db.activities.orderBy('startTime').reverse().toArray()))
+  return useShared('activities', async () => alive(await db.activities.orderBy('startTime').reverse().toArray()))
 }
 
 /** null = not found; undefined = still loading. */
