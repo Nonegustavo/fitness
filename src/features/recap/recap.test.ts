@@ -247,7 +247,7 @@ describe('buildRecap', () => {
   it('does not count a best that an earlier year beat as a record', () => {
     const slow = sources()
     slow.activities = slow.activities.map((a) => (a.id === 'r2025' ? { ...a, timerSec: 1400 } : a))
-    slow.streams.set('r2025', evenStream(5000, 1400))
+    slow.streams = new Map([['r2025', evenStream(5000, 1400)], ['r1', evenStream(5200, 1500)], ['r2', evenStream(10500, 3300)]])
     expect(buildRecap(2026, today, slow).running!.bests.find((best) => best.short === '5 km')!.record).toBe(false)
   })
 
@@ -333,7 +333,8 @@ describe('buildRecap with two years of data', () => {
     const days = dayRange('2025-01-01', today)
     const s = sources()
     s.activities = []
-    s.streams = new Map()
+    const streams = new Map<string, ReturnType<typeof evenStream>>()
+    s.streams = streams
     s.sessions = []
     s.health = []
     s.weights = []
@@ -352,7 +353,7 @@ describe('buildRecap with two years of data', () => {
       if (i % 2 === 0) {
         // A 6 km run every other day, with a sample every second.
         s.activities.push(activity(`r${date}`, date, { distanceM: 6000, timerSec: 1800 + (i % 60) }))
-        s.streams.set(`r${date}`, evenStream(6000, 1800 + (i % 60)))
+        streams.set(`r${date}`, evenStream(6000, 1800 + (i % 60)))
       } else if (i % 3 === 0) {
         s.sessions.push(session(`s${date}`, date, ['bench', 'squat', 'bench', 'squat', 'bench', 'squat'].map((id) => lift(id, sets(4, 60 + i / 10, 8)))))
       }

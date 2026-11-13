@@ -143,6 +143,24 @@ export const RECORD_DISTANCES = [
   { meters: 42195, label: 'Maratona', short: '42 km' },
 ] as const
 
+/** The best seconds over a distance (meters) inside a run, by the run's id; undefined when it has none. */
+export type EffortLookup = (activityId: string, meters: number) => number | undefined
+
+/**
+ * Where the best stretches come from: the runs' distance samples by id, or a lookup of the ones already
+ * worked out (the cache this device keeps, so the screens don't read every run's samples).
+ */
+export type EffortSource = ReadonlyMap<string, Pick<ActivityStream, 'step' | 'distance'>> | EffortLookup
+
+/** A source as a lookup: from samples, each answer is worked out when asked. */
+export function effortLookup(source: EffortSource): EffortLookup {
+  if (typeof source === 'function') return source
+  return (activityId, meters) => {
+    const stream = source.get(activityId)
+    return stream && bestEffort(stream, meters)
+  }
+}
+
 export interface Effort {
   seconds: number
   date: DayKey
@@ -163,18 +181,14 @@ const usable = (runs: Activity[]) => runs.filter((run) => !run.deleted && isOutd
  * Each distance some outdoor run reached, with the best time of each run over it, fastest first
  * (the first `limit`). Times come from the runs' samples: Garmin's own list isn't in its personal API.
  */
-export function effortsByDistance(
-  runs: Activity[],
-  streams: Map<string, Pick<ActivityStream, 'step' | 'distance'>>,
-  limit = 5,
-): DistanceEfforts[] {
+export function effortsByDistance(runs: Activity[], source: EffortSource, limit = 5): DistanceEfforts[] {
   const outdoor = usable(runs)
+  const effortOf = effortLookup(source)
   return RECORD_DISTANCES.flatMap(({ meters, label, short }) => {
     const efforts: Effort[] = []
     for (const run of outdoor) {
       if ((run.distanceM ?? 0) < meters * 0.99) continue
-      const stream = streams.get(run.id)
-      const seconds = stream && bestEffort(stream, meters)
+      const seconds = effortOf(run.id, meters)
       if (seconds !== undefined) efforts.push({ seconds, date: run.date, activityId: run.id })
     }
     efforts.sort((a, b) => a.seconds - b.seconds)
@@ -211,9 +225,9 @@ export interface Records {
 }
 
 /** The best of each distance and the longest run, for the cards. */
-export function personalRecords(runs: Activity[], streams: Map<string, Pick<ActivityStream, 'step' | 'distance'>>): Records {
+export function personalRecords(runs: Activity[], source: EffortSource): Records {
   return {
-    efforts: effortsByDistance(runs, streams, 1).map(({ meters, label, short, efforts: [best] }) => ({ meters, label, short, ...best })),
+    efforts: effortsByDistance(runs, source, 1).map(({ meters, label, short, efforts: [best] }) => ({ meters, label, short, ...best })),
     longest: longestRuns(runs, 1)[0],
   }
 }

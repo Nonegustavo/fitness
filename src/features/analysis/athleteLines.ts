@@ -7,13 +7,19 @@ import { nextRaceView } from '../races/race'
 import { ACWR_FLAGS, dailyLoads, FORM_ZONES, loadSeries, loadStatus, type LoadDay, type LoadStatus } from '../running/load'
 import { distanceLabel, fitnessOf, monthlyVdot, predictRace, runEfforts, type Effort, type RunFitness } from '../running/predict'
 import { BANDS, readiness, readinessDay, type Readiness } from '../running/readiness'
-import { formatPace } from '../running/running'
+import { formatPace, type EffortSource } from '../running/running'
 
 /** What the lines read; the daily analysis' input has all of it. */
 export interface AthleteInput {
-  sources: { activities: Activity[]; health: DailyHealth[]; pains?: Pain[] }
-  /** The runs' samples: the distance for the best stretches, and the heart rate when there is one. */
-  streams?: ReadonlyMap<string, Pick<ActivityStream, 'step' | 'distance'> & { hr?: ActivityStream['hr'] }>
+  sources: {
+    activities: Activity[]
+    health: DailyHealth[]
+    pains?: Pain[]
+    /** The heart rate samples of the activities without the watch's zones, for their training load. */
+    streams?: ReadonlyMap<string, Pick<ActivityStream, 'step' | 'hr'>>
+  }
+  /** The runs' best stretches: their samples, or the cache of what they hold. */
+  streams?: EffortSource
   planned: PlannedEvent[] | null
   /** The races of the app's list. */
   races?: Race[]
@@ -90,7 +96,7 @@ function vdotLine(best: Effort, efforts: Effort[], today: DayKey): string {
  */
 export function athleteLines({ sources, streams, planned, races, today }: AthleteInput): string[] {
   const lines: string[] = []
-  const series = loadSeries(dailyLoads(sources.activities, streams), today)
+  const series = loadSeries(dailyLoads(sources.activities, sources.streams), today)
   const status = loadStatus(series)
   if (status) {
     lines.push(loadLine(status))

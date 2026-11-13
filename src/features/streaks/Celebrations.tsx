@@ -5,8 +5,9 @@ import { useToast } from '../../components/Toast'
 import { useToday } from '../../db/hooks'
 import { alive } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { ActivityStream } from '../../db/types'
 import { dayKey, type DayKey } from '../../lib/dates'
+import { cacheLookup } from '../running/effortCache'
+import { readEffortCache, startEffortCache } from '../running/efforts'
 import { isOutdoorRun, personalRecords } from '../running/running'
 import { useStreaks } from './StreakCards'
 import { milestoneMessage, recordNews, snapshotOf, type RecordSnapshot, type StreakKind } from './streaks'
@@ -73,39 +74,36 @@ export function Celebrations() {
     }
   }, [current, today])
 
-  // Running records, whenever runs (or their samples) arrive. Starts a little after opening, as
-  // it reads the samples of every run.
+  // Running records, whenever runs (or their samples) arrive. They come from the cache of the runs'
+  // best stretches, which this starts filling in the background; while it fills, the records would
+  // seem to improve run by run, so they are only compared (and noted) once it is complete.
   useEffect(() => {
+    startEffortCache()
     let debounce: ReturnType<typeof setTimeout> | undefined
-    let subscription: { unsubscribe: () => void } | undefined
-    const start = setTimeout(() => {
-      subscription = liveQuery(async () => {
-        const runs = alive(await db.activities.toArray()).filter(isOutdoorRun)
-        const streams = await db.activityStreams.bulkGet(runs.map((run) => run.id))
-        return personalRecords(
-          runs,
-          new Map(streams.filter((stream): stream is ActivityStream => stream !== undefined).map((stream) => [stream.id, stream])),
-        )
-      }).subscribe({
-        next: (records) => {
-          clearTimeout(debounce)
-          debounce = setTimeout(() => {
-            void (async () => {
-              const previous = (await db.meta.get(RECORDS_KEY))?.value as RecordSnapshot | undefined
-              const snapshot = snapshotOf(records)
-              // The first look (or one with no records yet, before the history arrives) only takes note.
-              const news = previous && Object.keys(previous.best).length > 0 ? recordNews(previous, records, dayKey()) : []
-              if (JSON.stringify(previous) !== JSON.stringify(snapshot)) await db.meta.put({ key: RECORDS_KEY, value: snapshot })
-              if (news.length > 0) announce(news, 800)
-            })()
-          }, 1500)
-        },
-      })
-    }, 4000)
+    const subscription = liveQuery(async () => {
+      const cache = await readEffortCache()
+      if (!cache?.complete) return undefined
+      const runs = alive(await db.activities.toArray()).filter(isOutdoorRun)
+      return personalRecords(runs, cacheLookup(cache))
+    }).subscribe({
+      next: (records) => {
+        clearTimeout(debounce)
+        if (!records) return
+        debounce = setTimeout(() => {
+          void (async () => {
+            const previous = (await db.meta.get(RECORDS_KEY))?.value as RecordSnapshot | undefined
+            const snapshot = snapshotOf(records)
+            // The first look (or one with no records yet, before the history arrives) only takes note.
+            const news = previous && Object.keys(previous.best).length > 0 ? recordNews(previous, records, dayKey()) : []
+            if (JSON.stringify(previous) !== JSON.stringify(snapshot)) await db.meta.put({ key: RECORDS_KEY, value: snapshot })
+            if (news.length > 0) announce(news, 800)
+          })()
+        }, 1500)
+      },
+    })
     return () => {
-      clearTimeout(start)
       clearTimeout(debounce)
-      subscription?.unsubscribe()
+      subscription.unsubscribe()
     }
   }, [])
 

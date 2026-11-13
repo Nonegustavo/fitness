@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useSyncExternalStore } from 'react'
 import { alive, save } from '../../db/repo'
 import { db, DEFAULT_SETTINGS, SETTINGS_ID } from '../../db/schema'
-import type { ActivityStream, DailyInsight, InsightSection } from '../../db/types'
+import type { DailyInsight, InsightSection } from '../../db/types'
 import { dayKey, shiftDay, type DayKey } from '../../lib/dates'
 import { getSyncState, onSyncStateChange } from '../../sync/controller'
 import { invokeFunction, LONG_TIMEOUT_MS } from '../../sync/functions'
@@ -12,8 +12,8 @@ import { coachSummary } from '../calendar/eventText'
 import { garminSyncedAt, plannedEvents } from '../garmin/sync'
 import { planWorkouts, readPlan } from '../sisrun/coachPlan'
 import { loadSources } from '../insights/useDailyData'
-import { isOutdoorRun } from '../running/running'
-import { buildContext, hasRecentData } from './context'
+import { readEffortLookup } from '../running/efforts'
+import { buildContext, hasRecentData, type ContextInput } from './context'
 
 const AREAS: InsightSection['area'][] = ['sono', 'recuperacao', 'treino', 'alimentacao', 'corpo', 'habitos', 'geral']
 
@@ -76,9 +76,9 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     db.races.toArray(),
   ])
   const races = alive(raceRows)
-  const runs = sources.activities.filter(isOutdoorRun)
-  const [streams, garmin, healthConnect, calendar, coachPlan] = await Promise.all([
-    db.activityStreams.bulkGet(runs.map((run) => run.id)),
+  const [efforts, garmin, healthConnect, calendar, coachPlan] = await Promise.all([
+    // The records and predictions come from the cache of the runs' best stretches, not from every run's samples.
+    readEffortLookup(),
     garminSyncedAt(),
     metaTime('healthConnect', 'lastImportAt'),
     metaTime('garminCalendar', 'fetchedAt'),
@@ -128,7 +128,9 @@ export async function contextFor(day: DayKey = dayKey(), withPrevious = true): P
     insights: live,
     exercises: new Map(alive(exercises).map((exercise) => [exercise.id, exercise])),
     measurements: alive(measurements),
-    streams: new Map(streams.filter((stream): stream is ActivityStream => !!stream && !stream.deleted).map((stream) => [stream.id, stream])),
+    // ContextInput (context.ts) still names the field after the samples; what it reaches (runningLines,
+    // athleteLines) takes either the samples or this lookup.
+    streams: efforts as unknown as ContextInput['streams'],
     agenda,
     synced: { garmin, healthConnect, calendar },
     today: day,

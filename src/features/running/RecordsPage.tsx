@@ -1,37 +1,37 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { Trophy } from 'lucide-react'
+import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { Card, Empty, Page, SkeletonCard } from '../../components/ui'
 import { useToday } from '../../db/hooks'
-import { alive } from '../../db/repo'
-import { db } from '../../db/schema'
-import type { ActivityStream } from '../../db/types'
 import { formatDay, type DayKey } from '../../lib/dates'
 import { formatClock, formatNumber } from '../../lib/format'
 import { shiftPeriod } from '../../lib/periods'
+import { useActivities } from '../activities/activities'
+import { useRunEfforts } from './efforts'
 import { PredictionsCard, VdotCard } from './FitnessCards'
 import { fitnessOf, monthlyVdot, runEfforts } from './predict'
 import { effortsByDistance, formatPace, isOutdoorRun, longestRuns } from './running'
 
 /**
- * The runs and their samples, ranked: the best times of each distance and the longest runs; and from the
- * last 12 months, the race predictions and the VDOT.
+ * The runs ranked by their best stretches (from the cache, no samples read): the best times of each
+ * distance and the longest runs; and from the last 12 months, the race predictions and the VDOT.
  */
 function useRanking(today: DayKey) {
-  return useLiveQuery(async () => {
-    const runs = alive(await db.activities.toArray()).filter(isOutdoorRun)
-    const streams = await db.activityStreams.bulkGet(runs.map((run) => run.id))
-    const byId = new Map(streams.filter((stream): stream is ActivityStream => stream !== undefined).map((stream) => [stream.id, stream]))
+  const activities = useActivities()
+  const cached = useRunEfforts()
+  return useMemo(() => {
+    if (!activities || !cached) return undefined
+    const runs = activities.filter(isOutdoorRun)
     const since = shiftPeriod('month', today, -11)
-    const efforts = runEfforts(runs.filter((run) => run.date >= since), byId)
+    const efforts = runEfforts(runs.filter((run) => run.date >= since), cached.lookup)
     return {
-      distances: effortsByDistance(runs, byId, 5),
+      distances: effortsByDistance(runs, cached.lookup, 5),
       longest: longestRuns(runs, 5),
       runs: runs.length,
       fitness: fitnessOf(efforts, today),
       months: monthlyVdot(efforts, today, 12),
     }
-  }, [today])
+  }, [activities, cached, today])
 }
 
 const activityLink = (id: string) => `/treinos/atividades/${id}`

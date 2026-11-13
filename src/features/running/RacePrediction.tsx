@@ -1,28 +1,25 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useEffect } from 'react'
 import { alive } from '../../db/repo'
 import { db } from '../../db/schema'
-import type { ActivityStream } from '../../db/types'
 import { formatDay, parseDay, shiftDay, type DayKey } from '../../lib/dates'
 import { formatClock, formatNumber } from '../../lib/format'
 import { distanceLabel, fitnessOf, predictRace, runEfforts, type RaceDistance, type RacePrediction, type RunFitness } from './predict'
+import { readEffortLookup, startEffortCache } from './efforts'
 import { isOutdoorRun } from './running'
 
-/** The samples of some activities, by id. */
-export async function streamsOf(ids: string[]): Promise<Map<string, ActivityStream>> {
-  const streams = await db.activityStreams.bulkGet(ids)
-  return new Map(streams.filter((stream): stream is ActivityStream => !!stream && !stream.deleted).map((stream) => [stream.id, stream]))
-}
-
-/** The running fitness from the outdoor runs of the 90 days up to `today`. */
+/** The running fitness from the outdoor runs of the 90 days up to `today`, by the cache of their best stretches. */
 async function recentFitness(today: DayKey): Promise<RunFitness> {
   const from = parseDay(shiftDay(today, -89)).getTime()
   const runs = alive(await db.activities.where('startTime').aboveOrEqual(from).toArray()).filter(isOutdoorRun)
-  return fitnessOf(runEfforts(runs, await streamsOf(runs.map((run) => run.id))), today)
+  return fitnessOf(runEfforts(runs, await readEffortLookup()), today)
 }
 
 /** The running fitness as of `day` (the day before a race, for what was predicted for it); undefined while loading. */
-export const useRecentFitness = (day: DayKey, enabled = true): RunFitness | null | undefined =>
-  useLiveQuery(async () => (enabled ? recentFitness(day) : null), [day, enabled])
+export function useRecentFitness(day: DayKey, enabled = true): RunFitness | null | undefined {
+  useEffect(startEffortCache, [])
+  return useLiveQuery(async () => (enabled ? recentFitness(day) : null), [day, enabled])
+}
 
 /** The time predicted for a race's distance; undefined while loading, without a distance or without recent runs. */
 export function useRacePrediction(distance: RaceDistance | undefined, today: DayKey): RacePrediction | undefined {

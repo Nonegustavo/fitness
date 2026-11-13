@@ -1,13 +1,9 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { CalendarCheck, Gauge, SportShoe, Trophy } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { MiniBars, Sparkline } from '../../components/MiniCharts'
 import { toneColor } from '../../components/tone'
 import { Card, cx, SkeletonCard } from '../../components/ui'
-import { alive } from '../../db/repo'
-import { db } from '../../db/schema'
-import type { ActivityStream } from '../../db/types'
 import { formatDay, shiftDay, weekStart, type DayKey } from '../../lib/dates'
 import { formatClock, formatNumber } from '../../lib/format'
 import { useActivities } from '../activities/activities'
@@ -15,6 +11,7 @@ import { weekSummary } from '../calendar/agenda'
 import { useAgenda } from '../calendar/plans'
 import { Note, SmallCard, TileSkeleton, Value } from '../today/tiles'
 import { useSessions } from '../training/training'
+import { useRunEfforts } from './efforts'
 import {
   consistency,
   formatPace,
@@ -206,16 +203,14 @@ export function StreakSmall({ today }: { today: DayKey }) {
   )
 }
 
-/** The best times from the runs' samples; undefined while loading. */
+/** The best times, from the cache of the runs' best stretches (no samples read); undefined while loading. */
 function useRecords(): Records | undefined {
-  return useLiveQuery(async () => {
-    const runs = alive(await db.activities.toArray()).filter(isOutdoorRun)
-    const streams = await db.activityStreams.bulkGet(runs.map((run) => run.id))
-    return personalRecords(
-      runs,
-      new Map(streams.filter((stream): stream is ActivityStream => stream !== undefined).map((stream) => [stream.id, stream])),
-    )
-  })
+  const activities = useActivities()
+  const efforts = useRunEfforts()
+  return useMemo(
+    () => (activities && efforts ? personalRecords(activities.filter(isOutdoorRun), efforts.lookup) : undefined),
+    [activities, efforts],
+  )
 }
 
 export function RecordsBig() {

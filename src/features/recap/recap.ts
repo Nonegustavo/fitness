@@ -1,7 +1,6 @@
 import type { Tone } from '../../components/tone'
 import type {
   Activity,
-  ActivityStream,
   DailyHealth,
   Exercise,
   FoodLog,
@@ -23,7 +22,7 @@ import { metricSeries } from '../body/body'
 import { activityKind, isRace, raceRun } from '../calendar/agenda'
 import { goalsFor } from '../food/nutrition'
 import { daysByHabit, isSuccess, NO_DAYS, type HabitDays } from '../habits/habits'
-import { effortsByDistance, formatPace, isOutdoorRun, isRun, trainingDays } from '../running/running'
+import { effortsByDistance, formatPace, isOutdoorRun, isRun, trainingDays, type EffortSource } from '../running/running'
 import { MUSCLES } from '../training/catalog'
 import { bestE1rm, setsByMuscle, summarize, workingSets } from '../training/stats'
 
@@ -31,8 +30,8 @@ import { bestE1rm, setsByMuscle, summarize, workingSets } from '../training/stat
 export interface RecapSources {
   /** Activities up to the year's end: earlier runs tell whether the year's best times were records. */
   activities: Activity[]
-  /** The outdoor runs' distance samples, for the best times. */
-  streams: Map<string, Pick<ActivityStream, 'step' | 'distance'>>
+  /** The outdoor runs' best stretches, for the best times: their samples, or the cache of what they hold. */
+  streams: EffortSource
   sessions: WorkoutSession[]
   exercises: Map<string, Exercise>
   health: DailyHealth[]

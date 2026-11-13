@@ -1,10 +1,8 @@
-import type { Activity, ActivityStream } from '../../db/types'
+import type { Activity } from '../../db/types'
 import { shiftDay, type DayKey } from '../../lib/dates'
 import { formatNumber } from '../../lib/format'
 import { shiftPeriod } from '../../lib/periods'
-import { bestEffort, isOutdoorRun } from './running'
-
-type DistanceStream = Pick<ActivityStream, 'step' | 'distance'>
+import { effortLookup, isOutdoorRun, type EffortSource } from './running'
 
 /**
  * Daniels and Gilbert's VDOT: the oxygen a pace demands (ml/kg/min) over the share of VO2max that can be
@@ -47,15 +45,15 @@ export interface Effort {
 const MAX_VDOT = 85
 
 /** The fastest stretch of each reference distance in each outdoor run, all in one list. */
-export function runEfforts(runs: readonly Activity[], streams: ReadonlyMap<string, DistanceStream>): Effort[] {
+export function runEfforts(runs: readonly Activity[], source: EffortSource): Effort[] {
   const efforts: Effort[] = []
+  const effortOf = effortLookup(source)
   for (const run of runs) {
-    const stream = streams.get(run.id)
-    if (run.deleted || !isOutdoorRun(run) || !stream) continue
+    if (run.deleted || !isOutdoorRun(run)) continue
     for (const meters of REFERENCE_DISTANCES) {
       // The distances go up: a run that doesn't reach one doesn't reach the next.
       if ((run.distanceM ?? 0) < meters * 0.99) break
-      const seconds = bestEffort(stream, meters)
+      const seconds = effortOf(run.id, meters)
       if (!seconds) continue
       const value = vdot(meters, seconds)
       if (value <= MAX_VDOT) efforts.push({ meters, seconds, date: run.date, activityId: run.id, vdot: value })

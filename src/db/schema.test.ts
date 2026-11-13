@@ -33,4 +33,18 @@ describe('FitnessDB', () => {
     // Records pushed by newer clients before this device upgraded must be pulled again.
     expect(await db.meta.get(PULL_CURSOR)).toBeUndefined()
   })
+
+  it('adds the samples’ [id+updatedAt] index without losing data or the pull cursor', async () => {
+    // The two tables that matter here, at version 12.
+    const v12 = new Dexie('only-v12')
+    v12.version(12).stores({ activityStreams: 'id, dirty', meta: 'key' })
+    await v12.table('activityStreams').put({ id: 'a1', step: 1, distance: [0, 5], updatedAt: 7, deleted: 0, dirty: 0 })
+    await v12.table('meta').put({ key: PULL_CURSOR, value: 42 })
+    v12.close()
+
+    const db = new FitnessDB('only-v12')
+    expect(await db.activityStreams.get('a1')).toMatchObject({ distance: [0, 5] })
+    expect(await db.meta.get(PULL_CURSOR)).toMatchObject({ value: 42 })
+    expect(await db.activityStreams.orderBy('[id+updatedAt]').keys()).toEqual([['a1', 7]])
+  })
 })

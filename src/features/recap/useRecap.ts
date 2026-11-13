@@ -1,11 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useEffect } from 'react'
 import { alive } from '../../db/repo'
 import { db, DEFAULT_SETTINGS, SETTINGS_ID } from '../../db/schema'
-import type { ActivityStream, Synced } from '../../db/types'
+import type { Synced } from '../../db/types'
 import type { DayKey } from '../../lib/dates'
 import { dayKey } from '../../lib/dates'
 import { plannedEvents } from '../garmin/sync'
-import { isOutdoorRun } from '../running/running'
+import { readEffortLookup, startEffortCache } from '../running/efforts'
 import { buildRecap, yearBounds, type Recap } from './recap'
 
 const notDeleted = (row: Synced) => !row.deleted
@@ -55,13 +56,12 @@ export async function loadRecap(year: number, today: DayKey): Promise<Recap> {
       db.races.where('date').between(from, to, true, true).toArray(),
     ])
   const done = alive(activities).filter((activity) => activity.date <= to)
-  // Only the runs' distance samples matter: the best times of the year and of the years before.
-  const runs = done.filter(isOutdoorRun)
-  const streams = await db.activityStreams.bulkGet(runs.map((run) => run.id))
+  // The best times of the year and of the years before, from the cache of the runs' best stretches.
+  const efforts = await readEffortLookup()
   const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
   return buildRecap(year, today, {
     activities: done,
-    streams: new Map(streams.filter((stream): stream is ActivityStream => !!stream && !stream.deleted).map((stream) => [stream.id, stream])),
+    streams: efforts,
     sessions: alive(sessions),
     exercises: new Map(exercises.map((exercise) => [exercise.id, exercise])),
     health: alive(health),
@@ -87,5 +87,6 @@ export async function loadRecap(year: number, today: DayKey): Promise<Recap> {
 
 /** The recap of a year; undefined while loading. */
 export function useRecap(year: number | undefined, today: DayKey): Recap | undefined {
+  useEffect(startEffortCache, [])
   return useLiveQuery(async () => (year === undefined ? undefined : loadRecap(year, today)), [year, today])
 }

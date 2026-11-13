@@ -217,6 +217,9 @@ export class FitnessDB extends Dexie {
       .upgrade(async (tx) => {
         await tx.table('meta').delete(PULL_CURSOR)
       })
+    // An index only, no new table: the pull cursor stays. It lets the records' cache see which samples
+    // changed from the keys alone ([id, updatedAt]), without loading the rows.
+    this.version(13).stores({ activityStreams: 'id, dirty, [id+updatedAt]' })
     // Runs instead of the upgrades when the database is created from scratch.
     this.on('populate', (tx) => {
       tx.table('settings').add({ id: SETTINGS_ID, ...DEFAULT_SETTINGS, ...seedMeta })

@@ -1,6 +1,5 @@
 import type {
   Activity,
-  ActivityStream,
   DailyHealth,
   DailyInsight,
   Exercise,
@@ -42,7 +41,7 @@ import {
   type HabitDays,
 } from '../habits/habits'
 import { habitStrength, strengthPercent } from '../habits/strength'
-import { formatPace, isRun, personalRecords, pooledPace, weeklyVolume } from '../running/running'
+import { formatPace, isRun, personalRecords, pooledPace, weeklyVolume, type EffortSource } from '../running/running'
 import { STREAK_LABELS, streaks, type StreakKind } from '../streaks/streaks'
 import { MUSCLES } from '../training/catalog'
 import { DISCOMFORT_AREAS } from '../training/discomfort'
@@ -422,8 +421,8 @@ export function strengthLines(sessions: WorkoutSession[], exercises: Map<string,
 
 export interface RunningInput {
   activities: Activity[]
-  /** Distance samples of the runs, for the best efforts. */
-  streams?: Map<string, Pick<ActivityStream, 'step' | 'distance'>>
+  /** The runs' best stretches (their samples, or the cache of what they hold), for the records. */
+  streams?: EffortSource
   /** This week's calendar, for the km planned. */
   weekAgenda?: AgendaItem[]
   events?: PlannedEvent[] | null
