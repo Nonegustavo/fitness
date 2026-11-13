@@ -19,7 +19,7 @@ App pessoal de um usuário só, em português do Brasil, usado todo dia no celul
 ## Dados
 
 - **Local-first.** Tudo é gravado no IndexedDB (Dexie, `src/db`) e sincronizado depois. Gravar sempre por `save`, `patch`, `mutate`, `remove` e `restore` de `src/db/repo.ts`: eles marcam o registro para sincronizar. Apagar é lógico (`deleted: 1`); as leituras passam por `alive()`.
-- **Ajustes** são uma linha só. Mudar com `updateSettings((guardado) => ({ … }))` (`src/db/settings.ts`), que parte do que está gravado; um objeto montado no render sobrescreve a mudança anterior.
+- **Ajustes** são uma linha só. Mudar com `updateSettings((guardado) => ({ … }))` (`src/db/settings.ts`), que parte do que está gravado; um objeto montado no render sobrescreve a mudança anterior. A função roda depois de ler o banco: o valor de um campo (`event.target.value`) é lido antes de chamá-la, não dentro dela.
 - **Tabela sincronizada nova:** entra em `SYNCED_TABLES`, ganha uma versão nova do Dexie em `src/db/schema.ts`, e o upgrade apaga o cursor de pull (`PULL_CURSOR`). Mudança só de índice não mexe no cursor.
 - **Só acrescentar.** O esquema local e o formato dos registros só ganham coisas: o app do celular pode voltar para uma versão anterior (que abre o banco já atualizado pela mais nova), e os aparelhos ficam em versões diferentes por um tempo.
 - **Em conflito vale a alteração mais recente do registro inteiro.** Dois aparelhos escrevem em `dailyHealth` (o Garmin de qualquer um, as fases do sono só do celular): quem importa espera a primeira sincronização terminar.

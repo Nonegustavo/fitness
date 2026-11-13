@@ -446,7 +446,15 @@ function RegularityCard({ habits }: { habits: SleepHabits }) {
           {balance && <p className="mt-3 text-sm">{balanceSentence(balance)}</p>}
           <div className="mt-4 max-w-56">
             <Field label="Meta de sono por noite">
-              <Select value={goalMin} onChange={(event) => void updateSettings(() => ({ sleepGoalMin: Number(event.target.value) }))}>
+              <Select
+                value={goalMin}
+                onChange={(event) => {
+                  // Read now: the change is applied after the stored settings are read, and by then the
+                  // select is back at the goal it was drawn with.
+                  const sleepGoalMin = Number(event.target.value)
+                  void updateSettings(() => ({ sleepGoalMin }))
+                }}
+              >
                 {goals.map((minutes) => (
                   <option key={minutes} value={minutes}>
                     {formatDuration(minutes * 60_000)}
