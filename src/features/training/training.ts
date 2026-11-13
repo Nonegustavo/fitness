@@ -5,10 +5,12 @@ import { db } from '../../db/schema'
 import { useShared } from '../../db/shared'
 import type {
   Exercise,
+  ExerciseType,
   PerformedSet,
   PlannedSet,
   SessionExercise,
   SetKind,
+  Synced,
   TemplateExercise,
   WorkoutSession,
   WorkoutTemplate,
@@ -16,6 +18,7 @@ import type {
 import { dayKey } from '../../lib/dates'
 import { newId } from '../../lib/ids'
 import { lastPerformance } from './stats'
+import { checkedValues, previousSets } from './setValues'
 
 export const DEFAULT_REST_SEC = 90
 /** The rest after a warm-up set, when the exercise doesn't say: warm-ups are light. */
@@ -51,6 +54,19 @@ export const findActive = (sessions: WorkoutSession[] | undefined): WorkoutSessi
 const setsFromPlan = (plan: PlannedSet[]): PerformedSet[] =>
   plan.map(({ kind, ...target }) => ({ key: newId(), kind, target, done: false }))
 
+/** The workout's exercises from a template's, with their sets still to do. */
+const fromTemplate = (template: Pick<WorkoutTemplate, 'exercises'> | undefined): SessionExercise[] =>
+  (template?.exercises ?? []).map((exercise, i, all) => ({
+    // The template's own key (unless repeated), so its order can be saved back even after a swap.
+    key: all.findIndex((other) => other.key === exercise.key) === i ? exercise.key : newId(),
+    exerciseId: exercise.exerciseId,
+    restSec: exercise.restSec,
+    warmupRestSec: exercise.warmupRestSec,
+    notes: exercise.notes,
+    sets: setsFromPlan(exercise.sets),
+    supersetWithNext: exercise.supersetWithNext,
+  }))
+
 /** Starts a workout from a template, or an empty one to fill as you go. */
 export async function startWorkout(template?: WorkoutTemplate): Promise<string> {
   const now = Date.now()
@@ -59,18 +75,80 @@ export async function startWorkout(template?: WorkoutTemplate): Promise<string> 
     name: template?.name ?? 'Treino livre',
     date: dayKey(now),
     startedAt: now,
-    exercises: (template?.exercises ?? []).map((exercise, i, all) => ({
-      // The template's own key (unless repeated), so its order can be saved back even after a swap.
-      key: all.findIndex((other) => other.key === exercise.key) === i ? exercise.key : newId(),
-      exerciseId: exercise.exerciseId,
-      restSec: exercise.restSec,
-      warmupRestSec: exercise.warmupRestSec,
-      notes: exercise.notes,
-      sets: setsFromPlan(exercise.sets),
-      supersetWithNext: exercise.supersetWithNext,
-    })),
+    exercises: fromTemplate(template),
   })
   return session.id
+}
+
+/** The length of a workout logged afterwards when the template has no history. */
+export const DEFAULT_PAST_MINUTES = 60
+
+/**
+ * How long the template's workouts usually take, in minutes: the median of its last five finished
+ * ones (free workouts for none). DEFAULT_PAST_MINUTES without any.
+ */
+export function usualMinutes(sessions: WorkoutSession[], templateId: string | undefined): number {
+  const minutes = sessions
+    .filter((session) => session.endedAt && session.templateId === templateId)
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .slice(0, 5)
+    .map((session) => (session.endedAt! - session.startedAt) / 60_000)
+    .sort((a, b) => a - b)
+  if (minutes.length === 0) return DEFAULT_PAST_MINUTES
+  const middle = Math.floor(minutes.length / 2)
+  const median = minutes.length % 2 ? minutes[middle] : (minutes[middle - 1] + minutes[middle]) / 2
+  return Math.max(1, Math.round(median))
+}
+
+/**
+ * A workout done without the app (forgotten, or a dead phone), finished already. Its sets come filled
+ * with what was most likely done, so only what differed needs correcting: last time's same set before
+ * that moment, else the template's plan. A set with nothing to fill it with stays unchecked. No set has
+ * a time of its own (`completedAt`): that is what tells it was logged afterwards.
+ */
+export function pastSession(
+  template: Pick<WorkoutTemplate, 'id' | 'name' | 'exercises'> | undefined,
+  startedAt: number,
+  minutes: number,
+  sessions: WorkoutSession[],
+  typeOf: (exerciseId: string) => ExerciseType,
+): Omit<WorkoutSession, keyof Synced> {
+  return {
+    templateId: template?.id,
+    name: template?.name ?? 'Treino livre',
+    date: dayKey(startedAt),
+    startedAt,
+    endedAt: startedAt + minutes * 60_000,
+    exercises: fromTemplate(template).map((exercise) => {
+      const type = typeOf(exercise.exerciseId)
+      const previous = previousSets(exercise.sets, lastPerformance(sessions, exercise.exerciseId, startedAt)?.exercise)
+      return {
+        ...exercise,
+        sets: exercise.sets.map((set, i) => {
+          const values = checkedValues(set, previous[i], type)
+          const filled = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined))
+          const done = type === 'time' ? values.durationSec !== undefined : values.reps !== undefined
+          return { ...set, ...filled, done }
+        }),
+      }
+    }),
+  }
+}
+
+/** Saves a workout logged afterwards (see pastSession) and gives its id. */
+export async function logPastWorkout(...args: Parameters<typeof pastSession>): Promise<string> {
+  return (await save(db.workoutSessions, pastSession(...args))).id
+}
+
+/**
+ * A finished workout logged afterwards: done sets, none with the time it was checked. A workout followed
+ * in the app has every done set timed (checking, the set timer, the watch and the notification all
+ * record it).
+ */
+export function loggedLater(session: WorkoutSession): boolean {
+  if (!session.endedAt) return false
+  const done = session.exercises.flatMap((exercise) => exercise.sets.filter((set) => set.done))
+  return done.length > 0 && done.every((set) => set.completedAt === undefined)
 }
 
 /** An exercise added during a workout: as many sets as last time, or three. */

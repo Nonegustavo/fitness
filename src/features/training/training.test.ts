@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import type { PerformedSet, SessionExercise, TemplateExercise, WorkoutSession } from '../../db/types'
+import type { ExerciseType, PerformedSet, SessionExercise, TemplateExercise, WorkoutSession, WorkoutTemplate } from '../../db/types'
 import {
   addSet,
   DEFAULT_WARMUP_REST_SEC,
   exerciseBlocks,
   keepDone,
   lastCheckedSet,
+  loggedLater,
   matchTemplate,
+  pastSession,
   removeExercise,
   reorderExercises,
   restOf,
   restSecAfter,
   templateInOrder,
+  usualMinutes,
 } from './training'
 
 const exercise = (changes: Partial<SessionExercise> = {}): SessionExercise => ({
@@ -231,5 +234,152 @@ describe('finishing a workout', () => {
     })
     expect(notation(finished.exercises)).toBe('a c')
     expect(finished.exercises[0].sets.map((s) => s.key)).toEqual(['a1'])
+  })
+})
+
+describe('a workout logged afterwards', () => {
+  const HOUR = 3_600_000
+  const at = Date.UTC(2026, 10, 10, 21, 0)
+  // A warm-up and two working sets of bench press, then a bi-set of curls and a timed plank.
+  const template: WorkoutTemplate = {
+    id: 't',
+    name: 'Treino A',
+    order: 0,
+    updatedAt: 0,
+    deleted: 0,
+    dirty: 0,
+    exercises: [
+      {
+        key: 'bench',
+        exerciseId: 'bench',
+        restSec: 120,
+        warmupRestSec: 45,
+        sets: [
+          { kind: 'warmup', reps: 12, weightKg: 20 },
+          { kind: 'normal', reps: 8, repsMax: 10, weightKg: 60 },
+          { kind: 'normal', reps: 8, repsMax: 10, weightKg: 60 },
+        ],
+        supersetWithNext: undefined,
+      },
+      { key: 'curl', exerciseId: 'curl', restSec: 60, sets: [{ kind: 'normal', reps: 12 }], supersetWithNext: true },
+      { key: 'dip', exerciseId: 'dip', restSec: 60, sets: [{ kind: 'normal' }] },
+      { key: 'plank', exerciseId: 'plank', restSec: 30, sets: [{ kind: 'normal', durationSec: 45 }] },
+    ],
+  }
+  const types: Record<string, ExerciseType> = { bench: 'weight_reps', curl: 'weight_reps', dip: 'reps', plank: 'time' }
+  const typeOf = (id: string) => types[id] ?? 'weight_reps'
+  const done = (kind: PerformedSet['kind'], values: Partial<PerformedSet>): PerformedSet => ({
+    key: Math.random().toString(36),
+    kind,
+    done: true,
+    completedAt: 1,
+    ...values,
+  })
+  const before = (startedAt: number, exercises: SessionExercise[], templateId = 't'): WorkoutSession => ({
+    id: `s${startedAt}`,
+    templateId,
+    name: 'Treino A',
+    date: '2026-11-03',
+    startedAt,
+    endedAt: startedAt + 50 * 60_000,
+    exercises,
+    updatedAt: 0,
+    deleted: 0,
+    dirty: 0,
+  })
+
+  it('is finished, at the given time and length, with no time on any set', () => {
+    const session = pastSession(template, at, 75, [], typeOf)
+    expect(session).toMatchObject({ templateId: 't', name: 'Treino A', startedAt: at, endedAt: at + 75 * 60_000 })
+    expect(session.date).toMatch(/^2026-11-1[01]$/)
+    expect(session.exercises.flatMap((e) => e.sets).every((set) => set.completedAt === undefined)).toBe(true)
+  })
+
+  it('fills each set with the plan when the exercise has no history', () => {
+    const [bench, curl, dip, plank] = pastSession(template, at, 60, [], typeOf).exercises
+    expect(bench.sets.map(({ kind, weightKg, reps, done }) => ({ kind, weightKg, reps, done }))).toEqual([
+      { kind: 'warmup', weightKg: 20, reps: 12, done: true },
+      { kind: 'normal', weightKg: 60, reps: 8, done: true },
+      { kind: 'normal', weightKg: 60, reps: 8, done: true },
+    ])
+    expect(bench.sets[1].target).toEqual({ reps: 8, repsMax: 10, weightKg: 60 })
+    expect(bench).toMatchObject({ key: 'bench', restSec: 120, warmupRestSec: 45 })
+    // The bi-set stays linked.
+    expect(curl.supersetWithNext).toBe(true)
+    expect(curl.sets[0]).toMatchObject({ reps: 12, done: true })
+    expect(curl.sets[0].weightKg).toBeUndefined()
+    // Nothing to fill it with: left to check.
+    expect(dip.sets[0].done).toBe(false)
+    expect(plank.sets[0]).toMatchObject({ durationSec: 45, done: true })
+    expect(plank.sets[0].reps).toBeUndefined()
+  })
+
+  it('fills each set with the same set the last time before it, warm-ups with warm-ups', () => {
+    const sessions = [
+      before(at - 7 * 24 * HOUR, [exercise({ key: 'bench', exerciseId: 'bench', sets: [done('normal', { weightKg: 55, reps: 10 })] })]),
+      before(at - 2 * 24 * HOUR, [
+        exercise({
+          key: 'bench',
+          exerciseId: 'bench',
+          sets: [
+            done('warmup', { weightKg: 30, reps: 10 }),
+            done('normal', { weightKg: 62.5, reps: 9 }),
+            done('normal', { weightKg: 62.5, reps: 7 }),
+          ],
+        }),
+        exercise({ key: 'dip', exerciseId: 'dip', sets: [done('normal', { reps: 11 })] }),
+        exercise({ key: 'plank', exerciseId: 'plank', sets: [done('normal', { durationSec: 60 })] }),
+      ]),
+      // Done after the moment logged: not what came before.
+      before(at + 24 * HOUR, [exercise({ key: 'bench', exerciseId: 'bench', sets: [done('normal', { weightKg: 70, reps: 5 })] })]),
+    ]
+    const [bench, curl, dip, plank] = pastSession(template, at, 60, sessions, typeOf).exercises
+    expect(bench.sets.map(({ weightKg, reps }) => [weightKg, reps])).toEqual([
+      [30, 10],
+      [62.5, 9],
+      [62.5, 7],
+    ])
+    expect(bench.sets.every((set) => set.done && set.completedAt === undefined)).toBe(true)
+    expect(curl.sets[0]).toMatchObject({ reps: 12, done: true })
+    expect(dip.sets[0]).toMatchObject({ reps: 11, done: true })
+    expect(plank.sets[0]).toMatchObject({ durationSec: 60, done: true })
+  })
+
+  it('is an empty free workout without a template', () => {
+    const session = pastSession(undefined, at, 60, [], typeOf)
+    expect(session).toMatchObject({ name: 'Treino livre', exercises: [] })
+    expect(session.templateId).toBeUndefined()
+  })
+
+  it('tells itself apart from a workout followed in the app', () => {
+    const logged = { ...pastSession(template, at, 60, [], typeOf), id: 'p', updatedAt: 0, deleted: 0 as const, dirty: 0 as const }
+    expect(loggedLater(logged)).toBe(true)
+    const followed = before(at, [exercise({ sets: [done('normal', { reps: 8 }), { key: 'x', kind: 'normal', done: true }] })])
+    expect(loggedLater(followed)).toBe(false)
+    expect(loggedLater(before(at, []))).toBe(false)
+    expect(loggedLater({ ...logged, endedAt: undefined })).toBe(false)
+  })
+
+  it('lasts as long as the template usually does', () => {
+    // null: a free workout.
+    const lasting = (startedAt: number, minutes: number, templateId: string | null = 't') => ({
+      ...before(startedAt, []),
+      templateId: templateId ?? undefined,
+      endedAt: startedAt + minutes * 60_000,
+    })
+    expect(usualMinutes([], 't')).toBe(60)
+    const sessions = [
+      lasting(1, 40),
+      lasting(2, 70),
+      lasting(3, 52),
+      lasting(4, 55),
+      lasting(5, 58),
+      lasting(6, 61),
+      lasting(7, 30, null),
+    ]
+    // The last five: 70, 52, 55, 58 and 61.
+    expect(usualMinutes(sessions, 't')).toBe(58)
+    expect(usualMinutes(sessions, undefined)).toBe(30)
+    expect(usualMinutes(sessions, 'other')).toBe(60)
   })
 })

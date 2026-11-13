@@ -7,6 +7,7 @@ import {
   Ellipsis,
   Flame,
   Heart,
+  History,
   Link2,
   Minus,
   Plus,
@@ -64,6 +65,7 @@ import {
   exerciseBlocks,
   finishWorkout,
   lastCheckedSet,
+  loggedLater,
   matchTemplate,
   newSessionExercise,
   removeExercise,
@@ -164,6 +166,11 @@ export default function SessionPage() {
             <p className="mt-3 flex items-center gap-2 text-sm">
               <Trophy size={16} className="text-accent-ink" />
               {records.size === 1 ? '1 recorde' : `${records.size} recordes`} de carga (1RM estimado)
+            </p>
+          )}
+          {loggedLater(session) && (
+            <p className="mt-3 flex items-center gap-2 text-sm text-ink-2">
+              <History size={16} className="shrink-0" aria-hidden /> Treino registrado depois: confira as séries.
             </p>
           )}
           <ShareSessionButton session={session} exercises={exercises} records={records} />
@@ -488,6 +495,7 @@ function ExerciseCard({
             columns={columns}
             restLabel={info?.name ?? 'Descanso'}
             rest={active ? restSecAfter(session.exercises, index, set.kind) : 0}
+            active={active}
             timed={timed}
             rirOpen={rirKey === set.key}
             onToggleRir={() => toggleRir(set.key)}
@@ -684,6 +692,7 @@ function SetRow({
   columns,
   restLabel,
   rest,
+  active,
   timed,
   rirOpen,
   onToggleRir,
@@ -698,6 +707,8 @@ function SetRow({
   restLabel: string
   /** Seconds of rest once the set is checked; 0 for none. */
   rest: number
+  /** The workout is in progress (not finished, or logged afterwards). */
+  active: boolean
   /** A timed set of a workout running: it has a ▶ that times it. */
   timed: boolean
   /** The reps-in-reserve picker shows under it. */
@@ -769,6 +780,11 @@ function SetRow({
       return
     }
     tapFeedback()
+    // A finished workout being corrected: the set gets no time (now isn't when it was done) and no rest.
+    if (!active) {
+      void write({ ...done, done: true })
+      return
+    }
     void completeSet(sessionId, exercise.key, set.key, done)
     if (rest > 0) startRest(rest, restLabel)
   }

@@ -1,8 +1,8 @@
-import { Archive, ArchiveRestore, Dumbbell, Play, Plus, TrendingUp } from 'lucide-react'
+import { Archive, ArchiveRestore, Dumbbell, History, Play, Plus, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { SortableList } from '../../components/Sortable'
-import { Button, Card, cx, Empty, IconButton, Page, SkeletonCard, Stat } from '../../components/ui'
+import { Button, Card, Columns, cx, Empty, IconButton, Page, SkeletonCard, Stack, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { patch, saveOrder } from '../../db/repo'
 import { db } from '../../db/schema'
@@ -15,6 +15,7 @@ import { UpcomingCard } from '../calendar/cards'
 import { useTodayTemplate } from '../calendar/plans'
 import { MUSCLES } from './catalog'
 import { MuscleMap } from './MuscleMap'
+import { PastWorkoutModal } from './PastWorkoutModal'
 import { Elapsed, useStartWorkout } from './components'
 import { needsDeload, recentEffort, setsByMuscle, stalledExercises, summarize } from './stats'
 import { DISCOMFORT_AREAS } from './discomfort'
@@ -32,9 +33,10 @@ export default function TrainingPage() {
   const todays = useTodayTemplate(today)
   const [showAll, setShowAll] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
+  const [loggingPast, setLoggingPast] = useState(false)
   if (!templates || !sessions) {
     return (
-      <Page title="Treinos" icon={Dumbbell} tone="training">
+      <Page title="Treinos" icon={Dumbbell} tone="training" wide>
         <SkeletonCard lines={3} />
         <SkeletonCard lines={6} />
       </Page>
@@ -59,160 +61,181 @@ export default function TrainingPage() {
       title="Treinos"
       icon={Dumbbell}
       tone="training"
+      wide
       actions={
         <Button size="sm" variant="primary" onClick={() => navigate('/treinos/ficha/nova')}>
           <Plus size={16} /> Ficha
         </Button>
       }
     >
-      {active && (
-        <Card className="border-accent">
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-ink-2">Em andamento</p>
-              <p className="truncate font-medium">
-                {active.name} · <Elapsed since={active.startedAt} />
-              </p>
-            </div>
-            <Button variant="primary" onClick={() => navigate(`/treinos/sessao/${active.id}`)}>
-              Continuar
-            </Button>
-          </div>
-        </Card>
-      )}
+      <Columns>
+        <Stack>
+          {active && (
+            <Card className="border-accent">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-ink-2">Em andamento</p>
+                  <p className="truncate font-medium">
+                    {active.name} · <Elapsed since={active.startedAt} />
+                  </p>
+                </div>
+                <Button variant="primary" onClick={() => navigate(`/treinos/sessao/${active.id}`)}>
+                  Continuar
+                </Button>
+              </div>
+            </Card>
+          )}
 
-      <Card
-        title="Fichas"
-        action={
-          <Button size="sm" variant="ghost" onClick={() => void start()}>
-            Treino livre
-          </Button>
-        }
-      >
-        {templates.length === 0 ? (
-          <Empty>
-            Nenhuma ficha ainda.{' '}
-            <Link to="/treinos/ficha/nova" className="font-medium text-accent-ink underline underline-offset-2">
-              Montar a primeira
-            </Link>
-          </Empty>
-        ) : (
-          // The order is also the rotation: A, then B, then C.
-          <SortableList
-            className="divide-y divide-line"
-            itemClassName="flex items-center gap-2 bg-surface py-2"
-            items={rotation}
-            getId={(template) => template.id}
-            onReorder={(list) => void saveOrder(db.workoutTemplates, [...list, ...archived])}
+          <Card
+            title="Fichas"
+            action={
+              <Button size="sm" variant="ghost" onClick={() => void start()}>
+                Treino livre
+              </Button>
+            }
           >
-            {(template, handle) => {
-              const isNext = !active && next?.id === template.id
-              const sets = template.exercises.reduce((n, e) => n + e.sets.filter((s) => s.kind === 'normal').length, 0)
-              const muscles = [
-                ...new Set(template.exercises.map((e) => exercises.get(e.exerciseId)?.muscle).filter(Boolean)),
-              ] as MuscleGroup[]
-              return (
-                <>
-                  <span className="-ml-2 flex">{handle}</span>
-                  <Link
-                    to={`/treinos/ficha/${template.id}`}
-                    aria-label={`Editar ${template.name}`}
-                    className="min-w-0 flex-1 hover:text-accent-ink"
-                  >
-                    <p className="truncate font-medium">
-                      {template.name}
-                      {isNext && (
-                        <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 align-middle text-xs font-normal text-ink-2">
-                          {todays?.plan ? 'hoje' : 'próximo'}
-                        </span>
-                      )}
-                    </p>
-                    <p className="truncate text-xs text-muted">
-                      {template.exercises.length} exercícios · {sets} séries
-                      {muscles.length > 0 && ` · ${muscles.map((m) => MUSCLES[m]).join(', ')}`}
-                    </p>
-                  </Link>
-                  <Button size="sm" variant={isNext ? 'primary' : 'secondary'} onClick={() => void start(template)}>
-                    <Play size={14} /> Iniciar
-                  </Button>
-                </>
-              )
-            }}
-          </SortableList>
-        )}
-        {archived.length > 0 && (
-          <div className={cx(rotation.length > 0 && 'mt-1 border-t border-line pt-1')}>
-            <Button size="sm" variant="ghost" className="w-full" onClick={() => setShowArchived(!showArchived)}>
-              <Archive size={16} />
-              {showArchived ? 'Ocultar' : 'Mostrar'} {archived.length === 1 ? '1 arquivada' : `${archived.length} arquivadas`}
-            </Button>
-            {showArchived && (
+            {templates.length === 0 ? (
+              <Empty>
+                Nenhuma ficha ainda.{' '}
+                <Link to="/treinos/ficha/nova" className="font-medium text-accent-ink underline underline-offset-2">
+                  Montar a primeira
+                </Link>
+              </Empty>
+            ) : (
+              // The order is also the rotation: A, then B, then C.
+              <SortableList
+                className="divide-y divide-line"
+                itemClassName="flex items-center gap-2 bg-surface py-2"
+                items={rotation}
+                getId={(template) => template.id}
+                onReorder={(list) => void saveOrder(db.workoutTemplates, [...list, ...archived])}
+              >
+                {(template, handle) => {
+                  const isNext = !active && next?.id === template.id
+                  const sets = template.exercises.reduce((n, e) => n + e.sets.filter((s) => s.kind === 'normal').length, 0)
+                  const muscles = [
+                    ...new Set(template.exercises.map((e) => exercises.get(e.exerciseId)?.muscle).filter(Boolean)),
+                  ] as MuscleGroup[]
+                  return (
+                    <>
+                      <span className="-ml-2 flex">{handle}</span>
+                      <Link
+                        to={`/treinos/ficha/${template.id}`}
+                        aria-label={`Editar ${template.name}`}
+                        className="min-w-0 flex-1 hover:text-accent-ink"
+                      >
+                        <p className="truncate font-medium">
+                          {template.name}
+                          {isNext && (
+                            <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 align-middle text-xs font-normal text-ink-2">
+                              {todays?.plan ? 'hoje' : 'próximo'}
+                            </span>
+                          )}
+                        </p>
+                        <p className="truncate text-xs text-muted">
+                          {template.exercises.length} exercícios · {sets} séries
+                          {muscles.length > 0 && ` · ${muscles.map((m) => MUSCLES[m]).join(', ')}`}
+                        </p>
+                      </Link>
+                      <Button size="sm" variant={isNext ? 'primary' : 'secondary'} onClick={() => void start(template)}>
+                        <Play size={14} /> Iniciar
+                      </Button>
+                    </>
+                  )
+                }}
+              </SortableList>
+            )}
+            {archived.length > 0 && (
+              <div className={cx(rotation.length > 0 && 'mt-1 border-t border-line pt-1')}>
+                <Button size="sm" variant="ghost" className="w-full" onClick={() => setShowArchived(!showArchived)}>
+                  <Archive size={16} />
+                  {showArchived ? 'Ocultar' : 'Mostrar'} {archived.length === 1 ? '1 arquivada' : `${archived.length} arquivadas`}
+                </Button>
+                {showArchived && (
+                  <ul className="divide-y divide-line">
+                    {archived.map((template) => (
+                      <li key={template.id} className="flex items-center gap-2 py-1.5">
+                        <Link
+                          to={`/treinos/ficha/${template.id}`}
+                          aria-label={`Editar ${template.name}`}
+                          className="min-w-0 flex-1 hover:text-accent-ink"
+                        >
+                          <p className="truncate text-sm font-medium text-ink-2">{template.name}</p>
+                          <p className="truncate text-xs text-muted">{template.exercises.length} exercícios</p>
+                        </Link>
+                        <IconButton
+                          label={`Voltar ${template.name} para o rodízio`}
+                          onClick={() => void patch(db.workoutTemplates, template.id, { archived: 0 })}
+                        >
+                          <ArchiveRestore size={16} />
+                        </IconButton>
+                        <IconButton label={`Iniciar ${template.name}`} onClick={() => void start(template)}>
+                          <Play size={16} />
+                        </IconButton>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </Card>
+
+          <Card title="Esta semana">
+            <div className="grid grid-cols-3 gap-3">
+              <Stat label="Treinos" value={week.length} />
+              <Stat label="Séries" value={weekTotals.sets} />
+              <Stat label="Volume" value={`${formatNumber(weekTotals.volumeKg, 0)} kg`} />
+            </div>
+            <MuscleMap counts={setsByMuscle(finished, exercises, thisWeek, today)} />
+          </Card>
+        </Stack>
+
+        <Stack>
+          <UpcomingCard today={today} />
+
+          <ProgressCard sessions={finished} exercises={exercises} today={today} />
+
+          <ActivitiesCard today={today} />
+
+          <Card
+            title="Histórico"
+            action={
+              <Link to="/treinos/exercicios" className="text-sm font-medium text-accent-ink">
+                Exercícios
+              </Link>
+            }
+          >
+            {finished.length === 0 ? (
+              <Empty>Os treinos finalizados aparecem aqui.</Empty>
+            ) : (
               <ul className="divide-y divide-line">
-                {archived.map((template) => (
-                  <li key={template.id} className="flex items-center gap-2 py-1.5">
-                    <Link
-                      to={`/treinos/ficha/${template.id}`}
-                      aria-label={`Editar ${template.name}`}
-                      className="min-w-0 flex-1 hover:text-accent-ink"
-                    >
-                      <p className="truncate text-sm font-medium text-ink-2">{template.name}</p>
-                      <p className="truncate text-xs text-muted">{template.exercises.length} exercícios</p>
-                    </Link>
-                    <IconButton
-                      label={`Voltar ${template.name} para o rodízio`}
-                      onClick={() => void patch(db.workoutTemplates, template.id, { archived: 0 })}
-                    >
-                      <ArchiveRestore size={16} />
-                    </IconButton>
-                    <IconButton label={`Iniciar ${template.name}`} onClick={() => void start(template)}>
-                      <Play size={16} />
-                    </IconButton>
-                  </li>
+                {listed.map((session) => (
+                  <HistoryRow key={session.id} session={session} today={today} />
                 ))}
               </ul>
             )}
-          </div>
-        )}
-      </Card>
+            {!showAll && finished.length > HISTORY_LIMIT && (
+              <Button size="sm" variant="ghost" className="mt-2 w-full" onClick={() => setShowAll(true)}>
+                Mostrar todos ({finished.length})
+              </Button>
+            )}
+            {/* A workout done without the app: quiet, under the history, so it never competes with starting one. */}
+            <Button size="sm" variant="ghost" className="mt-1 w-full" onClick={() => setLoggingPast(true)}>
+              <History size={16} /> Registrar treino passado
+            </Button>
+          </Card>
+        </Stack>
+      </Columns>
 
-      <UpcomingCard today={today} />
-
-      <Card title="Esta semana">
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="Treinos" value={week.length} />
-          <Stat label="Séries" value={weekTotals.sets} />
-          <Stat label="Volume" value={`${formatNumber(weekTotals.volumeKg, 0)} kg`} />
-        </div>
-        <MuscleMap counts={setsByMuscle(finished, exercises, thisWeek, today)} />
-      </Card>
-
-      <ProgressCard sessions={finished} exercises={exercises} today={today} />
-
-      <ActivitiesCard today={today} />
-
-      <Card
-        title="Histórico"
-        action={
-          <Link to="/treinos/exercicios" className="text-sm font-medium text-accent-ink">
-            Exercícios
-          </Link>
-        }
-      >
-        {finished.length === 0 ? (
-          <Empty>Os treinos finalizados aparecem aqui.</Empty>
-        ) : (
-          <ul className="divide-y divide-line">
-            {listed.map((session) => (
-              <HistoryRow key={session.id} session={session} today={today} />
-            ))}
-          </ul>
-        )}
-        {!showAll && finished.length > HISTORY_LIMIT && (
-          <Button size="sm" variant="ghost" className="mt-2 w-full" onClick={() => setShowAll(true)}>
-            Mostrar todos ({finished.length})
-          </Button>
-        )}
-      </Card>
+      {loggingPast && (
+        <PastWorkoutModal
+          templates={templates}
+          sessions={sessions}
+          exercises={exercises}
+          initialTemplateId={next?.id ?? rotation[0]?.id}
+          onClose={() => setLoggingPast(false)}
+        />
+      )}
     </Page>
   )
 }
