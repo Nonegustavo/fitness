@@ -29,15 +29,18 @@ export function PredictionsCard({ fitness }: { fitness: RunFitness }) {
         <Empty>Nenhuma corrida ao ar livre de 3 km ou mais nos últimos 90 dias para prever.</Empty>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {predictions.map((prediction) => (
-              <Stat
-                key={prediction.label}
-                label={prediction.label}
-                value={<span className="tabular-nums">{predicted(prediction.seconds)}</span>}
-                note={`${formatPace(prediction.seconds / (prediction.meters / 1000))}/km`}
-              />
-            ))}
+          {/* Four across when the card itself is wide enough, not the window: on a computer it may be one of two columns. */}
+          <div className="@container">
+            <div className="grid grid-cols-2 gap-3 @md:grid-cols-4">
+              {predictions.map((prediction) => (
+                <Stat
+                  key={prediction.label}
+                  label={prediction.label}
+                  value={<span className="tabular-nums">{predicted(prediction.seconds)}</span>}
+                  note={`${formatPace(prediction.seconds / (prediction.meters / 1000))}/km`}
+                />
+              ))}
+            </div>
           </div>
           <p className="mt-3 text-xs text-muted">
             Pela fórmula de Riegel, a partir do seu melhor trecho longo e forte dos últimos 90 dias: <EffortLink effort={reference} />.

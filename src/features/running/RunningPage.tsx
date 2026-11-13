@@ -2,7 +2,7 @@ import { CalendarCheck, CalendarDays, Gauge, SportShoe, TrendingUp } from 'lucid
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { PeriodControl, usePeriod } from '../../components/PeriodControl'
-import { Card, Empty, Page, SkeletonCard, Stat } from '../../components/ui'
+import { Card, Columns, Empty, Page, SkeletonCard, Stack, Stat } from '../../components/ui'
 import { useToday } from '../../db/hooks'
 import { shiftDay, weekStart } from '../../lib/dates'
 import { formatDuration, formatNumber } from '../../lib/format'
@@ -34,9 +34,18 @@ export default function RunningPage() {
 
   if (!activities || !weeks || !agenda || !consistency) {
     return (
-      <Page title="Corrida" icon={SportShoe} tone="today">
-        <SkeletonCard lines={3} />
-        <SkeletonCard lines={6} />
+      <Page title="Corrida" icon={SportShoe} tone="today" wide>
+        <Columns>
+          <Stack>
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={6} />
+          </Stack>
+          {/* The right column's place on a wide screen; the phone shows the two cards above, as before. */}
+          <Stack className="max-xl:hidden">
+            <SkeletonCard lines={4} />
+            <SkeletonCard lines={4} />
+          </Stack>
+        </Columns>
       </Page>
     )
   }
@@ -50,76 +59,91 @@ export default function RunningPage() {
   const beforePace = pooledPace(weeks.slice(-8, -4))
 
   return (
-    <Page title="Corrida" icon={SportShoe} tone="today" subtitle="Volume, ritmo, constância e recordes">
-      <Card icon={CalendarDays} tone="today" title="Esta semana" action={<GearLink />}>
-        <div className="grid grid-cols-3 gap-3">
-          <Stat
-            label="Corrida"
-            value={`${formatNumber(summary.runKm, 1)} km`}
-            note={summary.plannedRunKm ? `de ${formatNumber(summary.plannedRunKm, 1)} previstos` : undefined}
-          />
-          <Stat label="Corridas" value={current.runs} />
-          <Stat label="Tempo" value={current.seconds > 0 ? formatDuration(current.seconds * 1000) : '0 min'} />
-        </div>
-        {thisWeek.length > 0 && (
-          <div className="mt-2 border-t border-line">
-            <AgendaItems items={thisWeek} today={today} />
-          </div>
-        )}
-        <GearWarnings />
-        <CoachReportButton today={today} />
-      </Card>
+    <Page title="Corrida" icon={SportShoe} tone="today" subtitle="Volume, ritmo, constância e recordes" wide>
+      <Columns>
+        <Stack>
+          <Card icon={CalendarDays} tone="today" title="Esta semana" action={<GearLink />}>
+            <div className="grid grid-cols-3 gap-3">
+              <Stat
+                label="Corrida"
+                value={`${formatNumber(summary.runKm, 1)} km`}
+                note={summary.plannedRunKm ? `de ${formatNumber(summary.plannedRunKm, 1)} previstos` : undefined}
+              />
+              <Stat label="Corridas" value={current.runs} />
+              <Stat label="Tempo" value={current.seconds > 0 ? formatDuration(current.seconds * 1000) : '0 min'} />
+            </div>
+            {thisWeek.length > 0 && (
+              <div className="mt-2 border-t border-line">
+                <AgendaItems items={thisWeek} today={today} />
+              </div>
+            )}
+            <GearWarnings />
+            <CoachReportButton today={today} />
+          </Card>
 
-      <Card icon={TrendingUp} tone="today" title="Volume">
-        <PeriodControl period={period} />
-        <RunVolumeChart periods={period.window} runs={runPeriods} />
-      </Card>
+          {/* The period picked in Volume drives the pace chart too: the two stay in the same column. */}
+          <Card icon={TrendingUp} tone="today" title="Volume">
+            <PeriodControl period={period} />
+            <RunVolumeChart periods={period.window} runs={runPeriods} />
+          </Card>
 
-      <Card icon={Gauge} tone="today" title="Ritmo médio">
-        {recentPace !== undefined && (
-          <p className="mb-2 text-sm text-ink-2">
-            <span className="text-lg font-semibold text-ink tabular-nums">{formatPace(recentPace)}/km</span> nas últimas 4 semanas
-            {beforePace !== undefined &&
-              ` · ${recentPace < beforePace ? 'mais rápido' : 'mais lento'} que as 4 antes (${formatPace(beforePace)}/km)`}
-          </p>
-        )}
-        <RunPaceChart periods={period.window} runs={runPeriods} />
-      </Card>
+          <Card icon={Gauge} tone="today" title="Ritmo médio">
+            {recentPace !== undefined && (
+              <p className="mb-2 text-sm text-ink-2">
+                <span className="text-lg font-semibold text-ink tabular-nums">{formatPace(recentPace)}/km</span> nas últimas 4 semanas
+                {beforePace !== undefined &&
+                  ` · ${recentPace < beforePace ? 'mais rápido' : 'mais lento'} que as 4 antes (${formatPace(beforePace)}/km)`}
+              </p>
+            )}
+            <RunPaceChart periods={period.window} runs={runPeriods} />
+          </Card>
 
-      <LoadFormCard today={today} />
+          <LoadFormCard today={today} />
+        </Stack>
 
-      <Card icon={CalendarCheck} tone="today" title="Constância">
-        <div className="mb-3 grid grid-cols-3 gap-3">
-          <Stat label="Semanas seguidas" value={consistency.stats.weeksInRow} note="treinando" />
-          <Stat label="Dias treinados" value={consistency.stats.daysTrained} note="em 26 semanas" />
-          <Stat label="Recorde" value={consistency.stats.bestDayStreak} note="dias seguidos" />
-        </div>
-        <ConsistencyMap map={consistency.map} rowHeight={12} />
-      </Card>
+        <Stack>
+          <Card icon={CalendarCheck} tone="today" title="Constância">
+            <div className="mb-3 grid grid-cols-3 gap-3">
+              <Stat label="Semanas seguidas" value={consistency.stats.weeksInRow} note="treinando" />
+              <Stat label="Dias treinados" value={consistency.stats.daysTrained} note="em 26 semanas" />
+              <Stat label="Recorde" value={consistency.stats.bestDayStreak} note="dias seguidos" />
+            </div>
+            <ConsistencyMap map={consistency.map} rowHeight={12} />
+          </Card>
 
-      <RecordsBig />
-      <RaceBig today={today} inRunning />
+          <RecordsBig />
+          <RaceBig today={today} inRunning />
 
-      <Card
-        icon={SportShoe}
-        tone="today"
-        title="Corridas recentes"
-        action={
-          <Link to="/treinos/atividades" className="text-sm font-medium text-accent-ink">
-            Todas as atividades
-          </Link>
-        }
-      >
-        {runs.length === 0 ? (
-          <Empty>Nenhuma corrida ainda. Elas chegam com a sincronização do Garmin.</Empty>
-        ) : (
-          <ul className="divide-y divide-line">
-            {runs.slice(0, 8).map((run) => (
-              <ActivityRow key={run.id} activity={run} today={today} />
-            ))}
-          </ul>
-        )}
-      </Card>
+          <Card
+            icon={SportShoe}
+            tone="today"
+            title="Corridas recentes"
+            action={
+              <Link to="/treinos/atividades" className="text-sm font-medium text-accent-ink">
+                Todas as atividades
+              </Link>
+            }
+          >
+            {runs.length === 0 ? (
+              <>
+                <Empty>Nenhuma corrida ainda.</Empty>
+                <p className="text-sm text-ink-2">
+                  Elas chegam com a sincronização do Garmin.{' '}
+                  <Link to="/ajustes?secao=garmin" className="font-medium text-accent-ink underline underline-offset-2">
+                    Ligar em Ajustes
+                  </Link>
+                </p>
+              </>
+            ) : (
+              <ul className="divide-y divide-line">
+                {runs.slice(0, 8).map((run) => (
+                  <ActivityRow key={run.id} activity={run} today={today} />
+                ))}
+              </ul>
+            )}
+          </Card>
+        </Stack>
+      </Columns>
     </Page>
   )
 }

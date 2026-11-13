@@ -148,15 +148,18 @@ export function LoadFormCard({ today }: { today: DayKey }) {
   if (!status) return null
   return (
     <Card icon={ChartSpline} tone="today" title="Carga e forma">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Condicionamento" value={loadNumber(status.ctl)} note="CTL, média de 42 dias" />
-        <Stat label="Fadiga" value={loadNumber(status.atl)} note="ATL, média de 7 dias" />
-        <Stat label="Forma" value={formNumber(status.tsb)} note={status.zone ? FORM_ZONES[status.zone].label : 'TSB'} />
-        <Stat
-          label="ACWR"
-          value={status.acwr !== undefined ? formatFixed(status.acwr, 2) : '—'}
-          note={status.flag ? ACWR_SHORT[status.flag] : '7 dias ÷ 4 semanas'}
-        />
+      {/* Four across when the card itself is wide enough, not the window: on a computer it may be one of two columns. */}
+      <div className="@container">
+        <div className="grid grid-cols-2 gap-3 @md:grid-cols-4">
+          <Stat label="Condicionamento" value={loadNumber(status.ctl)} note="CTL, média de 42 dias" />
+          <Stat label="Fadiga" value={loadNumber(status.atl)} note="ATL, média de 7 dias" />
+          <Stat label="Forma" value={formNumber(status.tsb)} note={status.zone ? FORM_ZONES[status.zone].label : 'TSB'} />
+          <Stat
+            label="ACWR"
+            value={status.acwr !== undefined ? formatFixed(status.acwr, 2) : '—'}
+            note={status.flag ? ACWR_SHORT[status.flag] : '7 dias ÷ 4 semanas'}
+          />
+        </div>
       </div>
       <p className="mt-3 mb-3 text-sm text-ink-2">{todayText(status)}</p>
       <PeriodControl period={period} />
